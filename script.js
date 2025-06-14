@@ -343,23 +343,39 @@ class MathGame {
         const timeTaken = (endTime - this.questionStartTime) / 1000; // in seconds
         this.questionTimes.push(timeTaken);
 
+        document.getElementById('submitBtn').style.display = 'none';
+        document.getElementById('submitBtn').disabled = true;
+
         if (userAnswer === this.currentAnswer) {
             feedback.textContent = '✓ Correct! Well done!';
             feedback.className = 'feedback correct';
             this.correctAnswers++;
+            
+            if (this.currentQuestion < this.questionsPerRound) {
+                // Auto-advance to next question after 500ms
+                setTimeout(() => {
+                    this.currentQuestion++;
+                    this.generateQuestion();
+                    this.updateStats();
+                }, 500);
+            } else {
+                // End the round after 500ms if all questions are done
+                setTimeout(() => this.endRound(), 500);
+            }
         } else {
-            feedback.textContent = `✗ Sorry, the answer is ${this.currentAnswer}`;
+            feedback.textContent = `✗ Sorry, the answer is ${this.currentAnswer}. Starting over!`;
             feedback.className = 'feedback incorrect';
             this.wrongAnswers++;
-        }
-
-        document.getElementById('submitBtn').style.display = 'none';
-        document.getElementById('submitBtn').disabled = true;
-        
-        if (this.currentQuestion < this.questionsPerRound) {
-            document.getElementById('nextBtn').style.display = 'inline-block';
-        } else {
-            setTimeout(() => this.endRound(), 1500);
+            
+            // Reset to beginning of round after 1.5 seconds
+            setTimeout(() => {
+                this.currentQuestion = 1;
+                this.correctAnswers = 0;
+                this.wrongAnswers = 0;
+                this.questionTimes = [];
+                this.generateQuestion();
+                this.updateStats();
+            }, 1500);
         }
 
         this.updateStats();
