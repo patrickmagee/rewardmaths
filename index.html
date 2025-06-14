@@ -1,98 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>    <meta charset="UTF-8">
+<head>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reward Maths</title>
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <title>Math Game</title>
     <link rel="stylesheet" href="styles.css">
 </head>
-<body>    <!-- Login Screen -->
-    <div id="loginScreen" class="login-container">
-        <h1 class="login-title">🧮 Reward Maths</h1>
-        <div class="login-form">
-            <input type="text" id="usernameInput" class="login-input" placeholder="Username" required>
-            <input type="password" id="passwordInput" class="login-input" placeholder="Password" required>
-            <button class="btn" onclick="login()">Login</button>
-            <div id="loginError" style="color: #f56565; margin-top: 10px;"></div>
-        </div>
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="screen">
+        <h1>Math Game</h1>
+        <input type="text" id="username" placeholder="Username">
+        <input type="password" id="password" placeholder="Password">
+        <button id="loginButton">Login</button>
+        <p id="loginError" class="error"></p>
     </div>
 
-    <!-- Game Screen (hidden at start) -->
-    <div id="gameScreen" class="game-container" style="display: none;">
-        <div class="main-game">            <div class="user-header">
-                <h1 class="title">🎯 Reward Maths</h1>
-                <button class="btn" onclick="logout()" style="background: #e2e8f0; color: #4a5568;">Logout</button>
-            </div>
-            
-            <div id="gameArea">
-                <div class="question-container">
-                    <div class="question" id="question"></div>
-                    <input type="number" class="answer-input" id="answerInput" placeholder="?">
-                </div>                <div class="feedback" id="feedback"></div>
-                
-                <button class="btn" id="submitBtn">Submit Answer</button>
-            </div>
-
-            <div id="roundComplete" style="display: none;">
-                <div class="round-complete">
-                    <h2>Round Complete! 🎉</h2>
-                    <div id="roundResults"></div>
-                    <div id="difficultyChange"></div>
-                    <button class="btn" onclick="startNewRound()">Start New Round</button>
-                </div>
-            </div>
-        </div>
-
-        <div class="sidebar">
-            <div class="progress-section">
-                <h3>Player: <span id="playerName">Player</span></h3>
-                <h3>Your Level</h3>
-                <div class="level-display" id="levelDisplay">25</div>
-                <div class="progress-bar-container">
-                    <div class="progress-bar" id="progressBar"></div>
-                </div>
-                <div class="progress-text" id="progressText">Level 25 / 100</div>
-            </div>
-
-            <div class="stats">
-                <h3 style="color: #4a5568; margin-bottom: 15px;">Round Progress</h3>
-                <div class="stat-item">
-                    <span class="stat-label">Question:</span>
-                    <span class="stat-value" id="questionNumber">1 / 10</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Correct:</span>
-                    <span class="stat-value" id="correctCount">0</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Wrong:</span>
-                    <span class="stat-value" id="wrongCount">0</span>
-                </div>
-                <div class="stat-item">
-                    <span class="stat-label">Age Level:</span>
-                    <span class="stat-value" id="ageLevel">9 years</span>
-                </div>
-            </div>
-            
-            <!-- New sections: Badges and History Chart -->
-            <div class="badges-section">
-                <h3 style="color: #4a5568; margin-bottom: 15px;">Achievements</h3>
-                <div id="badgesContainer">
-                    <!-- Badges will be added here dynamically -->
-                </div>
-            </div>
-            
-            <div class="stats-history">
-                <h3 class="stats-title">Performance History</h3>
-                <div id="statsChart" class="stat-chart">
-                    <!-- Chart bars will be added here dynamically -->
-                </div>
-                <div class="chart-legend">
-                    <span>Recent</span>
-                    <span>Older</span>
-                </div>
-            </div>
-        </div>
+    <!-- Game Screen -->
+    <div id="gameScreen" class="screen" style="display: none;">
+        <h1>Math Game</h1>
+        <div id="question" class="question"></div>
+        <input type="number" id="answer" placeholder="Your answer">
+        <button id="submitButton">Submit</button>
+        <p id="feedback" class="feedback"></p>
+        <button id="logoutButton">Logout</button>
     </div>
 
     <script src="script.js"></script>
