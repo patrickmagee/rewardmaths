@@ -224,11 +224,24 @@ class MathGame {
     }
 
     setupEventListeners() {
-        document.getElementById('answerInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
+        const answerInput = document.getElementById('answerInput');
+        const submitBtn = document.getElementById('submitBtn');
+
+        // Enter key handler
+        answerInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !submitBtn.disabled) {
+                e.preventDefault(); // Prevent default form submission
                 this.checkAnswer();
             }
         });
+
+        // Submit button click handler
+        submitBtn.addEventListener('click', () => {
+            this.checkAnswer();
+        });
+
+        // Focus input field when it's shown
+        answerInput.focus();
     }
 
     generateQuestion() {
