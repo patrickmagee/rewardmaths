@@ -7,6 +7,7 @@ const users = [
 
 let failedAttempts = {};
 let currentUser = null;
+let correctStreak = 0;
 let timeoutDurations = [1000, 5000, 30000, 60000, 300000, 1800000, 3600000, 86400000];
 
 // Login functionality
@@ -72,6 +73,8 @@ function formatTime(ms) {
 
 // Game functionality
 function startGame() {
+    correctStreak = 0;
+    updateProgressBar();
     generateQuestion();
     document.getElementById('submitButton').addEventListener('click', checkAnswer);
     document.getElementById('answer').addEventListener('keypress', (e) => {
@@ -91,15 +94,37 @@ function generateQuestion() {
     document.getElementById('question').dataset.answer = answer;
 }
 
+function updateProgressBar() {
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const progressPercentage = (correctStreak / 10) * 100;
+    progressBar.style.width = `${progressPercentage}%`;
+    progressText.textContent = `${correctStreak}/10`;
+}
+
 function checkAnswer() {
     const userAnswer = parseInt(document.getElementById('answer').value);
     const correctAnswer = parseInt(document.getElementById('question').dataset.answer);
 
     if (userAnswer === correctAnswer) {
-        document.getElementById('feedback').textContent = 'Correct!';
-        setTimeout(generateQuestion, 500);
+        correctStreak++;
+        updateProgressBar();
+
+        if (correctStreak === 10) {
+            document.getElementById('feedback').textContent = '🎉 You got 10 in a row correct!';
+            setTimeout(() => {
+                correctStreak = 0;
+                updateProgressBar();
+                generateQuestion();
+            }, 1500);
+        } else {
+            document.getElementById('feedback').textContent = 'Correct!';
+            setTimeout(generateQuestion, 500);
+        }
     } else {
-        document.getElementById('feedback').textContent = `Wrong! The correct answer was ${correctAnswer}.`;
+        correctStreak = 0;
+        updateProgressBar();
+        document.getElementById('feedback').textContent = `Wrong! The correct answer was ${correctAnswer}. Starting over.`;
         setTimeout(generateQuestion, 1500);
     }
 
