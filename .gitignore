@@ -1,0 +1,53 @@
+# Node modules (if you ever use npm/yarn)
+node_modules/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Logs and temp files
+*.log
+*.tmp
+
+# VSCode settings
+.vscode/
+
+# Build output (if you add a build process)
+dist/
+build/
+
+# SFTP/SSH config files (never commit private keys)
+*.pem
+*.ppk
+*.key
+.ssh/
+
+# Deployment artifacts
+*.bak
+*.old
+*.zip
+
+# Ignore sensitive config files
+.env
+.env.*
+
+# Ignore system files
+~$*
+
+# Ignore backup files
+*.swp
+*.swo
+*~
+
+# Ignore Windows hidden files
+$RECYCLE.BIN/
+
+# Ignore Mac system files
+.AppleDouble
+.LSOverride
+
+# Ignore project-specific files
+public_html/
+website_f273a6c3/

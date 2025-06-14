@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Adventure</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .game-container {
+            display: flex;
+            gap: 30px;
+            max-width: 1200px;
+            width: 100%;
+        }
+
+        .main-game {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            flex: 2;
+            min-height: 500px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .sidebar {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            flex: 1;
+            height: fit-content;
+        }
+
+        .title {
+            color: #4a5568;
+            font-size: 2.5em;
+            margin-bottom: 30px;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .question-container {
+            background: #f7fafc;
+            border-radius: 15px;
+            padding: 40px;
+            margin-bottom: 30px;
+            text-align: center;
+            min-width: 300px;
+        }
+
+        .question {
+            font-size: 3em;
+            color: #2d3748;
+            margin-bottom: 30px;
+            font-weight: bold;
+        }
+
+        .answer-input {
+            font-size: 2em;
+            padding: 15px 25px;
+            border: 3px solid #e2e8f0;
+            border-radius: 10px;
+            text-align: center;
+            width: 200px;
+            margin-bottom: 20px;
+            transition: border-color 0.3s;
+        }
+
+        .answer-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.2em;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+
+        .btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .progress-section h3 {
+            color: #4a5568;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .level-display {
+            font-size: 2em;
+            color: #667eea;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .progress-bar-container {
+            background: #e2e8f0;
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #48bb78, #38a169);
+            transition: width 0.5s ease;
+            border-radius: 10px;
+        }
+
+        .progress-text {
+            text-align: center;
+            color: #718096;
+            font-size: 0.9em;
+        }
+
+        .stats {
+            margin-top: 30px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: #f7fafc;
+            border-radius: 8px;
+        }
+
+        .stat-label {
+            color: #4a5568;
+            font-weight: 500;
+        }
+
+        .stat-value {
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .feedback {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .correct {
+            color: #48bb78;
+        }
+
+        .incorrect {
+            color: #f56565;
+        }
+
+        .round-complete {
+            text-align: center;
+            background: #f7fafc;
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+
+        .round-complete h2 {
+            color: #4a5568;
+            margin-bottom: 20px;
+        }
+
+        .difficulty-change {
+            font-size: 1.2em;
+            margin: 15px 0;
+            padding: 10px;
+            border-radius: 8px;
+        }
+
+        .level-up {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .level-down {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .level-same {
+            background: #bee3f8;
+            color: #2c5282;
+        }
+
+        @media (max-width: 768px) {
+            .game-container {
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            .title {
+                font-size: 2em;
+            }
+            
+            .question {
+                font-size: 2.5em;
+            }
+            
+            .main-game {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="main-game">
+            <h1 class="title">🎯 Math Adventure</h1>
+            
+            <div id="gameArea">
+                <div class="question-container">
+                    <div class="question" id="question"></div>
+                    <input type="number" class="answer-input" id="answerInput" placeholder="?">
+                </div>
+                
+                <div class="feedback" id="feedback"></div>
+                
+                <button class="btn" id="submitBtn" onclick="checkAnswer()">Submit Answer</button>
+                <button class="btn" id="nextBtn" onclick="nextQuestion()" style="display: none;">Next Question</button>
+            </div>
+
+            <div id="roundComplete" style="display: none;">
+                <div class="round-complete">
+                    <h2>Round Complete! 🎉</h2>
+                    <div id="roundResults"></div>
+                    <div id="difficultyChange"></div>
+                    <button class="btn" onclick="startNewRound()">Start New Round</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="progress-section">
+                <h3>Your Level</h3>
+                <div class="level-display" id="levelDisplay">25</div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+                <div class="progress-text" id="progressText">Level 25 / 100</div>
+            </div>
+
+            <div class="stats">
+                <h3 style="color: #4a5568; margin-bottom: 15px;">Round Progress</h3>
+                <div class="stat-item">
+                    <span class="stat-label">Question:</span>
+                    <span class="stat-value" id="questionNumber">1 / 10</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Correct:</span>
+                    <span class="stat-value" id="correctCount">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Wrong:</span>
+                    <span class="stat-value" id="wrongCount">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Age Level:</span>
+                    <span class="stat-value" id="ageLevel">9 years</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class MathGame {
+            constructor() {
+                this.level = 25; // Starting level for 9-year-olds
+                this.currentQuestion = 1;
+                this.correctAnswers = 0;
+                this.wrongAnswers = 0;
+                this.currentAnswer = 0;
+                this.questionsPerRound = 10;
+                
+                this.updateDisplay();
+                this.generateQuestion();
+                this.setupEventListeners();
+            }
+
+            setupEventListeners() {
+                document.getElementById('answerInput').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.checkAnswer();
+                    }
+                });
+            }
+
+            generateQuestion() {
+                const difficulty = this.level;
+                let num1, num2, operation, question, answer;
+
+                // Determine number ranges based on difficulty level
+                if (difficulty <= 10) {
+                    // Level 1-10: Single digit addition/subtraction
+                    num1 = Math.floor(Math.random() * 9) + 1;
+                    num2 = Math.floor(Math.random() * 9) + 1;
+                } else if (difficulty <= 25) {
+                    // Level 11-25: Mix of single and double digit
+                    num1 = Math.floor(Math.random() * 20) + 1;
+                    num2 = Math.floor(Math.random() * 10) + 1;
+                } else if (difficulty <= 50) {
+                    // Level 26-50: Double digit numbers
+                    num1 = Math.floor(Math.random() * 50) + 10;
+                    num2 = Math.floor(Math.random() * 30) + 1;
+                } else if (difficulty <= 75) {
+                    // Level 51-75: Larger double digit numbers
+                    num1 = Math.floor(Math.random() * 99) + 10;
+                    num2 = Math.floor(Math.random() * 50) + 1;
+                } else {
+                    // Level 76-100: Triple digit numbers
+                    num1 = Math.floor(Math.random() * 500) + 50;
+                    num2 = Math.floor(Math.random() * 100) + 1;
+                }
+
+                // Choose operation (70% addition, 30% subtraction)
+                if (Math.random() < 0.7) {
+                    operation = '+';
+                    question = `${num1} ${operation} ${num2}`;
+                    answer = num1 + num2;
+                } else {
+                    operation = '−';
+                    // Ensure positive result for subtraction
+                    if (num1 < num2) {
+                        [num1, num2] = [num2, num1];
+                    }
+                    question = `${num1} ${operation} ${num2}`;
+                    answer = num1 - num2;
+                }
+
+                this.currentAnswer = answer;
+                document.getElementById('question').textContent = question;
+                document.getElementById('answerInput').value = '';
+                document.getElementById('answerInput').focus();
+                document.getElementById('feedback').textContent = '';
+                document.getElementById('submitBtn').style.display = 'inline-block';
+                document.getElementById('nextBtn').style.display = 'none';
+                document.getElementById('submitBtn').disabled = false;
+            }
+
+            checkAnswer() {
+                const userAnswer = parseInt(document.getElementById('answerInput').value);
+                const feedback = document.getElementById('feedback');
+                
+                if (isNaN(userAnswer)) {
+                    feedback.textContent = 'Please enter a number';
+                    feedback.className = 'feedback incorrect';
+                    return;
+                }
+
+                if (userAnswer === this.currentAnswer) {
+                    feedback.textContent = '✓ Correct! Well done!';
+                    feedback.className = 'feedback correct';
+                    this.correctAnswers++;
+                } else {
+                    feedback.textContent = `✗ Sorry, the answer is ${this.currentAnswer}`;
+                    feedback.className = 'feedback incorrect';
+                    this.wrongAnswers++;
+                }
+
+                document.getElementById('submitBtn').style.display = 'none';
+                document.getElementById('submitBtn').disabled = true;
+                
+                if (this.currentQuestion < this.questionsPerRound) {
+                    document.getElementById('nextBtn').style.display = 'inline-block';
+                } else {
+                    setTimeout(() => this.endRound(), 1500);
+                }
+
+                this.updateStats();
+            }
+
+            nextQuestion() {
+                this.currentQuestion++;
+                this.generateQuestion();
+                this.updateStats();
+            }
+
+            endRound() {
+                const wrongCount = this.wrongAnswers;
+                let levelChange = 0;
+                let changeMessage = '';
+
+                if (this.correctAnswers === 10) {
+                    // All correct - increase difficulty
+                    levelChange = Math.max(1, Math.floor(this.level * 0.1));
+                    this.level = Math.min(100, this.level + levelChange);
+                    changeMessage = `🎉 Perfect score! Level increased by ${levelChange}!`;
+                    document.getElementById('difficultyChange').className = 'difficulty-change level-up';
+                } else if (wrongCount > 2) {
+                    // More than 2 wrong - decrease difficulty
+                    levelChange = Math.max(1, Math.floor(this.level * 0.1));
+                    this.level = Math.max(1, this.level - levelChange);
+                    changeMessage = `📚 Let's try some easier questions. Level decreased by ${levelChange}.`;
+                    document.getElementById('difficultyChange').className = 'difficulty-change level-down';
+                } else {
+                    // 1-2 wrong - same difficulty
+                    changeMessage = `👍 Good job! Staying at the same level to build confidence.`;
+                    document.getElementById('difficultyChange').className = 'difficulty-change level-same';
+                }
+
+                document.getElementById('roundResults').innerHTML = `
+                    <p>You got <strong>${this.correctAnswers} out of ${this.questionsPerRound}</strong> questions correct!</p>
+                `;
+                
+                document.getElementById('difficultyChange').textContent = changeMessage;
+                document.getElementById('gameArea').style.display = 'none';
+                document.getElementById('roundComplete').style.display = 'block';
+                
+                this.updateDisplay();
+            }
+
+            startNewRound() {
+                this.currentQuestion = 1;
+                this.correctAnswers = 0;
+                this.wrongAnswers = 0;
+                
+                document.getElementById('gameArea').style.display = 'block';
+                document.getElementById('roundComplete').style.display = 'none';
+                
+                this.updateStats();
+                this.generateQuestion();
+            }
+
+            updateDisplay() {
+                document.getElementById('levelDisplay').textContent = this.level;
+                document.getElementById('progressText').textContent = `Level ${this.level} / 100`;
+                
+                const progressPercent = (this.level / 100) * 100;
+                document.getElementById('progressBar').style.width = `${progressPercent}%`;
+                
+                // Calculate age level (1 = 7 years, 100 = 12 years)
+                const ageLevel = 7 + ((this.level - 1) / 99) * 5;
+                document.getElementById('ageLevel').textContent = `${ageLevel.toFixed(1)} years`;
+            }
+
+            updateStats() {
+                document.getElementById('questionNumber').textContent = `${this.currentQuestion} / ${this.questionsPerRound}`;
+                document.getElementById('correctCount').textContent = this.correctAnswers;
+                document.getElementById('wrongCount').textContent = this.wrongAnswers;
+            }
+        }
+
+        // Global functions for button onclick events
+        let game;
+
+        function checkAnswer() {
+            game.checkAnswer();
+        }
+
+        function nextQuestion() {
+            game.nextQuestion();
+        }
+
+        function startNewRound() {
+            game.startNewRound();
+        }
+
+        // Initialize the game when the page loads
+        window.addEventListener('load', () => {
+            game = new MathGame();
+        });
+    </script>
+</body>
+</html>
