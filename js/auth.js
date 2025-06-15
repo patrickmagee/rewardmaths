@@ -118,6 +118,14 @@ export class Auth {
     }
 
     /**
+     * Clears any existing login timeout
+     */
+    clearLoginTimeout() {
+        // This method exists to prevent errors but doesn't need implementation
+        // since we're not using timeouts in the current version
+    }
+
+    /**
      * Gets the display name for the current user
      * @returns {string} Display name with emoji
      */
