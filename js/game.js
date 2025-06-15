@@ -9,6 +9,7 @@ import { randomInt, getElement, getIntegerValue, clamp, delay } from './utils.js
 import { Storage } from './storage.js';
 import { MathLevels } from './mathLevels.js';
 import { LevelRulesManager, LEVEL_RULES } from './level_rules.js';
+import { PerformanceTracker } from './performanceTracker.js';
 
 /**
  * Game class for managing math game logic
@@ -23,6 +24,7 @@ export class Game {
         this.currentQuestion = null;
         this.mathLevels = new MathLevels();
         this.levelRulesManager = new LevelRulesManager(Storage);
+        this.performanceTracker = new PerformanceTracker();
         this.sessionQuestions = []; // Track all questions in current session
     }
 
@@ -35,12 +37,16 @@ export class Game {
         this.sessionQuestions = [];
         
         const currentUser = this.auth.getCurrentUser();
+        const username = currentUser?.username || 'Guest';
         
         if (currentUser && currentUser.username) {
             this.level = Storage.getUserLevel(currentUser.username);
         } else {
             this.level = APP_CONFIG.MIN_LEVEL;
         }
+
+        // Start performance tracking session
+        this.performanceTracker.startSession(username, this.level);
 
         this.updateProgressBar();
         this.updateLevelBar();
@@ -61,6 +67,12 @@ export class Game {
         const questionElement = getElement(ELEMENTS.QUESTION);
         questionElement.textContent = this.currentQuestion.text;
         questionElement.dataset.answer = this.currentQuestion.answer;
+
+        // Start performance tracking for this question
+        this.performanceTracker.startQuestion(
+            this.currentQuestion.text, 
+            this.currentQuestion.answer
+        );
 
         // Store question for session tracking
         this.sessionQuestions.push({
@@ -88,6 +100,9 @@ export class Game {
         const userAnswer = getIntegerValue(answerInput);
         const correctAnswer = this.currentQuestion.answer;
         const feedback = getElement(ELEMENTS.FEEDBACK);
+
+        // Record the answer with performance tracking
+        await this.performanceTracker.recordAnswer(userAnswer);
 
         // Update session tracking
         const currentQuestionIndex = this.sessionQuestions.length - 1;
@@ -169,6 +184,9 @@ export class Game {
         );
 
         this.level = progressionResult.newLevel;
+
+        // Update performance tracker with new level
+        this.performanceTracker.updateLevel(this.level);
 
         // Save new level if user is logged in
         if (currentUser && currentUser.username) {

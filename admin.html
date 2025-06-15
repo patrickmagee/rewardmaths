@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Game Performance Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .filters {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .filters label {
+            display: inline-block;
+            width: 100px;
+            margin-right: 10px;
+        }
+        .filters input, .filters select {
+            margin-right: 15px;
+            padding: 5px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+        }
+        .filters button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        .filters button:hover {
+            background: #0056b3;
+        }
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .summary-card {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .summary-card h3 {
+            margin: 0 0 10px 0;
+            color: #1976d2;
+        }
+        .summary-card .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .data-table th, .data-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .data-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .data-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .correct {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .incorrect {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .pagination {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .pagination button {
+            margin: 0 5px;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            background: white;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        .pagination button:hover {
+            background: #f8f9fa;
+        }
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .export-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin-left: 10px;
+        }
+        .export-btn:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Math Game Performance Dashboard</h1>
+        
+        <div class="filters">
+            <label for="username">User:</label>
+            <select id="username">
+                <option value="">All Users</option>
+                <option value="Tom">Tom</option>
+                <option value="Patrick">Patrick</option>
+                <option value="Eliza">Eliza</option>
+            </select>
+            
+            <label for="dateFrom">From:</label>
+            <input type="date" id="dateFrom">
+            
+            <label for="dateTo">To:</label>
+            <input type="date" id="dateTo">
+            
+            <button onclick="loadData()">Filter</button>
+            <button class="export-btn" onclick="exportData()">Export CSV</button>
+        </div>
+
+        <div id="summary" class="summary"></div>
+        
+        <div id="error" class="error" style="display: none;"></div>
+        <div id="loading" class="loading" style="display: none;">Loading...</div>
+        
+        <div id="dataContainer">
+            <table id="dataTable" class="data-table">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Time</th>
+                        <th>Level</th>
+                        <th>Question</th>
+                        <th>Correct Answer</th>
+                        <th>User Answer</th>
+                        <th>Result</th>
+                        <th>Response Time</th>
+                        <th>Session</th>
+                        <th>Q#</th>
+                    </tr>
+                </thead>
+                <tbody id="dataBody">
+                </tbody>
+            </table>
+        </div>
+        
+        <div id="pagination" class="pagination"></div>
+    </div>
+
+    <script>
+        let currentData = [];
+        let currentOffset = 0;
+        const limit = 50;
+
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set default date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('dateTo').value = today;
+            
+            // Set default from date to 7 days ago
+            const weekAgo = new Date();
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            document.getElementById('dateFrom').value = weekAgo.toISOString().split('T')[0];
+            
+            loadData();
+        });
+
+        async function loadData(offset = 0) {
+            const username = document.getElementById('username').value;
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            
+            const params = new URLSearchParams({
+                limit: limit,
+                offset: offset
+            });
+            
+            if (username) params.append('username', username);
+            if (dateFrom) params.append('date_from', dateFrom);
+            if (dateTo) params.append('date_to', dateTo);
+            
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+            
+            try {
+                const response = await fetch(`./api/get_performance_data.php?${params}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentData = result.data;
+                    currentOffset = offset;
+                    displayData(result.data);
+                    displaySummary(result.summary);
+                    displayPagination(result.pagination);
+                } else {
+                    showError('Failed to load data: ' + result.error);
+                }
+            } catch (error) {
+                showError('Error loading data: ' + error.message);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function displayData(data) {
+            const tbody = document.getElementById('dataBody');
+            tbody.innerHTML = '';
+            
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                
+                const responseTime = row.response_time_ms ? 
+                    `${(row.response_time_ms / 1000).toFixed(1)}s` : 
+                    '>10s';
+                
+                const resultClass = row.is_correct ? 'correct' : 'incorrect';
+                const resultText = row.is_correct ? '✓ Correct' : '✗ Wrong';
+                
+                tr.innerHTML = `
+                    <td>${row.username}</td>
+                    <td>${new Date(row.timestamp).toLocaleString()}</td>
+                    <td>${row.level_number}</td>
+                    <td>${row.question_text}</td>
+                    <td>${row.correct_answer}</td>
+                    <td>${row.user_answer}</td>
+                    <td class="${resultClass}">${resultText}</td>
+                    <td>${responseTime}</td>
+                    <td>${row.session_id.substring(0, 8)}...</td>
+                    <td>${row.question_number_in_session}/20</td>
+                `;
+                
+                tbody.appendChild(tr);
+            });
+        }
+
+        function displaySummary(summary) {
+            const summaryDiv = document.getElementById('summary');
+            
+            const avgResponseTime = summary.avg_response_time_ms ? 
+                `${(summary.avg_response_time_ms / 1000).toFixed(1)}s` : 
+                'N/A';
+            
+            summaryDiv.innerHTML = `
+                <div class="summary-card">
+                    <h3>Total Questions</h3>
+                    <div class="value">${summary.total_questions}</div>
+                </div>
+                <div class="summary-card">
+                    <h3>Correct Answers</h3>
+                    <div class="value">${summary.correct_answers}</div>
+                </div>
+                <div class="summary-card">
+                    <h3>Accuracy</h3>
+                    <div class="value">${summary.accuracy_percentage}%</div>
+                </div>
+                <div class="summary-card">
+                    <h3>Avg Response Time</h3>
+                    <div class="value">${avgResponseTime}</div>
+                </div>
+                <div class="summary-card">
+                    <h3>First Attempt</h3>
+                    <div class="value">${summary.first_attempt ? new Date(summary.first_attempt).toLocaleDateString() : 'N/A'}</div>
+                </div>
+                <div class="summary-card">
+                    <h3>Last Attempt</h3>
+                    <div class="value">${summary.last_attempt ? new Date(summary.last_attempt).toLocaleDateString() : 'N/A'}</div>
+                </div>
+            `;
+        }
+
+        function displayPagination(pagination) {
+            const paginationDiv = document.getElementById('pagination');
+            
+            const prevDisabled = pagination.offset === 0 ? 'disabled' : '';
+            const nextDisabled = !pagination.has_more ? 'disabled' : '';
+            
+            paginationDiv.innerHTML = `
+                <button ${prevDisabled} onclick="loadData(${pagination.offset - pagination.limit})">Previous</button>
+                <span>Showing ${pagination.offset + 1} - ${Math.min(pagination.offset + pagination.limit, pagination.total)} of ${pagination.total}</span>
+                <button ${nextDisabled} onclick="loadData(${pagination.offset + pagination.limit})">Next</button>
+            `;
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function exportData() {
+            if (currentData.length === 0) {
+                alert('No data to export');
+                return;
+            }
+            
+            const headers = ['User', 'Timestamp', 'Level', 'Question', 'Correct Answer', 'User Answer', 'Is Correct', 'Response Time (ms)', 'Session ID', 'Question Number'];
+            
+            let csv = headers.join(',') + '\n';
+            
+            currentData.forEach(row => {
+                const csvRow = [
+                    row.username,
+                    row.timestamp,
+                    row.level_number,
+                    `"${row.question_text}"`,
+                    row.correct_answer,
+                    row.user_answer,
+                    row.is_correct ? 'TRUE' : 'FALSE',
+                    row.response_time_ms || '',
+                    row.session_id,
+                    row.question_number_in_session
+                ].join(',');
+                csv += csvRow + '\n';
+            });
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `math_game_performance_${new Date().toISOString().split('T')[0]}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
