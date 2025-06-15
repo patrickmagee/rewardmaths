@@ -3,7 +3,7 @@
  * Handles math question generation, answer checking, and game progression
  */
 
-import { APP_CONFIG, ELEMENTS } from './config.js';
+import { APP_CONFIG, ELEMENTS, REWARDS } from './config.js';
 import { randomInt, getElement, getIntegerValue, clamp, delay } from './utils.js';
 import { Storage } from './storage.js';
 
@@ -11,8 +11,9 @@ import { Storage } from './storage.js';
  * Game class for managing math game logic
  */
 export class Game {
-    constructor(auth) {
+    constructor(auth, ui) {
         this.auth = auth;
+        this.ui = ui;
         this.correctStreak = 0;
         this.level = 1;
         this.currentQuestion = null;
@@ -33,6 +34,7 @@ export class Game {
 
         this.updateProgressBar();
         this.updateLevelBar();
+        this.initializeRewardMarkers();
         this.generateQuestion();
         this.updateUserInfo();
     }
@@ -100,6 +102,7 @@ export class Game {
      * @param {HTMLElement} feedback - Feedback element
      */
     async handleLevelUp(feedback) {
+        const oldLevel = this.level;
         this.level = clamp(this.level + 1, APP_CONFIG.MIN_LEVEL, APP_CONFIG.MAX_LEVEL);
         const currentUser = this.auth.getCurrentUser();
         
@@ -108,10 +111,26 @@ export class Game {
         }
         
         this.updateLevelBar();
+        this.updateRewardMarkers();
+        
+        // Show level up feedback
         feedback.textContent = '🎉 You got 10 in a row correct! Level up!';
         feedback.className = 'feedback correct';
         
         await delay(1500);
+        
+        // Show personalized level up popup
+        const username = currentUser?.username || 'Patrick';
+        const levelUpMessage = this.ui.getLevelUpMessage(username, this.level);
+        await this.ui.showPopup(levelUpMessage);
+        
+        // Check if this is a reward milestone
+        if (REWARDS.MILESTONES.includes(this.level)) {
+            const rewardNumber = REWARDS.MILESTONES.indexOf(this.level) + 1;
+            const rewardMessage = this.ui.getRewardMessage(username, rewardNumber);
+            await this.ui.showPopup(rewardMessage);
+        }
+        
         this.correctStreak = 0;
         this.updateProgressBar();
         this.generateQuestion();
@@ -173,6 +192,50 @@ export class Game {
     updateUserInfo() {
         const userInfo = getElement(ELEMENTS.USER_INFO);
         userInfo.textContent = this.auth.getUserDisplayName();
+    }
+
+    /**
+     * Initializes reward markers on the level bar
+     */
+    initializeRewardMarkers() {
+        const rewardMarkersContainer = getElement(ELEMENTS.REWARD_MARKERS);
+        rewardMarkersContainer.innerHTML = '';
+        
+        REWARDS.MILESTONES.forEach((milestone, index) => {
+            const marker = document.createElement('div');
+            marker.className = 'reward-marker';
+            marker.textContent = `Reward ${index + 1}`;
+            
+            // Position marker based on milestone level (0-100% of container height)
+            const position = (milestone / 100) * 100;
+            marker.style.bottom = `${position}%`;
+            
+            // Check if reward is unlocked
+            if (this.level >= milestone) {
+                marker.classList.add('unlocked');
+            } else {
+                marker.classList.add('locked');
+            }
+            
+            rewardMarkersContainer.appendChild(marker);
+        });
+    }
+
+    /**
+     * Updates reward markers based on current level
+     */
+    updateRewardMarkers() {
+        const markers = document.querySelectorAll('.reward-marker');
+        markers.forEach((marker, index) => {
+            const milestone = REWARDS.MILESTONES[index];
+            marker.classList.remove('locked', 'unlocked');
+            
+            if (this.level >= milestone) {
+                marker.classList.add('unlocked');
+            } else {
+                marker.classList.add('locked');
+            }
+        });
     }
 
     /**

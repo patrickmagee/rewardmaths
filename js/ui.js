@@ -3,7 +3,7 @@
  * Handles screen transitions and UI interactions
  */
 
-import { ELEMENTS } from './config.js';
+import { ELEMENTS, REWARDS } from './config.js';
 import { getElement } from './utils.js';
 
 /**
@@ -175,5 +175,53 @@ export class UI {
         const feedback = getElement(ELEMENTS.FEEDBACK);
         feedback.textContent = '';
         feedback.className = 'feedback';
+    }
+
+    /**
+     * Shows a popup with a message
+     * @param {string} message - Message to display
+     * @returns {Promise} Promise that resolves when popup is dismissed
+     */
+    showPopup(message) {
+        return new Promise((resolve) => {
+            const modal = getElement(ELEMENTS.POPUP_MODAL);
+            const messageElement = getElement(ELEMENTS.POPUP_MESSAGE);
+            const okButton = getElement(ELEMENTS.POPUP_OK_BUTTON);
+            
+            messageElement.innerHTML = message;
+            modal.style.display = 'flex';
+            
+            const handleClose = () => {
+                modal.style.display = 'none';
+                okButton.removeEventListener('click', handleClose);
+                resolve();
+            };
+            
+            okButton.addEventListener('click', handleClose);
+        });
+    }
+
+    /**
+     * Gets personalized level up message for user
+     * @param {string} username - Username
+     * @param {number} level - Current level
+     * @returns {string} Personalized message
+     */
+    getLevelUpMessage(username, level) {
+        const messages = REWARDS.MESSAGES[username] || REWARDS.MESSAGES.Patrick;
+        const messageIndex = Math.min(Math.floor((level - 1) / 10), messages.length - 1);
+        return messages[messageIndex];
+    }
+
+    /**
+     * Gets reward unlock message for user
+     * @param {string} username - Username
+     * @param {number} rewardNumber - Reward number (1-10)
+     * @returns {string} Reward unlock message
+     */
+    getRewardMessage(username, rewardNumber) {
+        const baseMessage = `🎁 REWARD ${rewardNumber} UNLOCKED! 🎁<br><br>`;
+        const personalMessage = this.getLevelUpMessage(username, rewardNumber * 10);
+        return baseMessage + personalMessage;
     }
 }

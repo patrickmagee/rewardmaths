@@ -72,7 +72,7 @@
 }
 
 .progress-text {
-    font-size: 1em;
+    font-size: 1.4em;
     color: #333;
     margin-bottom: 0;
     text-align: center;
@@ -121,9 +121,10 @@
 }
 
 .level-bar-text {
-    font-size: 1.1em;
+    font-size: 2.5em;
     color: #333;
     font-weight: bold;
+    text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
 }
 
 /* Feedback */
@@ -165,6 +166,86 @@
     box-shadow: none;
 }
 
+/* Reward Markers */
+.reward-markers {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.reward-marker {
+    position: absolute;
+    right: -45px;
+    font-size: 0.7em;
+    font-weight: bold;
+    white-space: nowrap;
+    transition: color 0.3s ease;
+}
+
+.reward-marker.unlocked {
+    color: #22bb33;
+}
+
+.reward-marker.locked {
+    color: #ccc;
+}
+
+/* Popup Modal */
+.popup-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.3s ease;
+}
+
+.popup-content {
+    background: white;
+    padding: 40px;
+    border-radius: 20px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    max-width: 400px;
+    width: 90%;
+    text-align: center;
+    animation: slideIn 0.3s ease;
+}
+
+.popup-message {
+    font-size: 1.4em;
+    font-weight: bold;
+    margin-bottom: 30px;
+    line-height: 1.4;
+    color: #333;
+}
+
+.popup-ok-btn {
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 1.1em;
+    font-weight: bold;
+    padding: 12px 30px;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 8px rgba(0,123,255,0.3);
+}
+
+.popup-ok-btn:hover {
+    background: #0056b3;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0,123,255,0.4);
+}
+
 /* Animations */
 @keyframes pop-green {
     0% { 
@@ -177,6 +258,22 @@
     }
     100% { 
         transform: scale(1); 
+        opacity: 1; 
+    }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideIn {
+    from { 
+        transform: translateY(-50px) scale(0.9); 
+        opacity: 0; 
+    }
+    to { 
+        transform: translateY(0) scale(1); 
         opacity: 1; 
     }
 }

@@ -13,8 +13,8 @@ import { UI } from './ui.js';
 export class App {
     constructor() {
         this.auth = new Auth();
-        this.game = new Game(this.auth);
         this.ui = new UI();
+        this.game = new Game(this.auth, this.ui);
         
         this.init();
     }
