@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Level Rules Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .test-pass {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .test-fail {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .test-info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .scenario-test {
+            border-left: 4px solid #007bff;
+            padding-left: 15px;
+            margin: 15px 0;
+        }
+        .stats-display {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Level Rules Test Suite</h1>
+    <p>This page tests the new 20-question level progression system with advanced rules.</p>
+
+    <div class="test-container">
+        <h2>Test Controls</h2>
+        <button onclick="runAllTests()">Run All Tests</button>
+        <button onclick="clearStorage()">Clear Test Data</button>
+        <button onclick="showTestData()">Show Test Data</button>
+        <button onclick="runScenarioTests()">Run Scenario Tests</button>
+    </div>
+
+    <div class="test-container">
+        <h2>Test Results</h2>
+        <div id="testResults"></div>
+    </div>
+
+    <div class="test-container">
+        <h2>Test Data</h2>
+        <div id="testData"></div>
+    </div>
+
+    <div class="test-container">
+        <h2>Scenario Tests</h2>
+        <div id="scenarioResults"></div>
+    </div>
+
+    <script type="module">
+        import { LevelRulesManager, LEVEL_RULES } from './js/level_rules.js';
+        import { Storage } from './js/storage.js';
+
+        // Make functions globally available
+        window.levelRulesManager = new LevelRulesManager(Storage);
+        window.testResults = [];
+
+        function logResult(message, passed, details = '') {
+            const result = {
+                message,
+                passed,
+                details,
+                timestamp: new Date().toISOString()
+            };
+            window.testResults.push(result);
+            
+            const resultsDiv = document.getElementById('testResults');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${passed ? 'test-pass' : 'test-fail'}`;
+            resultDiv.innerHTML = `
+                <strong>${passed ? '✓ PASS' : '✗ FAIL'}</strong>: ${message}
+                ${details ? `<br><small>${details}</small>` : ''}
+            `;
+            resultsDiv.appendChild(resultDiv);
+        }
+
+        function logInfo(message) {
+            const resultsDiv = document.getElementById('testResults');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'test-result test-info';
+            resultDiv.innerHTML = `<strong>ℹ INFO</strong>: ${message}`;
+            resultsDiv.appendChild(resultDiv);
+        }
+
+        // Test 1: Perfect Score (20/20) - Auto Level Up
+        function testPerfectScore() {
+            logInfo('Testing Perfect Score (20/20) - Auto Level Up');
+            
+            const username = 'TestUser1';
+            const currentLevel = 5;
+            const score = 20;
+            
+            const result = window.levelRulesManager.evaluateLevelProgression(username, currentLevel, score);
+            
+            const passed = result.newLevel === 6 && result.levelChanged === true && result.reason.includes('Perfect score');
+            logResult('Perfect score should auto level up', passed, 
+                `Level ${currentLevel} → ${result.newLevel}, Reason: ${result.reason}`);
+        }
+
+        // Test 2: Very Low Score (< 12) - Immediate Level Down
+        function testVeryLowScore() {
+            logInfo('Testing Very Low Score (< 12) - Immediate Level Down');
+            
+            const username = 'TestUser2';
+            const currentLevel = 10;
+            const score = 8;
+            
+            const result = window.levelRulesManager.evaluateLevelProgression(username, currentLevel, score);
+            
+            const passed = result.newLevel === 9 && result.levelChanged === true && result.reason.includes('too low');
+            logResult('Very low score should immediately level down', passed,
+                `Level ${currentLevel} → ${result.newLevel}, Reason: ${result.reason}`);
+        }
+
+        // Test 3: High Score Streak (19/20 x 3) - Level Up
+        function testHighScoreStreak() {
+            logInfo('Testing High Score Streak (19/20 x 3) - Level Up');
+            
+            const username = 'TestUser3';
+            const currentLevel = 15;
+            
+            // Clear any existing streaks
+            window.levelRulesManager.resetStreaks(username);
+            
+            // First 19/20 - should not level up yet
+            let result1 = window.levelRulesManager.evaluateLevelProgression(username, currentLevel, 19);
+            let passed1 = result1.newLevel === currentLevel && result1.levelChanged === false;
+            logResult('First 19/20 should not level up yet', passed1,
+                `Streak: 1/3, Level unchanged: ${result1.newLevel}`);
+            
+            // Second 19/20 - should not level up yet
+            let result2 = window.levelRulesManager.evaluateLevelProgression(username, currentLevel, 19);
+            let passed2 = result2.newLevel === currentLevel && result2.levelChanged === false;
+            logResult('Second 19/20 should not level up yet', passed2,
+                `Streak: 2/3, Level unchanged: ${result2.newLevel}`);
+            
+            // Third 19/20 - should level up
+            let result3 = window.levelRulesManager.evaluateLevelProgression(username, currentLevel, 19);
+            let passed3 = result3.newLevel === 16 && result3.levelChanged === true;
+            logResult('Third 19/20 should level up', passed3,
+                `Level ${currentLevel} → ${result3.newLevel}, Reason: ${result3.reason}`);
+        }
+
+        // Test 4: Low Score Streak (< 15 x 2) - Level Down
+        function testLowScoreStreak() {
+            logInfo('Testing Low Score Streak (< 15 x 2) - Level Down');
+            
+            const username = 'TestUser4';
+            const currentLevel = 20;
+            
+            // Clear any existing streaks
+            window.levelRulesManager.resetStreaks(username);
+            
+            // First low score - should not level down yet
+            let result1 = window.levelRulesManager.evaluateLevelProgression(username, currentLevel, 12);
+            let passed1 = result1.newLevel === currentLevel && result1.levelChanged === false;
+            logResult('First low score should not level down yet', passed1,
+                `Streak: 1/2, Level unchanged: ${result1.newLevel}`);
+            
+            // Second low score - should level down
+            let result2 = window.levelRulesManager.evaluateLevelProgression(username, currentLevel, 13);
+            let passed2 = result2.newLevel === 19 && result2.levelChanged === true;
+            logResult('Second low score should level down', passed2,
+                `Level ${currentLevel} → ${result2.newLevel}, Reason: ${result2.reason}`);
+        }
+
+        // Test 5: Medium Score (15-18) - No Change, Reset Streaks
+        function testMediumScore() {
+            logInfo('Testing Medium Score (15-18) - No Change, Reset Streaks');
+            
+            const username = 'TestUser5';
+            const currentLevel = 25;
+            
+            // Build up a high score streak first
+            window.levelRulesManager.resetStreaks(username);
+            window.levelRulesManager.evaluateLevelProgression(username, currentLevel, 19);
+            window.levelRulesManager.evaluateLevelProgression(username, currentLevel, 19);
+            
+            // Check streak exists
+            let streakBefore = window.levelRulesManager.getHighScoreStreak(username);
+            let streakExists = streakBefore === 2;
+            logResult('High score streak should exist before medium score', streakExists,
+                `High score streak: ${streakBefore}`);
+            
+            // Medium score should reset streaks
+            let result = window.levelRulesManager.evaluateLevelProgression(username, currentLevel, 16);
+            let streakAfter = window.levelRulesManager.getHighScoreStreak(username);
+            
+            let passed = result.newLevel === currentLevel && result.levelChanged === false && streakAfter === 0;
+            logResult('Medium score should not change level and reset streaks', passed,
+                `Level unchanged: ${result.newLevel}, Streak reset: ${streakAfter}`);
+        }
+
+        // Test 6: Streak Tracking and Storage
+        function testStreakStorage() {
+            logInfo('Testing Streak Tracking and Storage');
+            
+            const username = 'TestUser6';
+            
+            // Clear streaks
+            window.levelRulesManager.resetStreaks(username);
+            
+            // Test high score streak increment
+            let streak1 = window.levelRulesManager.incrementHighScoreStreak(username);
+            let streak2 = window.levelRulesManager.incrementHighScoreStreak(username);
+            
+            let passed1 = streak1 === 1 && streak2 === 2;
+            logResult('High score streak should increment correctly', passed1,
+                `Streak progression: 0 → ${streak1} → ${streak2}`);
+            
+            // Test low score streak increment
+            let lowStreak1 = window.levelRulesManager.incrementLowScoreStreak(username);
+            let lowStreak2 = window.levelRulesManager.incrementLowScoreStreak(username);
+            
+            let passed2 = lowStreak1 === 1 && lowStreak2 === 2;
+            logResult('Low score streak should increment correctly', passed2,
+                `Low streak progression: 0 → ${lowStreak1} → ${lowStreak2}`);
+            
+            // Test streak reset
+            window.levelRulesManager.resetStreaks(username);
+            let highAfterReset = window.levelRulesManager.getHighScoreStreak(username);
+            let lowAfterReset = window.levelRulesManager.getLowScoreStreak(username);
+            
+            let passed3 = highAfterReset === 0 && lowAfterReset === 0;
+            logResult('Streaks should reset to 0', passed3,
+                `After reset - High: ${highAfterReset}, Low: ${lowAfterReset}`);
+        }
+
+        // Test 7: Level History Recording
+        function testLevelHistory() {
+            logInfo('Testing Level History Recording');
+            
+            const username = 'TestUser7';
+            
+            // Record some level changes
+            window.levelRulesManager.recordLevelChange(username, 5, 6, 'Perfect score test');
+            window.levelRulesManager.recordLevelChange(username, 6, 5, 'Low score test');
+            
+            let history = window.levelRulesManager.getLevelHistory(username);
+            
+            let passed = history.length >= 2 && 
+                        history[history.length-2].oldLevel === 5 && 
+                        history[history.length-2].newLevel === 6 &&
+                        history[history.length-1].oldLevel === 6 && 
+                        history[history.length-1].newLevel === 5;
+            
+            logResult('Level history should be recorded correctly', passed,
+                `History entries: ${history.length}, Last change: ${history[history.length-1].oldLevel} → ${history[history.length-1].newLevel}`);
+        }
+
+        // Scenario Tests
+        function runScenarioTests() {
+            const scenarioDiv = document.getElementById('scenarioResults');
+            scenarioDiv.innerHTML = '<h3>Running Scenario Tests...</h3>';
+            
+            // Scenario 1: Consistent High Performer
+            testScenario1();
+            
+            // Scenario 2: Struggling Student
+            testScenario2();
+            
+            // Scenario 3: Inconsistent Performance
+            testScenario3();
+        }
+
+        function testScenario1() {
+            const scenarioDiv = document.getElementById('scenarioResults');
+            const scenario = document.createElement('div');
+            scenario.className = 'scenario-test';
+            scenario.innerHTML = '<h4>Scenario 1: Consistent High Performer</h4>';
+            
+            const username = 'HighPerformer';
+            let currentLevel = 10;
+            window.levelRulesManager.resetStreaks(username);
+            
+            const scores = [20, 19, 19, 19, 18, 20, 19, 19, 19];
+            let levelChanges = [];
+            
+            scores.forEach((score, index) => {
+                const result = window.levelRulesManager.evaluateLevelProgression(username, currentLevel, score);
+                if (result.levelChanged) {
+                    levelChanges.push(`Round ${index + 1}: ${score}/20 → Level ${currentLevel} to ${result.newLevel} (${result.reason})`);
+                    currentLevel = result.newLevel;
+                }
+            });
+            
+            scenario.innerHTML += `
+                <p>Scores: ${scores.join(', ')}</p>
+                <p>Level changes: ${levelChanges.length}</p>
+                <ul>${levelChanges.map(change => `<li>${change}</li>`).join('')}</ul>
+                <p>Final level: ${currentLevel}</p>
+            `;
+            
+            scenarioDiv.appendChild(scenario);
+        }
+
+        function testScenario2() {
+            const scenarioDiv = document.getElementById('scenarioResults');
+            const scenario = document.createElement('div');
+            scenario.className = 'scenario-test';
+            scenario.innerHTML = '<h4>Scenario 2: Struggling Student</h4>';
+            
+            const username = 'StrugglingStudent';
+            let currentLevel = 15;
+            window.levelRulesManager.resetStreaks(username);
+            
+            const scores = [12, 14, 10, 13, 8, 16, 11, 14];
+            let levelChanges = [];
+            
+            scores.forEach((score, index) => {
+                const result = window.levelRulesManager.evaluateLevelProgression(username, currentLevel, score);
+                if (result.levelChanged) {
+                    levelChanges.push(`Round ${index + 1}: ${score}/20 → Level ${currentLevel} to ${result.newLevel} (${result.reason})`);
+                    currentLevel = result.newLevel;
+                }
+            });
+            
+            scenario.innerHTML += `
+                <p>Scores: ${scores.join(', ')}</p>
+                <p>Level changes: ${levelChanges.length}</p>
+                <ul>${levelChanges.map(change => `<li>${change}</li>`).join('')}</ul>
+                <p>Final level: ${currentLevel}</p>
+            `;
+            
+            scenarioDiv.appendChild(scenario);
+        }
+
+        function testScenario3() {
+            const scenarioDiv = document.getElementById('scenarioResults');
+            const scenario = document.createElement('div');
+            scenario.className = 'scenario-test';
+            scenario.innerHTML = '<h4>Scenario 3: Inconsistent Performance</h4>';
+            
+            const username = 'InconsistentStudent';
+            let currentLevel = 20;
+            window.levelRulesManager.resetStreaks(username);
+            
+            const scores = [19, 19, 12, 18, 19, 19, 19, 14, 20];
+            let levelChanges = [];
+            let streakInfo = [];
+            
+            scores.forEach((score, index) => {
+                const result = window.levelRulesManager.evaluateLevelProgression(username, currentLevel, score);
+                const currentStreaks = window.levelRulesManager.getStreakInfo(username);
+                
+                streakInfo.push(`Round ${index + 1}: ${score}/20, High: ${currentStreaks.highScoreStreak}, Low: ${currentStreaks.lowScoreStreak}`);
+                
+                if (result.levelChanged) {
+                    levelChanges.push(`Round ${index + 1}: ${score}/20 → Level ${currentLevel} to ${result.newLevel} (${result.reason})`);
+                    currentLevel = result.newLevel;
+                }
+            });
+            
+            scenario.innerHTML += `
+                <p>Scores: ${scores.join(', ')}</p>
+                <p>Level changes: ${levelChanges.length}</p>
+                <ul>${levelChanges.map(change => `<li>${change}</li>`).join('')}</ul>
+                <p>Final level: ${currentLevel}</p>
+                <details>
+                    <summary>Streak Details</summary>
+                    <ul>${streakInfo.map(info => `<li>${info}</li>`).join('')}</ul>
+                </details>
+            `;
+            
+            scenarioDiv.appendChild(scenario);
+        }
+
+        // Main test runner
+        window.runAllTests = function() {
+            document.getElementById('testResults').innerHTML = '<h3>Running Tests...</h3>';
+            window.testResults = [];
+            
+            testPerfectScore();
+            testVeryLowScore();
+            testHighScoreStreak();
+            testLowScoreStreak();
+            testMediumScore();
+            testStreakStorage();
+            testLevelHistory();
+            
+            // Summary
+            const passed = window.testResults.filter(r => r.passed).length;
+            const total = window.testResults.length;
+            
+            logInfo(`Test Summary: ${passed}/${total} tests passed`);
+        };
+
+        window.clearStorage = function() {
+            // Clear all test data
+            const keys = Object.keys(localStorage);
+            keys.forEach(key => {
+                if (key.includes('TestUser') || key.includes('HighPerformer') || 
+                    key.includes('StrugglingStudent') || key.includes('InconsistentStudent')) {
+                    localStorage.removeItem(key);
+                }
+            });
+            
+            document.getElementById('testData').innerHTML = '<p>Test data cleared.</p>';
+        };
+
+        window.showTestData = function() {
+            const dataDiv = document.getElementById('testData');
+            const keys = Object.keys(localStorage);
+            const testKeys = keys.filter(key => 
+                key.includes('TestUser') || key.includes('HighPerformer') || 
+                key.includes('StrugglingStudent') || key.includes('InconsistentStudent')
+            );
+            
+            if (testKeys.length === 0) {
+                dataDiv.innerHTML = '<p>No test data found.</p>';
+                return;
+            }
+            
+            let html = '<h3>Test Data in localStorage:</h3><table><tr><th>Key</th><th>Value</th></tr>';
+            testKeys.forEach(key => {
+                const value = localStorage.getItem(key);
+                html += `<tr><td>${key}</td><td>${value}</td></tr>`;
+            });
+            html += '</table>';
+            
+            dataDiv.innerHTML = html;
+        };
+
+        window.runScenarioTests = runScenarioTests;
+
+        // Auto-run tests on page load
+        setTimeout(() => {
+            logInfo('Level Rules Test Suite Loaded');
+            logInfo(`Questions per level: ${LEVEL_RULES.QUESTIONS_PER_LEVEL}`);
+            logInfo(`Perfect score threshold: ${LEVEL_RULES.PERFECT_SCORE_THRESHOLD}`);
+            logInfo(`High score threshold: ${LEVEL_RULES.HIGH_SCORE_THRESHOLD} (need ${LEVEL_RULES.HIGH_SCORE_STREAK_REQUIRED} in a row)`);
+            logInfo(`Low score threshold: ${LEVEL_RULES.LOW_SCORE_THRESHOLD} (need ${LEVEL_RULES.LOW_SCORE_STREAK_REQUIRED} in a row)`);
+            logInfo(`Very low score threshold: ${LEVEL_RULES.VERY_LOW_SCORE_THRESHOLD} (immediate level down)`);
+        }, 100);
+    </script>
+</body>
+</html>
