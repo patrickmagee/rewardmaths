@@ -5,6 +5,7 @@
 
 import { USERS, APP_CONFIG, ELEMENTS } from './config.js';
 import { formatTime, getElement } from './utils.js';
+import { Storage } from './storage.js';
 
 /**
  * Authentication class for managing user login/logout
@@ -25,17 +26,21 @@ export class Auth {
 
     /**
      * Attempts to log in a user
-     * @param {string} username - Username
-     * @param {string} password - Password
+     * @param {string} username - Username to attempt login with
+     * @param {string} password - Password to attempt login with
      * @returns {boolean} True if login successful, false otherwise
      */
     login(username, password) {
-        console.log('Login function invoked');
+        // Clear any existing timeout
+        this.clearLoginTimeout();
 
-        // Allow blank login
-        if (!username || !password) {
-            console.log('Blank login allowed');
-            this.currentUser = null;
+        // Allow blank login (guest mode) - default to Patrick
+        if (username === '' && password === '') {
+            this.currentUser = { username: 'Patrick', isGuest: true };
+            // Set initial level to 10 for Patrick if not already set
+            if (!Storage.getUserLevel('Patrick')) {
+                Storage.setUserLevel('Patrick', 10);
+            }
             return true;
         }
 
