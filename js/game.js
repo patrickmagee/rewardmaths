@@ -328,7 +328,8 @@ export class Game {
             marker.textContent = `Reward ${index + 1}`;
             
             // Position marker based on milestone level (0-100% of container height)
-            const position = (milestone / 100) * 100;
+            // Adjust for text centering to ensure level 100 aligns with top of bar
+            const position = ((milestone - 1) / 99) * 100;
             marker.style.bottom = `${position}%`;
             
             // Check if reward is unlocked
