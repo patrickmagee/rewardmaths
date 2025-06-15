@@ -6,6 +6,7 @@
 import { APP_CONFIG, ELEMENTS, REWARDS } from './config.js';
 import { randomInt, getElement, getIntegerValue, clamp, delay } from './utils.js';
 import { Storage } from './storage.js';
+import { MathLevels } from './mathLevels.js';
 
 /**
  * Game class for managing math game logic
@@ -18,6 +19,7 @@ export class Game {
         this.level = 1;
         this.currentQuestion = null;
         this.failureCount = 0;
+        this.mathLevels = new MathLevels();
     }
 
     /**
@@ -41,23 +43,15 @@ export class Game {
     }
 
     /**
-     * Generates a new math question
+     * Generates a new math question based on current level
      */
     generateQuestion() {
-        const num1 = randomInt(1, 10);
-        const num2 = randomInt(1, 10);
-        const operation = '+';
-        const questionText = `${num1} ${operation} ${num2}`;
-        const answer = num1 + num2;
-
-        this.currentQuestion = {
-            text: questionText,
-            answer: answer
-        };
+        // Use progressive math levels system
+        this.currentQuestion = this.mathLevels.generateQuestion(this.level);
 
         const questionElement = getElement(ELEMENTS.QUESTION);
-        questionElement.textContent = questionText;
-        questionElement.dataset.answer = answer;
+        questionElement.textContent = this.currentQuestion.text;
+        questionElement.dataset.answer = this.currentQuestion.answer;
     }
 
     /**
