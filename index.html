@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Math Game</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
     <!-- Login Screen -->
@@ -17,7 +17,10 @@
     </div>
 
     <!-- Game Screen -->
-    <div id="gameScreen" class="screen" style="display: none;">
+    <div id="gameScreen" class="screen" style="display: none; position: relative;">
+        <div class="user-header">
+            <span id="userInfo"></span>
+        </div>
         <h1>Math Game</h1>
         <div class="progress-bar-wrapper">
             <div id="progressBarContainer" class="progress-bar-container">
@@ -29,9 +32,16 @@
         <input type="number" id="answer" placeholder="Your answer">
         <button id="submitButton">Submit</button>
         <p id="feedback" class="feedback"></p>
-        <button id="logoutButton">Logout</button>
+        <button id="logoutButton" class="logout-btn">Logout</button>
+        <div class="level-bar-container">
+            <div class="level-bar-label">Level</div>
+            <div class="level-bar-outer">
+                <div id="levelBar" class="level-bar"></div>
+            </div>
+            <div id="levelText" class="level-bar-text">1</div>
+        </div>
     </div>
 
-    <script src="script.js"></script>
+    <script type="module" src="js/app.js"></script>
 </body>
 </html>

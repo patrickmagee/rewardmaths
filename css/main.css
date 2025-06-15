@@ -1,0 +1,13 @@
+/**
+ * Main CSS File
+ * Imports all modular CSS files in the correct order
+ */
+
+/* Import base styles first */
+@import url('./base.css');
+
+/* Import component styles */
+@import url('./components.css');
+
+/* Import responsive styles last */
+@import url('./responsive.css');

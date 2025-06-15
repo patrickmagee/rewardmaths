@@ -1,0 +1,88 @@
+/**
+ * Base Styles
+ * Contains reset, typography, and fundamental styling
+ */
+
+/* CSS Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Typography and Base Styles */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+h1 {
+    font-size: 2.5em;
+    color: #4a5568;
+    margin-bottom: 30px;
+    text-align: center;
+    font-weight: bold;
+}
+
+/* Input Styles */
+input {
+    font-size: 1.2em;
+    padding: 15px;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    transition: border-color 0.3s;
+    margin: 10px 0;
+    width: 100%;
+}
+
+input:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+input[type="number"] {
+    text-align: center;
+    width: 200px;
+    font-size: 2em;
+    padding: 15px 25px;
+    margin-bottom: 20px;
+}
+
+/* Button Styles */
+button {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    font-size: 1.2em;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    margin: 10px;
+    width: 100%;
+}
+
+button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+}
+
+button:disabled {
+    background: #cbd5e0;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Error Styles */
+.error {
+    color: #f56565;
+    font-size: 1em;
+    margin-top: 10px;
+    text-align: center;
+}

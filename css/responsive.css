@@ -1,0 +1,184 @@
+/**
+ * Responsive Styles
+ * Contains media queries and responsive design rules
+ */
+
+/* Mobile and Tablet Styles */
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+    
+    .screen {
+        padding: 20px;
+        min-height: auto;
+        max-width: 100%;
+    }
+    
+    h1 {
+        font-size: 2em;
+        margin-bottom: 20px;
+    }
+    
+    .question {
+        font-size: 2.5em;
+        margin: 20px 0;
+    }
+    
+    input[type="number"] {
+        font-size: 1.5em;
+        width: 150px;
+        padding: 10px 15px;
+    }
+    
+    button {
+        font-size: 1em;
+        padding: 12px 20px;
+    }
+    
+    .progress-bar-container {
+        width: 180px;
+    }
+    
+    .level-bar-container {
+        right: -60px;
+        width: 50px;
+        min-height: 200px;
+    }
+    
+    .level-bar-outer {
+        width: 20px;
+    }
+    
+    .feedback {
+        font-size: 1.2em;
+        min-height: 30px;
+    }
+}
+
+/* Small Mobile Styles */
+@media (max-width: 480px) {
+    .screen {
+        padding: 15px;
+    }
+    
+    h1 {
+        font-size: 1.8em;
+    }
+    
+    .question {
+        font-size: 2em;
+        margin: 15px 0;
+    }
+    
+    input[type="number"] {
+        font-size: 1.3em;
+        width: 120px;
+    }
+    
+    .progress-bar-container {
+        width: 150px;
+    }
+    
+    .level-bar-container {
+        right: -50px;
+        width: 40px;
+        min-height: 150px;
+    }
+    
+    .level-bar-outer {
+        width: 16px;
+    }
+    
+    .level-bar-label,
+    .level-bar-text {
+        font-size: 0.9em;
+    }
+}
+
+/* Large Screen Styles */
+@media (min-width: 1200px) {
+    .screen {
+        max-width: 600px;
+        padding: 50px;
+    }
+    
+    .question {
+        font-size: 5rem;
+        margin: 50px 0;
+    }
+    
+    input[type="number"] {
+        font-size: 2.5em;
+        width: 250px;
+        padding: 20px 30px;
+    }
+    
+    .progress-bar-container {
+        width: 280px;
+    }
+    
+    .level-bar-container {
+        right: -100px;
+        width: 80px;
+        min-height: 400px;
+    }
+    
+    .level-bar-outer {
+        width: 30px;
+    }
+}
+
+/* High DPI Display Support */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    .progress-bar,
+    .level-bar {
+        border-radius: 8px;
+    }
+    
+    button,
+    input {
+        border-radius: 8px;
+    }
+    
+    .screen {
+        border-radius: 16px;
+    }
+}
+
+/* Landscape Orientation on Mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+    .screen {
+        min-height: auto;
+        padding: 15px 30px;
+    }
+    
+    .question {
+        font-size: 2em;
+        margin: 15px 0;
+    }
+    
+    .level-bar-container {
+        min-height: 180px;
+    }
+}
+
+/* Print Styles */
+@media print {
+    body {
+        background: white;
+    }
+    
+    .screen {
+        box-shadow: none;
+        border: 1px solid #ccc;
+    }
+    
+    button {
+        display: none;
+    }
+    
+    .level-bar-container {
+        display: none;
+    }
+}

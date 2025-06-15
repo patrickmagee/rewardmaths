@@ -10,6 +10,19 @@ let currentUser = null;
 let correctStreak = 0;
 let timeoutDurations = [1000, 5000, 30000, 60000, 300000, 1800000, 3600000, 86400000];
 
+// Per-user level storage
+function getUserLevel(username) {
+    const levels = JSON.parse(localStorage.getItem('rewardmaths_levels') || '{}');
+    return levels[username] || 1;
+}
+function setUserLevel(username, level) {
+    const levels = JSON.parse(localStorage.getItem('rewardmaths_levels') || '{}');
+    levels[username] = level;
+    localStorage.setItem('rewardmaths_levels', JSON.stringify(levels));
+}
+
+let level = 1;
+
 // Login functionality
 function login() {
     console.log('Login function invoked');
@@ -74,13 +87,27 @@ function formatTime(ms) {
 // Game functionality
 function startGame() {
     correctStreak = 0;
+    if (currentUser && currentUser.username) {
+        level = getUserLevel(currentUser.username);
+    } else {
+        level = 1;
+    }
     updateProgressBar();
+    updateLevelBar();
     generateQuestion();
-    document.getElementById('submitButton').addEventListener('click', checkAnswer);
-    document.getElementById('answer').addEventListener('keypress', (e) => {
+    // Display username and smiley
+    const userInfo = document.getElementById('userInfo');
+    userInfo.textContent = '';
+    if (currentUser && currentUser.username) {
+        userInfo.textContent = `${currentUser.username} 🙂`;
+    } else {
+        userInfo.textContent = '🙂';
+    }
+    document.getElementById('submitButton').onclick = checkAnswer;
+    document.getElementById('answer').onkeypress = (e) => {
         if (e.key === 'Enter') checkAnswer();
-    });
-    document.getElementById('logoutButton').addEventListener('click', logout);
+    };
+    document.getElementById('logoutButton').onclick = logout;
 }
 
 function generateQuestion() {
@@ -102,32 +129,55 @@ function updateProgressBar() {
     progressText.textContent = `${correctStreak}/10`;
 }
 
+function updateLevelBar() {
+    const levelBar = document.getElementById('levelBar');
+    const levelText = document.getElementById('levelText');
+    const percent = Math.max(1, Math.min(level, 100)) / 100 * 100;
+    levelBar.style.height = percent + '%';
+    levelText.textContent = level;
+}
+
 function checkAnswer() {
     const userAnswer = parseInt(document.getElementById('answer').value);
     const correctAnswer = parseInt(document.getElementById('question').dataset.answer);
+    const feedback = document.getElementById('feedback');
 
     if (userAnswer === correctAnswer) {
         correctStreak++;
         updateProgressBar();
-
+        feedback.textContent = 'Correct!';
+        feedback.className = 'feedback correct';
         if (correctStreak === 10) {
-            document.getElementById('feedback').textContent = '🎉 You got 10 in a row correct!';
+            level = Math.min(100, level + 1);
+            if (currentUser && currentUser.username) setUserLevel(currentUser.username, level);
+            updateLevelBar();
+            feedback.textContent = '🎉 You got 10 in a row correct! Level up!';
+            feedback.className = 'feedback correct';
             setTimeout(() => {
                 correctStreak = 0;
                 updateProgressBar();
                 generateQuestion();
+                feedback.textContent = '';
             }, 1500);
         } else {
-            document.getElementById('feedback').textContent = 'Correct!';
-            setTimeout(generateQuestion, 500);
+            setTimeout(() => {
+                generateQuestion();
+                feedback.textContent = '';
+            }, 500);
         }
     } else {
         correctStreak = 0;
+        level = Math.max(1, level - 1);
+        if (currentUser && currentUser.username) setUserLevel(currentUser.username, level);
         updateProgressBar();
-        document.getElementById('feedback').textContent = `Wrong! The correct answer was ${correctAnswer}. Starting over.`;
-        setTimeout(generateQuestion, 1500);
+        updateLevelBar();
+        feedback.textContent = `Wrong! The correct answer was ${correctAnswer}. Level down. Starting over.`;
+        feedback.className = 'feedback';
+        setTimeout(() => {
+            generateQuestion();
+            feedback.textContent = '';
+        }, 1500);
     }
-
     document.getElementById('answer').value = '';
 }
 
