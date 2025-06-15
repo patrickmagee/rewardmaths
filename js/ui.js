@@ -105,11 +105,33 @@ export class UI {
         const submitButton = getElement(ELEMENTS.SUBMIT_BUTTON);
         submitButton.addEventListener('click', onSubmitAnswer);
 
-        // Enter key on answer input
+        // Enter key on answer input and input validation
         const answerInput = getElement(ELEMENTS.ANSWER);
         answerInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 onSubmitAnswer();
+            }
+        });
+        
+        // Restrict input to digits only
+        answerInput.addEventListener('input', (e) => {
+            // Remove any non-digit characters
+            e.target.value = e.target.value.replace(/[^0-9]/g, '');
+        });
+        
+        answerInput.addEventListener('keydown', (e) => {
+            // Allow: backspace, delete, tab, escape, enter, and arrow keys
+            if ([8, 9, 27, 13, 37, 38, 39, 40, 46].indexOf(e.keyCode) !== -1 ||
+                // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+                (e.keyCode === 65 && e.ctrlKey === true) ||
+                (e.keyCode === 67 && e.ctrlKey === true) ||
+                (e.keyCode === 86 && e.ctrlKey === true) ||
+                (e.keyCode === 88 && e.ctrlKey === true)) {
+                return;
+            }
+            // Ensure that it is a number and stop the keypress
+            if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
+                e.preventDefault();
             }
         });
 

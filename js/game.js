@@ -17,6 +17,7 @@ export class Game {
         this.correctStreak = 0;
         this.level = 1;
         this.currentQuestion = null;
+        this.failureCount = 0;
     }
 
     /**
@@ -64,6 +65,13 @@ export class Game {
      */
     async checkAnswer() {
         const answerInput = getElement(ELEMENTS.ANSWER);
+        const userAnswerText = answerInput.value.trim();
+        
+        // Quietly reject blank answers
+        if (userAnswerText === '') {
+            return;
+        }
+        
         const userAnswer = getIntegerValue(answerInput);
         const correctAnswer = this.currentQuestion.answer;
         const feedback = getElement(ELEMENTS.FEEDBACK);
@@ -83,6 +91,7 @@ export class Game {
      */
     async handleCorrectAnswer(feedback) {
         this.correctStreak++;
+        this.failureCount = 0; // Reset failure count on correct answer
         this.updateProgressBar();
         
         feedback.textContent = 'Correct!';
@@ -144,20 +153,45 @@ export class Game {
      */
     async handleIncorrectAnswer(feedback, correctAnswer) {
         this.correctStreak = 0;
+        this.failureCount++;
+        this.updateProgressBar();
+        
+        // Show wrong answer feedback
+        feedback.textContent = `Wrong! The correct answer was ${correctAnswer}. Starting over.`;
+        feedback.className = 'feedback';
+        
+        await delay(1500);
+        
+        // Check if we need to level down after 5 failures
+        if (this.failureCount >= 5) {
+            await this.handleLevelDown(feedback);
+        } else {
+            this.generateQuestion();
+            feedback.textContent = '';
+        }
+    }
+
+    /**
+     * Handles level down after 5 consecutive failures
+     * @param {HTMLElement} feedback - Feedback element
+     */
+    async handleLevelDown(feedback) {
         this.level = clamp(this.level - 1, APP_CONFIG.MIN_LEVEL, APP_CONFIG.MAX_LEVEL);
+        this.failureCount = 0; // Reset failure count after level down
         const currentUser = this.auth.getCurrentUser();
         
         if (currentUser && currentUser.username) {
             Storage.setUserLevel(currentUser.username, this.level);
         }
         
-        this.updateProgressBar();
         this.updateLevelBar();
+        this.updateRewardMarkers();
         
-        feedback.textContent = `Wrong! The correct answer was ${correctAnswer}. Level down. Starting over.`;
-        feedback.className = 'feedback';
+        // Show personalized level down message
+        const username = currentUser?.username || 'Patrick';
+        const levelDownMessage = REWARDS.LEVEL_DOWN_MESSAGES[username] || REWARDS.LEVEL_DOWN_MESSAGES.Patrick;
+        await this.ui.showPopup(levelDownMessage);
         
-        await delay(1500);
         this.generateQuestion();
         feedback.textContent = '';
     }

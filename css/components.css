@@ -178,11 +178,12 @@
 
 .reward-marker {
     position: absolute;
-    right: -45px;
+    right: -50px;
     font-size: 0.7em;
     font-weight: bold;
     white-space: nowrap;
     transition: color 0.3s ease;
+    transform: translateY(-50%);
 }
 
 .reward-marker.unlocked {

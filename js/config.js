@@ -55,6 +55,11 @@ export const ELEMENTS = {
 // Reward milestones configuration
 export const REWARDS = {
     MILESTONES: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+    LEVEL_DOWN_MESSAGES: {
+        Tom: "🦖 Great effort, Tom! Even the best dinosaur trainers need to step back sometimes. You've got this!",
+        Eliza: "🌸 Great effort, Eliza-chan! Even magical girls sometimes need to power up at a lower level. Ganbatte!",
+        Patrick: "🌟 Great effort, Patrick! We're stepping back a level to build your confidence. You're doing great!"
+    },
     MESSAGES: {
         Tom: [
             "🦖 Awesome work, Tom! You're as unstoppable as Blue from Camp Cretaceous!",
