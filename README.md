@@ -13,8 +13,8 @@ A modern, maintainable math game for kids with login, progressive difficulty, an
   - 19/20 three times in a row = level up
   - Less than 15 correct twice in a row = level down
   - Less than 12 correct = immediate level down
-- **Progress Bars**:
-  - Horizontal bar for 20-question progress
+- **Progress Tracking**:
+  - Visual progress circles (2 rows of 10) - green for correct, red for incorrect
   - Vertical bar for level (1-100)
 - **Responsive UI**: Clean, modern, mobile-friendly
 - **Animated Feedback**: Green animation for correct answers

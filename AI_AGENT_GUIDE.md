@@ -120,7 +120,7 @@ QUESTIONS_PER_LEVEL: 25, // Must match!
 ### Manual Testing Checklist
 - [ ] Login with Tom/Patrick/Eliza
 - [ ] Play through 20 questions
-- [ ] Verify progress bar shows "X/20 (Y correct)"
+- [ ] Verify progress circles (2 rows of 10) turn green for correct, red for incorrect
 - [ ] Check level changes work correctly
 - [ ] Test streak display
 - [ ] Verify localStorage persistence
@@ -169,7 +169,7 @@ scp -i $env:USERPROFILE\.ssh\id_rsa -r c:\Projects\TE_Math\* plantcon@67.20.113.
 1. Visit https://rewardmaths.com
 2. Test login functionality
 3. Play a few questions to verify 20-question system
-4. Check progress bar format
+4. Check progress circles display (2 rows of 10, green/red colors)
 5. Verify level progression works
 
 ## Code Style Guidelines

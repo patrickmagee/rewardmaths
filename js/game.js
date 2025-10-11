@@ -145,12 +145,14 @@ export class Game {
      * @param {number} correctAnswer - The correct answer
      */
     async handleIncorrectAnswer(feedback, correctAnswer) {
+        this.updateProgressBar();
+
         // Show wrong answer feedback
         feedback.textContent = `Wrong! The correct answer was ${correctAnswer}.`;
         feedback.className = 'feedback';
-        
+
         await delay(1500);
-        
+
         // Check if we've completed all 20 questions
         if (this.currentQuestionNumber >= LEVEL_RULES.QUESTIONS_PER_LEVEL) {
             await this.handleLevelCompletion(feedback);
@@ -258,15 +260,32 @@ export class Game {
     }
 
     /**
-     * Updates the progress bar display (now for 20 questions)
+     * Updates the progress circles display (20 circles for 20 questions)
      */
     updateProgressBar() {
-        const progressBar = getElement(ELEMENTS.PROGRESS_BAR);
-        const progressText = getElement(ELEMENTS.PROGRESS_TEXT);
-        const progressPercentage = (this.currentQuestionNumber / LEVEL_RULES.QUESTIONS_PER_LEVEL) * 100;
-        
-        progressBar.style.width = `${progressPercentage}%`;
-        progressText.textContent = `${this.currentQuestionNumber}/${LEVEL_RULES.QUESTIONS_PER_LEVEL} (${this.correctAnswers} correct)`;
+        const progressCircles = getElement(ELEMENTS.PROGRESS_CIRCLES);
+
+        // Create circles if they don't exist
+        if (progressCircles.children.length === 0) {
+            for (let i = 0; i < LEVEL_RULES.QUESTIONS_PER_LEVEL; i++) {
+                const circle = document.createElement('div');
+                circle.className = 'progress-circle';
+                progressCircles.appendChild(circle);
+            }
+        }
+
+        // Update circles based on session questions
+        const circles = progressCircles.children;
+        for (let i = 0; i < circles.length; i++) {
+            if (i < this.sessionQuestions.length && this.sessionQuestions[i].isCorrect !== null) {
+                // Question has been answered
+                circles[i].className = this.sessionQuestions[i].isCorrect ?
+                    'progress-circle correct' : 'progress-circle incorrect';
+            } else {
+                // Question not yet answered
+                circles[i].className = 'progress-circle';
+            }
+        }
     }
 
     /**
@@ -294,25 +313,28 @@ export class Game {
      */
     updateStreakDisplay() {
         const currentUser = this.auth.getCurrentUser();
-        if (!currentUser || !currentUser.username) return;
+        const streakInfoElement = getElement(ELEMENTS.STREAK_INFO);
+
+        if (!currentUser || !currentUser.username) {
+            streakInfoElement.textContent = '';
+            return;
+        }
 
         const streakInfo = this.levelRulesManager.getStreakInfo(currentUser.username);
-        
-        // Add streak info to progress text if there are active streaks
-        const progressText = getElement(ELEMENTS.PROGRESS_TEXT);
+
+        // Display streak info in separate small element
         let streakText = '';
-        
+
         if (streakInfo.highScoreStreak > 0) {
-            streakText += ` | High streak: ${streakInfo.highScoreStreak}/${streakInfo.highScoreNeeded}`;
+            streakText += `High: ${streakInfo.highScoreStreak}/${streakInfo.highScoreNeeded}`;
         }
-        
+
         if (streakInfo.lowScoreStreak > 0) {
-            streakText += ` | Low streak: ${streakInfo.lowScoreStreak}/${streakInfo.lowScoreLimit}`;
+            if (streakText) streakText += ' | ';
+            streakText += `Low: ${streakInfo.lowScoreStreak}/${streakInfo.lowScoreLimit}`;
         }
-        
-        if (streakText) {
-            progressText.textContent += streakText;
-        }
+
+        streakInfoElement.textContent = streakText;
     }
 
     /**
@@ -321,24 +343,24 @@ export class Game {
     initializeRewardMarkers() {
         const rewardMarkersContainer = getElement(ELEMENTS.REWARD_MARKERS);
         rewardMarkersContainer.innerHTML = '';
-        
+
         REWARDS.MILESTONES.forEach((milestone, index) => {
             const marker = document.createElement('div');
             marker.className = 'reward-marker';
-            marker.textContent = `Reward ${index + 1}`;
-            
-            // Position marker based on milestone level (0-100% of container height)
-            // Adjust for text centering to ensure level 100 aligns with top of bar
-            const position = ((milestone - 1) / 99) * 100;
+            marker.title = `Level ${milestone} Reward`; // Tooltip for hover
+
+            // Position marker to align with bar fill height (same calculation as level bar)
+            // Use clamp(milestone, 1, 100) / 100 to match updateLevelBar logic
+            const position = (clamp(milestone, 1, 100) / 100) * 100;
             marker.style.bottom = `${position}%`;
-            
+
             // Check if reward is unlocked
             if (this.level >= milestone) {
                 marker.classList.add('unlocked');
             } else {
                 marker.classList.add('locked');
             }
-            
+
             rewardMarkersContainer.appendChild(marker);
         });
     }

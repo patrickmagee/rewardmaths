@@ -40,11 +40,11 @@ export const ELEMENTS = {
     LOGOUT_BUTTON: 'logoutButton',
     
     // Progress elements
-    PROGRESS_BAR: 'progressBar',
-    PROGRESS_TEXT: 'progressText',
+    PROGRESS_CIRCLES: 'progressCircles',
+    STREAK_INFO: 'streakInfo',
     LEVEL_BAR: 'levelBar',
     LEVEL_TEXT: 'levelText',
-    
+
     // New elements
     REWARD_MARKERS: 'rewardMarkers',
     POPUP_MODAL: 'popupModal',
