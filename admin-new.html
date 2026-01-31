@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reward Math - Admin Dashboard</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --success: #10b981;
+            --danger: #ef4444;
+            --bg: #f3f4f6;
+            --card-bg: #ffffff;
+            --text: #1f2937;
+            --text-muted: #6b7280;
+            --border: #e5e7eb;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+        }
+
+        .hidden { display: none !important; }
+
+        /* Header */
+        .header {
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.5rem;
+            color: var(--primary);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+
+        .btn-small {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.75rem;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        /* Layout */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+
+        .tab {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 1rem;
+            color: var(--text-muted);
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab:hover, .tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--card-bg);
+            border-radius: 0.5rem;
+            border: 1px solid var(--border);
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .card-title {
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            border-radius: 0.5rem;
+            border: 1px solid var(--border);
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+        }
+
+        tbody tr:hover {
+            background: var(--bg);
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="password"],
+        input[type="number"],
+        input[type="date"],
+        select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid var(--border);
+            border-radius: 0.375rem;
+            font-size: 1rem;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        /* Level Configs */
+        .level-configs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+
+        .level-config-card {
+            background: var(--bg);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            border: 1px solid var(--border);
+        }
+
+        .level-config-card h4 {
+            margin-bottom: 0.5rem;
+            color: var(--primary);
+        }
+
+        .level-description {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+        }
+
+        .config-fields label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .config-fields input {
+            width: 100%;
+            padding: 0.375rem;
+            font-size: 0.875rem;
+        }
+
+        /* Messages */
+        .message-screen {
+            text-align: center;
+            padding: 4rem 2rem;
+        }
+
+        .message-screen h1 {
+            color: var(--danger);
+            margin-bottom: 1rem;
+        }
+
+        .error-message {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            background: var(--danger);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Loading */
+        #loadingScreen {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-size: 1.25rem;
+            color: var(--text-muted);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+            }
+
+            .header {
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .tabs {
+                flex-wrap: wrap;
+            }
+
+            table {
+                font-size: 0.875rem;
+            }
+
+            th, td {
+                padding: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Loading Screen -->
+        <div id="loadingScreen">
+            Loading admin dashboard...
+        </div>
+
+        <!-- Dashboard (hidden until authenticated) -->
+        <div id="dashboard" class="hidden">
+            <!-- Header -->
+            <header class="header">
+                <h1>Reward Math Admin</h1>
+                <div class="header-actions">
+                    <span id="adminUsername"></span>
+                    <button id="logoutBtn" class="btn btn-danger">Logout</button>
+                </div>
+            </header>
+
+            <div class="container">
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab active" data-tab="users">Users</button>
+                    <button class="tab" data-tab="performance">Performance</button>
+                    <button class="tab" data-tab="levels">Level Config</button>
+                    <button class="tab" data-tab="create-user">Create User</button>
+                </div>
+
+                <!-- Users Tab -->
+                <div id="users" class="tab-content active">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">All Users</h2>
+                            <button id="refreshUsers" class="btn btn-primary btn-small">Refresh</button>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Level</th>
+                                    <th>Sessions</th>
+                                    <th>Questions</th>
+                                    <th>Accuracy</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="usersTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Performance Tab -->
+                <div id="performance" class="tab-content">
+                    <!-- Stats -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div id="statSessions" class="stat-value">0</div>
+                            <div class="stat-label">Sessions</div>
+                        </div>
+                        <div class="stat-card">
+                            <div id="statQuestions" class="stat-value">0</div>
+                            <div class="stat-label">Questions Answered</div>
+                        </div>
+                        <div class="stat-card">
+                            <div id="statAccuracy" class="stat-value">0%</div>
+                            <div class="stat-label">Average Accuracy</div>
+                        </div>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="card">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>User</label>
+                                <select id="userFilter">
+                                    <option value="">All Users</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Start Date</label>
+                                <input type="date" id="startDate">
+                            </div>
+                            <div class="form-group">
+                                <label>End Date</label>
+                                <input type="date" id="endDate">
+                            </div>
+                            <div class="form-group" style="display: flex; align-items: flex-end; gap: 0.5rem;">
+                                <button id="refreshPerformance" class="btn btn-primary">Filter</button>
+                                <button id="exportCsv" class="btn btn-primary">Export CSV</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Performance Table -->
+                    <div class="card">
+                        <h2 class="card-title">Session History</h2>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>User</th>
+                                    <th>Date</th>
+                                    <th>Level</th>
+                                    <th>Score</th>
+                                    <th>Accuracy</th>
+                                    <th>Avg Time</th>
+                                    <th>Level Change</th>
+                                </tr>
+                            </thead>
+                            <tbody id="performanceTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Level Config Tab -->
+                <div id="levels" class="tab-content">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Level Configurations</h2>
+                            <button id="saveLevelConfigs" class="btn btn-primary">Save Changes</button>
+                        </div>
+                        <div id="levelConfigsContainer" class="level-configs-grid">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Create User Tab -->
+                <div id="create-user" class="tab-content">
+                    <div class="card" style="max-width: 500px;">
+                        <h2 class="card-title">Create New User</h2>
+                        <form id="createUserForm">
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" id="newUserEmail" required placeholder="child@example.com">
+                            </div>
+                            <div class="form-group">
+                                <label>Password</label>
+                                <input type="password" id="newUserPassword" required placeholder="Minimum 6 characters">
+                            </div>
+                            <div class="form-group">
+                                <label>Username</label>
+                                <input type="text" id="newUserUsername" required placeholder="e.g., tom">
+                            </div>
+                            <div class="form-group">
+                                <label>Display Name</label>
+                                <input type="text" id="newUserDisplayName" required placeholder="e.g., Tom">
+                            </div>
+                            <button type="submit" class="btn btn-primary">Create User</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                // Update tabs
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                // Update content
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                document.getElementById(tab.dataset.tab)?.classList.add('active');
+
+                // Load data for performance tab
+                if (tab.dataset.tab === 'performance') {
+                    window.admin?.loadPerformanceData();
+                }
+            });
+        });
+    </script>
+    <script type="module" src="js/admin.js"></script>
+</body>
+</html>

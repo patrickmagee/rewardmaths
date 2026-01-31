@@ -1,7 +1,9 @@
 /**
  * Math Levels Configuration
- * Handles loading and using progressive math challenge levels
+ * Loads level configurations from Supabase and generates questions
  */
+
+import { supabase } from './supabase.js';
 
 /**
  * Math Levels class for managing progressive difficulty
@@ -9,35 +11,61 @@
 export class MathLevels {
     constructor() {
         this.levels = null;
-        this.loadLevels();
+        this.isLoaded = false;
     }
 
     /**
-     * Loads math levels from JSON file
+     * Loads math levels from Supabase
+     * @returns {Promise<void>}
      */
     async loadLevels() {
+        if (this.isLoaded && this.levels) {
+            return;
+        }
+
         try {
-            const response = await fetch('./math_levels.json');
-            this.levels = await response.json();
+            const { data, error } = await supabase
+                .from('level_configs')
+                .select('*')
+                .eq('is_active', true)
+                .order('level', { ascending: true });
+
+            if (error) {
+                console.error('Failed to load level configs from Supabase:', error);
+                this.levels = this.getDefaultLevels();
+            } else if (data && data.length > 0) {
+                this.levels = data;
+                console.log(`Loaded ${data.length} level configs from Supabase`);
+            } else {
+                console.warn('No level configs found, using defaults');
+                this.levels = this.getDefaultLevels();
+            }
+
+            this.isLoaded = true;
         } catch (error) {
-            console.error('Failed to load math levels:', error);
-            // Fallback to basic levels if JSON fails to load
-            this.levels = this.getBasicLevels();
+            console.error('Error loading levels:', error);
+            this.levels = this.getDefaultLevels();
+            this.isLoaded = true;
         }
     }
 
     /**
      * Gets the configuration for a specific level
-     * @param {number} level - Level number (1-100)
+     * @param {number} level - Level number (1-30)
      * @returns {Object} Level configuration
      */
     getLevelConfig(level) {
-        if (!this.levels) {
-            return this.getBasicLevelConfig(level);
+        if (!this.levels || this.levels.length === 0) {
+            return this.getDefaultLevelConfig(level);
         }
 
         const levelConfig = this.levels.find(l => l.level === level);
-        return levelConfig || this.levels[this.levels.length - 1]; // Return highest level if not found
+        if (levelConfig) {
+            return levelConfig;
+        }
+
+        // Return highest available level if requested level not found
+        return this.levels[this.levels.length - 1];
     }
 
     /**
@@ -47,25 +75,14 @@ export class MathLevels {
      */
     generateQuestion(level) {
         const config = this.getLevelConfig(level);
-        
-        if (config.multi_step && config.operands_per_question > 2) {
-            return this.generateMultiStepQuestion(config);
-        } else {
-            return this.generateSimpleQuestion(config);
-        }
-    }
 
-    /**
-     * Generates a simple two-operand question
-     * @param {Object} config - Level configuration
-     * @returns {Object} Question object
-     */
-    generateSimpleQuestion(config) {
+        // Get a random operation from available operations
         const operation = this.getRandomOperation(config.operations);
-        
-        if (operation === '*' && config.multiplication_tables.length > 0) {
+
+        // Handle multiplication and division with times tables
+        if (operation === '*' && config.multiplication_tables && config.multiplication_tables.length > 0) {
             return this.generateMultiplicationQuestion(config);
-        } else if (operation === '/' && config.multiplication_tables.length > 0) {
+        } else if (operation === '/' && config.multiplication_tables && config.multiplication_tables.length > 0) {
             return this.generateDivisionQuestion(config);
         } else {
             return this.generateBasicQuestion(config, operation);
@@ -80,36 +97,47 @@ export class MathLevels {
      */
     generateBasicQuestion(config, operation) {
         let num1, num2, answer;
-        
-        do {
-            num1 = this.getRandomNumber(1, config.max_operand);
-            num2 = this.getRandomNumber(1, config.max_operand);
-            
-            switch (operation) {
-                case '+':
-                    answer = num1 + num2;
-                    break;
-                case '-':
-                    answer = num1 - num2;
-                    // Ensure non-negative results if not allowed
-                    if (!config.negative_results_allowed && answer < 0) {
-                        [num1, num2] = [num2, num1]; // Swap to make positive
-                        answer = num1 - num2;
-                    }
-                    break;
-                case '*':
-                    answer = num1 * num2;
-                    break;
-                case '/':
-                    // Ensure clean division
-                    answer = num1;
-                    num1 = num1 * num2;
-                    break;
-            }
-        } while (!config.negative_results_allowed && answer < 0);
+        const maxOperand = config.max_operand || 20;
+
+        // Generate appropriate numbers based on operation
+        switch (operation) {
+            case '+':
+                num1 = this.getRandomNumber(1, maxOperand);
+                num2 = this.getRandomNumber(1, maxOperand);
+                answer = num1 + num2;
+                break;
+
+            case '-':
+                // Ensure positive result
+                num1 = this.getRandomNumber(2, maxOperand);
+                num2 = this.getRandomNumber(1, num1);
+                answer = num1 - num2;
+                break;
+
+            case '*':
+                // Simple multiplication without specific tables
+                num1 = this.getRandomNumber(2, Math.min(12, maxOperand));
+                num2 = this.getRandomNumber(2, Math.min(12, maxOperand));
+                answer = num1 * num2;
+                break;
+
+            case '/':
+                // Generate clean division
+                num2 = this.getRandomNumber(2, Math.min(12, maxOperand));
+                answer = this.getRandomNumber(1, 12);
+                num1 = num2 * answer;
+                break;
+
+            default:
+                num1 = this.getRandomNumber(1, maxOperand);
+                num2 = this.getRandomNumber(1, maxOperand);
+                answer = num1 + num2;
+        }
+
+        const operationSymbol = operation === '*' ? '\u00D7' : (operation === '/' ? '\u00F7' : operation);
 
         return {
-            text: `${num1} ${operation} ${num2}`,
+            text: `${num1} ${operationSymbol} ${num2}`,
             answer: answer
         };
     }
@@ -120,13 +148,12 @@ export class MathLevels {
      * @returns {Object} Question object
      */
     generateMultiplicationQuestion(config) {
-        const table = config.multiplication_tables[
-            Math.floor(Math.random() * config.multiplication_tables.length)
-        ];
+        const tables = config.multiplication_tables || [2, 5, 10];
+        const table = tables[Math.floor(Math.random() * tables.length)];
         const multiplier = this.getRandomNumber(1, 12);
-        
+
         return {
-            text: `${table} × ${multiplier}`,
+            text: `${table} \u00D7 ${multiplier}`,
             answer: table * multiplier
         };
     }
@@ -137,63 +164,14 @@ export class MathLevels {
      * @returns {Object} Question object
      */
     generateDivisionQuestion(config) {
-        const table = config.multiplication_tables[
-            Math.floor(Math.random() * config.multiplication_tables.length)
-        ];
-        const divisor = this.getRandomNumber(1, 12);
-        const dividend = table * divisor;
-        
-        return {
-            text: `${dividend} ÷ ${table}`,
-            answer: divisor
-        };
-    }
+        const tables = config.multiplication_tables || [2, 5, 10];
+        const divisor = tables[Math.floor(Math.random() * tables.length)];
+        const quotient = this.getRandomNumber(1, 12);
+        const dividend = divisor * quotient;
 
-    /**
-     * Generates a multi-step question with multiple operands
-     * @param {Object} config - Level configuration
-     * @returns {Object} Question object
-     */
-    generateMultiStepQuestion(config) {
-        const operandCount = config.operands_per_question;
-        const operands = [];
-        const operations = [];
-        
-        // Generate operands and operations
-        for (let i = 0; i < operandCount; i++) {
-            operands.push(this.getRandomNumber(1, Math.min(config.max_operand, 1000))); // Limit for readability
-        }
-        
-        for (let i = 0; i < operandCount - 1; i++) {
-            operations.push(this.getRandomOperation(config.operations));
-        }
-        
-        // Build question text and calculate answer
-        let questionText = operands[0].toString();
-        let answer = operands[0];
-        
-        for (let i = 0; i < operations.length; i++) {
-            questionText += ` ${operations[i]} ${operands[i + 1]}`;
-            
-            switch (operations[i]) {
-                case '+':
-                    answer += operands[i + 1];
-                    break;
-                case '-':
-                    answer -= operands[i + 1];
-                    break;
-                case '*':
-                    answer *= operands[i + 1];
-                    break;
-                case '/':
-                    answer = Math.round(answer / operands[i + 1]);
-                    break;
-            }
-        }
-        
         return {
-            text: questionText,
-            answer: answer
+            text: `${dividend} \u00F7 ${divisor}`,
+            answer: quotient
         };
     }
 
@@ -203,6 +181,9 @@ export class MathLevels {
      * @returns {string} Random operation
      */
     getRandomOperation(operations) {
+        if (!operations || operations.length === 0) {
+            return '+';
+        }
         return operations[Math.floor(Math.random() * operations.length)];
     }
 
@@ -217,33 +198,61 @@ export class MathLevels {
     }
 
     /**
-     * Fallback basic level configuration if JSON fails to load
+     * Default level configuration if Supabase fails
      * @param {number} level - Level number
-     * @returns {Object} Basic level config
+     * @returns {Object} Default level config
      */
-    getBasicLevelConfig(level) {
-        return {
-            level: level,
-            operations: ['+', '-'],
-            max_operand: Math.min(10 + level * 2, 100),
-            operands_per_question: 2,
-            carry_borrow: level > 2,
-            negative_results_allowed: false,
-            multi_step: false,
-            multiplication_tables: [],
-            two_digit_divisor: false
-        };
+    getDefaultLevelConfig(level) {
+        const defaults = this.getDefaultLevels();
+        const config = defaults.find(l => l.level === level);
+        return config || defaults[defaults.length - 1];
     }
 
     /**
-     * Fallback basic levels array
-     * @returns {Array} Basic levels configuration
+     * Get default level configurations (fallback if Supabase unavailable)
+     * @returns {Array} Default level configurations
      */
-    getBasicLevels() {
-        const levels = [];
-        for (let i = 1; i <= 100; i++) {
-            levels.push(this.getBasicLevelConfig(i));
-        }
-        return levels;
+    getDefaultLevels() {
+        return [
+            // Foundation (1-5)
+            { level: 1, operations: ['+'], max_operand: 10, multiplication_tables: [] },
+            { level: 2, operations: ['+', '-'], max_operand: 10, multiplication_tables: [] },
+            { level: 3, operations: ['+', '-'], max_operand: 20, multiplication_tables: [] },
+            { level: 4, operations: ['+', '-'], max_operand: 20, multiplication_tables: [2, 5, 10] },
+            { level: 5, operations: ['+', '-', '*'], max_operand: 20, multiplication_tables: [2, 5, 10] },
+
+            // Times Tables (6-13)
+            { level: 6, operations: ['*'], max_operand: 12, multiplication_tables: [2, 3] },
+            { level: 7, operations: ['*'], max_operand: 12, multiplication_tables: [2, 3, 4] },
+            { level: 8, operations: ['*'], max_operand: 12, multiplication_tables: [2, 3, 4, 5] },
+            { level: 9, operations: ['*'], max_operand: 12, multiplication_tables: [2, 3, 4, 5, 6] },
+            { level: 10, operations: ['*'], max_operand: 12, multiplication_tables: [2, 3, 4, 5, 6, 7] },
+            { level: 11, operations: ['*'], max_operand: 12, multiplication_tables: [2, 3, 4, 5, 6, 7, 8] },
+            { level: 12, operations: ['*'], max_operand: 12, multiplication_tables: [2, 3, 4, 5, 6, 7, 8, 9] },
+            { level: 13, operations: ['*'], max_operand: 12, multiplication_tables: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] },
+
+            // Division (14-15)
+            { level: 14, operations: ['/'], max_operand: 12, multiplication_tables: [2, 3, 4, 5] },
+            { level: 15, operations: ['/', '*'], max_operand: 12, multiplication_tables: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] },
+
+            // Mixed Speed (16-25)
+            { level: 16, operations: ['+', '-'], max_operand: 50, multiplication_tables: [] },
+            { level: 17, operations: ['+', '-'], max_operand: 100, multiplication_tables: [] },
+            { level: 18, operations: ['+', '-', '*'], max_operand: 50, multiplication_tables: [2, 3, 4, 5, 6] },
+            { level: 19, operations: ['+', '-', '*', '/'], max_operand: 50, multiplication_tables: [2, 3, 4, 5, 6] },
+            { level: 20, operations: ['+', '-', '*', '/'], max_operand: 75, multiplication_tables: [2, 3, 4, 5, 6, 7, 8] },
+            { level: 21, operations: ['+', '-', '*', '/'], max_operand: 100, multiplication_tables: [2, 3, 4, 5, 6, 7, 8, 9] },
+            { level: 22, operations: ['+', '-', '*', '/'], max_operand: 100, multiplication_tables: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] },
+            { level: 23, operations: ['+', '-'], max_operand: 100, multiplication_tables: [] },
+            { level: 24, operations: ['*', '/'], max_operand: 12, multiplication_tables: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] },
+            { level: 25, operations: ['+', '-', '*', '/'], max_operand: 100, multiplication_tables: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] },
+
+            // Mastery (26-30)
+            { level: 26, operations: ['+', '-'], max_operand: 100, multiplication_tables: [] },
+            { level: 27, operations: ['*'], max_operand: 12, multiplication_tables: [6, 7, 8, 9, 11, 12] },
+            { level: 28, operations: ['/'], max_operand: 12, multiplication_tables: [6, 7, 8, 9, 11, 12] },
+            { level: 29, operations: ['+', '-', '*', '/'], max_operand: 100, multiplication_tables: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] },
+            { level: 30, operations: ['+', '-', '*', '/'], max_operand: 100, multiplication_tables: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] }
+        ];
     }
 }

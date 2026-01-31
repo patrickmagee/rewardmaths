@@ -6,29 +6,20 @@
 // Application Constants
 export const APP_CONFIG = {
     STORAGE_KEY: 'rewardmaths_levels',
-    MAX_LEVEL: 100,
+    MAX_LEVEL: 30,
     MIN_LEVEL: 1,
     QUESTIONS_PER_LEVEL: 20,
     TIMEOUT_DURATIONS: [1000, 5000, 30000, 60000, 300000, 1800000, 3600000, 86400000]
 };
-
-// Predefined users
-export const USERS = [
-    { username: 'Tom', password: 'Tom1234' },
-    { username: 'Patrick', password: 'Patrick1234' },
-    { username: 'Eliza', password: 'Eliza1234' }
-];
 
 // UI Element IDs
 export const ELEMENTS = {
     // Screens
     LOGIN_SCREEN: 'loginScreen',
     GAME_SCREEN: 'gameScreen',
-    
+
     // Login elements
-    USERNAME: 'username',
-    PASSWORD: 'password',
-    LOGIN_BUTTON: 'loginButton',
+    USER_BUTTONS: '.user-btn',
     LOGIN_ERROR: 'loginError',
     
     // Game elements
@@ -42,19 +33,18 @@ export const ELEMENTS = {
     // Progress elements
     PROGRESS_CIRCLES: 'progressCircles',
     STREAK_INFO: 'streakInfo',
-    LEVEL_BAR: 'levelBar',
-    LEVEL_TEXT: 'levelText',
+    LEVEL_NUMBER: 'levelNumber',
+    NEXT_REWARD: 'nextReward',
 
-    // New elements
-    REWARD_MARKERS: 'rewardMarkers',
+    // Popup elements
     POPUP_MODAL: 'popupModal',
     POPUP_MESSAGE: 'popupMessage',
     POPUP_OK_BUTTON: 'popupOkButton'
 };
 
-// Reward milestones configuration
+// Reward milestones configuration (adjusted for 30-level system)
 export const REWARDS = {
-    MILESTONES: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+    MILESTONES: [5, 10, 15, 20, 25, 30],
     LEVEL_DOWN_MESSAGES: {
         Tom: "🦖 Great effort, Tom! Even the best dinosaur trainers need to step back sometimes. You've got this!",
         Eliza: "🌸 Great effort, Eliza-chan! Even magical girls sometimes need to power up at a lower level. Ganbatte!",

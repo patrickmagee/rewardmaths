@@ -10,18 +10,26 @@
     <!-- Login Screen -->
     <div id="loginScreen" class="screen">
         <h1>Reward Math</h1>
-        <input type="text" id="username" placeholder="Username">
-        <input type="password" id="password" placeholder="Password">
-        <button id="loginButton">Login</button>
+        <p class="login-prompt">Who's playing?</p>
+        <div class="user-buttons">
+            <button class="user-btn" data-user="Tom">🦖 Tom</button>
+            <button class="user-btn" data-user="Patrick">🙂 Patrick</button>
+            <button class="user-btn" data-user="Eliza">🌸 Eliza</button>
+        </div>
         <p id="loginError" class="error"></p>
     </div>
 
     <!-- Game Screen -->
     <div id="gameScreen" class="screen" style="display: none; position: relative;">
-        <div class="user-header">
+        <div class="player-banner" id="playerBanner">
             <span id="userInfo"></span>
         </div>
         <h1>Reward Math</h1>
+        <div class="level-display-badge">
+            <div class="level-label">LEVEL</div>
+            <div id="levelNumber" class="level-number">1</div>
+            <div id="nextReward" class="next-reward"></div>
+        </div>
         <div class="progress-bar-wrapper">
             <div id="progressCircles" class="progress-circles"></div>
             <div id="streakInfo" class="streak-info"></div>
@@ -30,15 +38,7 @@
         <input type="number" id="answer" placeholder="" autocomplete="off" spellcheck="false" pattern="[0-9]*" inputmode="numeric">
         <button id="submitButton">Submit</button>
         <p id="feedback" class="feedback"></p>
-        <button id="logoutButton" class="logout-btn">Logout</button>
-        <div class="level-bar-container">
-            <div class="level-bar-label">Level</div>
-            <div class="level-bar-outer">
-                <div id="levelBar" class="level-bar"></div>
-                <div class="reward-markers" id="rewardMarkers"></div>
-            </div>
-            <div id="levelText" class="level-bar-text">1</div>
-        </div>
+        <button id="logoutButton" class="logout-btn">Switch Player</button>
     </div>
 
     <!-- Popup Modal -->

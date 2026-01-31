@@ -22,19 +22,15 @@ export class UI {
         const loginScreen = getElement(ELEMENTS.LOGIN_SCREEN);
         loginScreen.style.display = 'flex';
         this.currentScreen = 'login';
-        
+
         // Clear any previous error messages
         const errorElement = getElement(ELEMENTS.LOGIN_ERROR);
         errorElement.textContent = '';
-        
-        // Clear input fields
-        const usernameInput = getElement(ELEMENTS.USERNAME);
-        const passwordInput = getElement(ELEMENTS.PASSWORD);
-        usernameInput.value = '';
-        passwordInput.value = '';
-        
-        // Focus on username input
-        usernameInput.focus();
+
+        // Re-enable user buttons
+        document.querySelectorAll(ELEMENTS.USER_BUTTONS).forEach(btn => {
+            btn.disabled = false;
+        });
     }
 
     /**
@@ -76,29 +72,17 @@ export class UI {
 
     /**
      * Sets up event listeners for UI elements
-     * @param {Function} onLogin - Login callback function
+     * @param {Function} onLogin - Login callback function (receives username)
      * @param {Function} onLogout - Logout callback function
      * @param {Function} onSubmitAnswer - Submit answer callback function
      */
     setupEventListeners(onLogin, onLogout, onSubmitAnswer) {
-        // Login button
-        const loginButton = getElement(ELEMENTS.LOGIN_BUTTON);
-        loginButton.addEventListener('click', onLogin);
-
-        // Enter key on login fields
-        const usernameInput = getElement(ELEMENTS.USERNAME);
-        const passwordInput = getElement(ELEMENTS.PASSWORD);
-        
-        usernameInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                passwordInput.focus();
-            }
-        });
-        
-        passwordInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                onLogin();
-            }
+        // User selection buttons
+        document.querySelectorAll(ELEMENTS.USER_BUTTONS).forEach(button => {
+            button.addEventListener('click', () => {
+                const username = button.dataset.user;
+                onLogin(username);
+            });
         });
 
         // Submit button
@@ -112,13 +96,13 @@ export class UI {
                 onSubmitAnswer();
             }
         });
-        
+
         // Restrict input to digits only
         answerInput.addEventListener('input', (e) => {
             // Remove any non-digit characters
             e.target.value = e.target.value.replace(/[^0-9]/g, '');
         });
-        
+
         answerInput.addEventListener('keydown', (e) => {
             // Allow: backspace, delete, tab, escape, enter, and arrow keys
             if ([8, 9, 27, 13, 37, 38, 39, 40, 46].indexOf(e.keyCode) !== -1 ||
@@ -141,17 +125,21 @@ export class UI {
     }
 
     /**
-     * Gets login form values
-     * @returns {Object} Object containing username and password
+     * Shows loading state on user buttons
      */
-    getLoginFormValues() {
-        const usernameInput = getElement(ELEMENTS.USERNAME);
-        const passwordInput = getElement(ELEMENTS.PASSWORD);
-        
-        return {
-            username: usernameInput.value.trim(),
-            password: passwordInput.value
-        };
+    showLoading() {
+        document.querySelectorAll(ELEMENTS.USER_BUTTONS).forEach(btn => {
+            btn.disabled = true;
+        });
+    }
+
+    /**
+     * Hides loading state on user buttons
+     */
+    hideLoading() {
+        document.querySelectorAll(ELEMENTS.USER_BUTTONS).forEach(btn => {
+            btn.disabled = false;
+        });
     }
 
     /**

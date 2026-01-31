@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(gh issue list:*)",
+      "Bash(start http://localhost:8000/index.html)",
+      "Bash(start http://localhost:8000/test_level_rules.html)",
+      "Bash(scp:*)",
+      "Bash($keyPath = Join-Path $env:USERPROFILE \".ssh\\id_rsa\")",
+      "Read(//c/Users/patri/.ssh/**)",
+      "Bash(ssh:*)",
+      "WebFetch(domain:rewardmaths.com)",
+      "WebSearch",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nReplace text progress display with visual progress circles\n\n- Replace horizontal progress bar with 20 circles (2 rows of 10)\n- Green circles for correct answers, red for incorrect\n- Circles update in real-time as questions are answered\n- Update game.js to use circle-based progress tracking\n- Update config.js to replace progress bar element IDs\n- Update HTML to use new progress circles container\n- Update CSS with grid layout for 2 rows of 10 circles\n- Update documentation (README, CLAUDE.md, AI_AGENT_GUIDE)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

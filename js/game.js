@@ -1,7 +1,7 @@
 /**
  * Game Logic
  * Handles math question generation, answer checking, and game progression
- * Updated to support 20 questions per level with new progression rules
+ * Updated to support 20 questions per level with Supabase integration
  */
 
 import { APP_CONFIG, ELEMENTS, REWARDS } from './config.js';
@@ -23,34 +23,59 @@ export class Game {
         this.level = 1;
         this.currentQuestion = null;
         this.mathLevels = new MathLevels();
-        this.levelRulesManager = new LevelRulesManager(Storage);
+        this.levelRulesManager = new LevelRulesManager();
         this.performanceTracker = new PerformanceTracker();
-        this.sessionQuestions = []; // Track all questions in current session
+        this.sessionQuestions = [];
+        this.isProcessing = false;
+    }
+
+    /**
+     * Gets the current user ID
+     * @returns {string|null} User ID
+     */
+    getUserId() {
+        return this.auth.getUserId();
+    }
+
+    /**
+     * Gets the current username for display
+     * @returns {string} Username
+     */
+    getUsername() {
+        return this.auth.getUsername() || 'Guest';
     }
 
     /**
      * Starts a new game session
      */
-    start() {
+    async start() {
         this.currentQuestionNumber = 0;
         this.correctAnswers = 0;
         this.sessionQuestions = [];
-        
-        const currentUser = this.auth.getCurrentUser();
-        const username = currentUser?.username || 'Guest';
-        
-        if (currentUser && currentUser.username) {
-            this.level = Storage.getUserLevel(currentUser.username);
+
+        const userId = this.getUserId();
+
+        if (userId) {
+            // Load user's current level from Supabase
+            this.level = await Storage.getUserLevel(userId);
         } else {
             this.level = APP_CONFIG.MIN_LEVEL;
         }
 
+        // Ensure level is within valid range (1-30)
+        this.level = clamp(this.level, APP_CONFIG.MIN_LEVEL, APP_CONFIG.MAX_LEVEL);
+
+        // Wait for math levels to load from Supabase
+        await this.mathLevels.loadLevels();
+
         // Start performance tracking session
-        this.performanceTracker.startSession(username, this.level);
+        await this.performanceTracker.startSession(userId, this.level);
+
+        // Load current streaks
+        await this.levelRulesManager.loadStreaks(userId);
 
         this.updateProgressBar();
         this.updateLevelBar();
-        this.initializeRewardMarkers();
         this.generateQuestion();
         this.updateUserInfo();
         this.updateStreakDisplay();
@@ -60,7 +85,6 @@ export class Game {
      * Generates a new math question based on current level
      */
     generateQuestion() {
-        // Use progressive math levels system
         this.currentQuestion = this.mathLevels.generateQuestion(this.level);
         this.currentQuestionNumber++;
 
@@ -70,7 +94,7 @@ export class Game {
 
         // Start performance tracking for this question
         this.performanceTracker.startQuestion(
-            this.currentQuestion.text, 
+            this.currentQuestion.text,
             this.currentQuestion.answer
         );
 
@@ -83,20 +107,29 @@ export class Game {
             isCorrect: null,
             timestamp: new Date().toISOString()
         });
+
+        // Focus answer input
+        const answerInput = getElement(ELEMENTS.ANSWER);
+        answerInput.focus();
     }
 
     /**
      * Checks the user's answer and updates game state
      */
     async checkAnswer() {
+        // Prevent double-processing
+        if (this.isProcessing) return;
+
         const answerInput = getElement(ELEMENTS.ANSWER);
         const userAnswerText = answerInput.value.trim();
-        
+
         // Quietly reject blank answers
         if (userAnswerText === '') {
             return;
         }
-        
+
+        this.isProcessing = true;
+
         const userAnswer = getIntegerValue(answerInput);
         const correctAnswer = this.currentQuestion.answer;
         const feedback = getElement(ELEMENTS.FEEDBACK);
@@ -116,6 +149,7 @@ export class Game {
         }
 
         answerInput.value = '';
+        this.isProcessing = false;
     }
 
     /**
@@ -125,7 +159,7 @@ export class Game {
     async handleCorrectAnswer(feedback) {
         this.correctAnswers++;
         this.updateProgressBar();
-        
+
         feedback.textContent = 'Correct!';
         feedback.className = 'feedback correct';
 
@@ -167,21 +201,21 @@ export class Game {
      * @param {HTMLElement} feedback - Feedback element
      */
     async handleLevelCompletion(feedback) {
-        const currentUser = this.auth.getCurrentUser();
-        const username = currentUser?.username || 'Guest';
+        const userId = this.getUserId();
+        const username = this.getUsername();
         const score = this.correctAnswers;
         const oldLevel = this.level;
 
         // Show completion message
         feedback.textContent = `Level complete! You got ${score}/${LEVEL_RULES.QUESTIONS_PER_LEVEL} correct.`;
         feedback.className = 'feedback';
-        
+
         await delay(2000);
 
-        // Evaluate level progression using the new rules
-        const progressionResult = this.levelRulesManager.evaluateLevelProgression(
-            username, 
-            this.level, 
+        // Evaluate level progression using the rules
+        const progressionResult = await this.levelRulesManager.evaluateLevelProgression(
+            userId,
+            this.level,
             score
         );
 
@@ -190,33 +224,46 @@ export class Game {
         // Update performance tracker with new level
         this.performanceTracker.updateLevel(this.level);
 
-        // Save new level if user is logged in
-        if (currentUser && currentUser.username) {
-            Storage.setUserLevel(currentUser.username, this.level);
-        }
+        // Complete the session
+        await this.performanceTracker.completeSession(
+            score,
+            progressionResult.levelChanged,
+            progressionResult.levelChanged ? this.level : null,
+            progressionResult.reason
+        );
 
-        // Record level change if it occurred
-        if (progressionResult.levelChanged) {
-            this.levelRulesManager.recordLevelChange(
-                username, 
-                oldLevel, 
-                this.level, 
-                progressionResult.reason
-            );
+        // Save new level and streaks to Supabase
+        if (userId) {
+            await Storage.setUserLevel(userId, this.level);
+
+            // Record level change if it occurred
+            if (progressionResult.levelChanged) {
+                await Storage.recordLevelChange(
+                    userId,
+                    oldLevel,
+                    this.level,
+                    progressionResult.reason
+                );
+            }
         }
 
         this.updateLevelBar();
-        this.updateRewardMarkers();
         this.updateStreakDisplay();
 
         // Show progression feedback
         await this.showProgressionFeedback(feedback, progressionResult, score, username);
 
-        // Reset for next level
+        // Reset for next level and start new session
         this.currentQuestionNumber = 0;
         this.correctAnswers = 0;
         this.sessionQuestions = [];
         this.updateProgressBar();
+
+        // Start new performance tracking session
+        if (userId) {
+            await this.performanceTracker.startSession(userId, this.level);
+        }
+
         this.generateQuestion();
         feedback.textContent = '';
     }
@@ -235,20 +282,24 @@ export class Game {
             feedback.textContent += ` (${progressionResult.streakInfo})`;
         }
         feedback.className = progressionResult.levelChanged ? 'feedback correct' : 'feedback';
-        
+
         await delay(2000);
 
         if (progressionResult.levelChanged) {
-            // Show personalized level change message
-            if (this.level > progressionResult.newLevel) {
+            const oldLevel = progressionResult.newLevel > this.level ?
+                this.level : progressionResult.newLevel;
+
+            if (progressionResult.newLevel < oldLevel) {
                 // Level down
-                const levelDownMessage = REWARDS.LEVEL_DOWN_MESSAGES[username] || REWARDS.LEVEL_DOWN_MESSAGES.Patrick;
+                const levelDownMessage = REWARDS.LEVEL_DOWN_MESSAGES[username] ||
+                    REWARDS.LEVEL_DOWN_MESSAGES.Patrick ||
+                    "Great effort! We're stepping back a level to build your confidence.";
                 await this.ui.showPopup(levelDownMessage);
             } else {
                 // Level up
                 const levelUpMessage = this.ui.getLevelUpMessage(username, this.level);
                 await this.ui.showPopup(levelUpMessage);
-                
+
                 // Check if this is a reward milestone
                 if (REWARDS.MILESTONES.includes(this.level)) {
                     const rewardNumber = REWARDS.MILESTONES.indexOf(this.level) + 1;
@@ -289,15 +340,23 @@ export class Game {
     }
 
     /**
-     * Updates the level bar display
+     * Updates the level display badge
      */
     updateLevelBar() {
-        const levelBar = getElement(ELEMENTS.LEVEL_BAR);
-        const levelText = getElement(ELEMENTS.LEVEL_TEXT);
-        const percent = clamp(this.level, 1, 100) / 100 * 100;
-        
-        levelBar.style.height = `${percent}%`;
-        levelText.textContent = this.level;
+        const levelNumber = getElement(ELEMENTS.LEVEL_NUMBER);
+        const nextReward = getElement(ELEMENTS.NEXT_REWARD);
+
+        // Update level number
+        levelNumber.textContent = this.level;
+
+        // Find next milestone reward
+        const nextMilestone = REWARDS.MILESTONES.find(m => m > this.level);
+        if (nextMilestone) {
+            const levelsToGo = nextMilestone - this.level;
+            nextReward.textContent = `${levelsToGo} more to Level ${nextMilestone} reward`;
+        } else {
+            nextReward.textContent = 'MAX LEVEL!';
+        }
     }
 
     /**
@@ -312,17 +371,10 @@ export class Game {
      * Updates streak display information
      */
     updateStreakDisplay() {
-        const currentUser = this.auth.getCurrentUser();
         const streakInfoElement = getElement(ELEMENTS.STREAK_INFO);
+        const streakInfo = this.levelRulesManager.getStreakInfo();
 
-        if (!currentUser || !currentUser.username) {
-            streakInfoElement.textContent = '';
-            return;
-        }
-
-        const streakInfo = this.levelRulesManager.getStreakInfo(currentUser.username);
-
-        // Display streak info in separate small element
+        // Display streak info
         let streakText = '';
 
         if (streakInfo.highScoreStreak > 0) {
@@ -335,51 +387,6 @@ export class Game {
         }
 
         streakInfoElement.textContent = streakText;
-    }
-
-    /**
-     * Initializes reward markers on the level bar
-     */
-    initializeRewardMarkers() {
-        const rewardMarkersContainer = getElement(ELEMENTS.REWARD_MARKERS);
-        rewardMarkersContainer.innerHTML = '';
-
-        REWARDS.MILESTONES.forEach((milestone, index) => {
-            const marker = document.createElement('div');
-            marker.className = 'reward-marker';
-            marker.title = `Level ${milestone} Reward`; // Tooltip for hover
-
-            // Position marker to align with bar fill height (same calculation as level bar)
-            // Use clamp(milestone, 1, 100) / 100 to match updateLevelBar logic
-            const position = (clamp(milestone, 1, 100) / 100) * 100;
-            marker.style.bottom = `${position}%`;
-
-            // Check if reward is unlocked
-            if (this.level >= milestone) {
-                marker.classList.add('unlocked');
-            } else {
-                marker.classList.add('locked');
-            }
-
-            rewardMarkersContainer.appendChild(marker);
-        });
-    }
-
-    /**
-     * Updates reward markers based on current level
-     */
-    updateRewardMarkers() {
-        const markers = document.querySelectorAll('.reward-marker');
-        markers.forEach((marker, index) => {
-            const milestone = REWARDS.MILESTONES[index];
-            marker.classList.remove('locked', 'unlocked');
-            
-            if (this.level >= milestone) {
-                marker.classList.add('unlocked');
-            } else {
-                marker.classList.add('locked');
-            }
-        });
     }
 
     /**
@@ -398,23 +405,20 @@ export class Game {
 
     /**
      * Gets level progression history for current user
-     * @returns {Array} Level change history
+     * @returns {Promise<Array>} Level change history
      */
-    getLevelHistory() {
-        const currentUser = this.auth.getCurrentUser();
-        if (!currentUser || !currentUser.username) return [];
-        
-        return this.levelRulesManager.getLevelHistory(currentUser.username);
+    async getLevelHistory() {
+        const userId = this.getUserId();
+        if (!userId) return [];
+
+        return await Storage.getLevelHistory(userId);
     }
 
     /**
-     * Gets current streak information for current user
+     * Gets current streak information
      * @returns {Object} Streak information
      */
     getCurrentStreakInfo() {
-        const currentUser = this.auth.getCurrentUser();
-        if (!currentUser || !currentUser.username) return null;
-        
-        return this.levelRulesManager.getStreakInfo(currentUser.username);
+        return this.levelRulesManager.getStreakInfo();
     }
 }

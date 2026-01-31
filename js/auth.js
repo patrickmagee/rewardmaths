@@ -1,19 +1,70 @@
 /**
  * Authentication Management
- * Handles user login, logout, and failed login attempts
+ * Handles user login, logout using Supabase Auth
  */
 
-import { USERS, APP_CONFIG, ELEMENTS } from './config.js';
+import { supabase, getCurrentProfile, signOut, onAuthStateChange } from './supabase.js';
+import { APP_CONFIG, ELEMENTS } from './config.js';
 import { formatTime, getElement } from './utils.js';
-import { Storage } from './storage.js';
 
 /**
- * Authentication class for managing user login/logout
+ * Authentication class for managing user login/logout with Supabase
  */
 export class Auth {
     constructor() {
         this.failedAttempts = {};
         this.currentUser = null;
+        this.currentProfile = null;
+        this.authStateCallback = null;
+    }
+
+    /**
+     * Initialize auth and check for existing session
+     * @returns {Promise<Object|null>} Current user profile or null
+     */
+    async initialize() {
+        try {
+            // Check for existing session
+            const { data: { session }, error } = await supabase.auth.getSession();
+
+            if (error) {
+                console.error('Error getting session:', error);
+                return null;
+            }
+
+            if (session?.user) {
+                this.currentUser = session.user;
+                this.currentProfile = await getCurrentProfile();
+                return this.currentProfile;
+            }
+
+            return null;
+        } catch (error) {
+            console.error('Auth initialization error:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Subscribe to auth state changes
+     * @param {Function} callback - Callback for auth state changes
+     */
+    subscribeToAuthChanges(callback) {
+        this.authStateCallback = onAuthStateChange(async (event, session) => {
+            console.log('Auth state changed:', event);
+
+            if (event === 'SIGNED_IN' && session?.user) {
+                this.currentUser = session.user;
+                this.currentProfile = await getCurrentProfile();
+            } else if (event === 'SIGNED_OUT') {
+                this.currentUser = null;
+                this.currentProfile = null;
+            }
+
+            if (callback) {
+                callback(event, session, this.currentProfile);
+            }
+        });
     }
 
     /**
@@ -21,60 +72,158 @@ export class Auth {
      * @returns {Object|null} Current user object or null
      */
     getCurrentUser() {
+        return this.currentProfile;
+    }
+
+    /**
+     * Gets the Supabase auth user
+     * @returns {Object|null} Supabase user object or null
+     */
+    getAuthUser() {
         return this.currentUser;
     }
 
     /**
-     * Attempts to log in a user
-     * @param {string} username - Username to attempt login with
-     * @param {string} password - Password to attempt login with
-     * @returns {boolean} True if login successful, false otherwise
+     * Gets the user ID
+     * @returns {string|null} User ID or null
      */
-    login(username, password) {
+    getUserId() {
+        return this.currentUser?.id || null;
+    }
+
+    /**
+     * Simple login by username (no password required)
+     * @param {string} username - Username to login as (Tom, Patrick, Eliza)
+     * @returns {Promise<Object>} Result object with success boolean and error if failed
+     */
+    async loginByName(username) {
+        try {
+            const { data, error } = await supabase.auth.signInByName(username);
+
+            if (error) {
+                console.error('Login error:', error.message);
+                return {
+                    success: false,
+                    error: error.message
+                };
+            }
+
+            if (data?.user) {
+                this.currentUser = data.user;
+                this.currentProfile = await getCurrentProfile();
+
+                console.log('Login successful:', this.currentProfile?.username);
+                return {
+                    success: true,
+                    user: this.currentProfile
+                };
+            }
+
+            return {
+                success: false,
+                error: 'User not found. Please try again.'
+            };
+        } catch (error) {
+            console.error('Login exception:', error);
+            return {
+                success: false,
+                error: 'An unexpected error occurred. Please try again.'
+            };
+        }
+    }
+
+    /**
+     * Attempts to log in a user with email and password (legacy method)
+     * @param {string} email - Email to attempt login with
+     * @param {string} password - Password to attempt login with
+     * @returns {Promise<Object>} Result object with success boolean and error if failed
+     */
+    async login(email, password) {
         // Clear any existing timeout
         this.clearLoginTimeout();
 
-        // Allow blank login (guest mode) - default to Patrick
-        if (username === '' && password === '') {
-            this.currentUser = { username: 'Patrick', isGuest: true };
-            // Set initial level to 10 for Patrick if not already set
-            if (!Storage.getUserLevel('Patrick')) {
-                Storage.setUserLevel('Patrick', 10);
+        // Check if user is locked out
+        if (this.isUserLockedOut(email)) {
+            const lockoutInfo = this.getLockoutInfo(email);
+            return {
+                success: false,
+                error: `Too many failed attempts. Try again in ${lockoutInfo.timeRemaining}.`
+            };
+        }
+
+        try {
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email,
+                password
+            });
+
+            if (error) {
+                console.error('Login error:', error.message);
+                this.handleFailedLogin(email);
+                return {
+                    success: false,
+                    error: error.message
+                };
             }
-            return true;
-        }
 
-        const user = USERS.find(u => u.username === username);
-        if (!user || user.password !== password) {
-            console.log('Invalid login attempt');
-            this.handleFailedLogin(username);
-            return false;
-        }
+            if (data?.user) {
+                this.currentUser = data.user;
+                this.currentProfile = await getCurrentProfile();
+                this.resetFailedAttempts(email);
 
-        console.log('Login successful');
-        this.resetFailedAttempts(username);
-        this.currentUser = user;
-        return true;
+                console.log('Login successful:', this.currentProfile?.username);
+                return {
+                    success: true,
+                    user: this.currentProfile
+                };
+            }
+
+            return {
+                success: false,
+                error: 'Login failed. Please try again.'
+            };
+        } catch (error) {
+            console.error('Login exception:', error);
+            return {
+                success: false,
+                error: 'An unexpected error occurred. Please try again.'
+            };
+        }
     }
 
     /**
      * Logs out the current user
+     * @returns {Promise<Object>} Result object with success boolean
      */
-    logout() {
-        this.currentUser = null;
+    async logout() {
+        try {
+            const { error } = await signOut();
+
+            if (error) {
+                console.error('Logout error:', error);
+                return { success: false, error: error.message };
+            }
+
+            this.currentUser = null;
+            this.currentProfile = null;
+            return { success: true };
+        } catch (error) {
+            console.error('Logout exception:', error);
+            return { success: false, error: 'Logout failed' };
+        }
     }
 
     /**
      * Checks if a user is currently locked out
-     * @param {string} username - Username to check
+     * @param {string} email - Email to check
      * @returns {boolean} True if user is locked out
      */
-    isUserLockedOut(username) {
-        if (!this.failedAttempts[username]) {
+    isUserLockedOut(email) {
+        if (!this.failedAttempts[email]) {
             return false;
         }
 
-        const attempts = this.failedAttempts[username];
+        const attempts = this.failedAttempts[email];
         const lockoutDuration = APP_CONFIG.TIMEOUT_DURATIONS[
             Math.min(attempts.count - 1, APP_CONFIG.TIMEOUT_DURATIONS.length - 1)
         ];
@@ -84,36 +233,47 @@ export class Auth {
     }
 
     /**
-     * Handles failed login attempts
-     * @param {string} username - Username that failed login
+     * Gets lockout information for a user
+     * @param {string} email - Email to check
+     * @returns {Object} Lockout info with time remaining
      */
-    handleFailedLogin(username) {
-        if (!this.failedAttempts[username]) {
-            this.failedAttempts[username] = { count: 0, timestamp: 0 };
+    getLockoutInfo(email) {
+        if (!this.failedAttempts[email]) {
+            return { isLockedOut: false, timeRemaining: '0s' };
         }
 
-        this.failedAttempts[username].count++;
-        this.failedAttempts[username].timestamp = Date.now();
-
-        const attempts = this.failedAttempts[username].count;
+        const attempts = this.failedAttempts[email];
         const lockoutDuration = APP_CONFIG.TIMEOUT_DURATIONS[
-            Math.min(attempts - 1, APP_CONFIG.TIMEOUT_DURATIONS.length - 1)
+            Math.min(attempts.count - 1, APP_CONFIG.TIMEOUT_DURATIONS.length - 1)
         ];
+        const remainingTime = Math.max(0, lockoutDuration - (Date.now() - attempts.timestamp));
 
-        const remainingTime = lockoutDuration - (Date.now() - this.failedAttempts[username].timestamp);
-        const timeStr = formatTime(remainingTime);
+        return {
+            isLockedOut: remainingTime > 0,
+            timeRemaining: formatTime(remainingTime)
+        };
+    }
 
-        const errorElement = getElement(ELEMENTS.LOGIN_ERROR);
-        errorElement.textContent = `Invalid login. Try again in ${timeStr}.`;
+    /**
+     * Handles failed login attempts
+     * @param {string} email - Email that failed login
+     */
+    handleFailedLogin(email) {
+        if (!this.failedAttempts[email]) {
+            this.failedAttempts[email] = { count: 0, timestamp: 0 };
+        }
+
+        this.failedAttempts[email].count++;
+        this.failedAttempts[email].timestamp = Date.now();
     }
 
     /**
      * Resets failed login attempts for a user
-     * @param {string} username - Username to reset attempts for
+     * @param {string} email - Email to reset attempts for
      */
-    resetFailedAttempts(username) {
-        if (this.failedAttempts[username]) {
-            this.failedAttempts[username] = { count: 0, timestamp: 0 };
+    resetFailedAttempts(email) {
+        if (this.failedAttempts[email]) {
+            this.failedAttempts[email] = { count: 0, timestamp: 0 };
         }
     }
 
@@ -121,8 +281,7 @@ export class Auth {
      * Clears any existing login timeout
      */
     clearLoginTimeout() {
-        // This method exists to prevent errors but doesn't need implementation
-        // since we're not using timeouts in the current version
+        // This method exists for compatibility
     }
 
     /**
@@ -130,9 +289,34 @@ export class Auth {
      * @returns {string} Display name with emoji
      */
     getUserDisplayName() {
-        if (this.currentUser && this.currentUser.username) {
-            return `${this.currentUser.username} 🙂`;
+        if (this.currentProfile) {
+            const emoji = this.currentProfile.avatar_emoji || '🙂';
+            return `${this.currentProfile.display_name || this.currentProfile.username} ${emoji}`;
         }
         return '🙂';
+    }
+
+    /**
+     * Gets the username for the current user
+     * @returns {string|null} Username or null
+     */
+    getUsername() {
+        return this.currentProfile?.username || null;
+    }
+
+    /**
+     * Check if current user is an admin
+     * @returns {boolean} True if user is admin
+     */
+    isAdmin() {
+        return this.currentProfile?.is_admin === true;
+    }
+
+    /**
+     * Get the user's reward theme
+     * @returns {string} Reward theme name
+     */
+    getRewardTheme() {
+        return this.currentProfile?.reward_theme || 'default';
     }
 }
