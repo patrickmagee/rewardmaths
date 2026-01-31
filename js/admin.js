@@ -20,29 +20,53 @@ export class AdminDashboard {
      * Initialize the admin dashboard
      */
     async init() {
-        // Check authentication
-        const profile = await getCurrentProfile();
+        // Setup login button
+        document.getElementById('patrickLoginBtn')?.addEventListener('click', () => this.login());
 
-        if (!profile) {
-            this.showLoginRequired();
-            return false;
+        // Show login screen
+        this.showLoginScreen();
+    }
+
+    /**
+     * Handle login
+     */
+    async login() {
+        const loginError = document.getElementById('loginError');
+        loginError.textContent = '';
+
+        try {
+            // Login as Patrick
+            const { data, error } = await supabase.auth.signInByName('patrick');
+
+            if (error) {
+                loginError.textContent = error.message;
+                return;
+            }
+
+            // Get profile and check admin status
+            const profile = await getCurrentProfile();
+
+            if (!profile) {
+                loginError.textContent = 'Failed to load profile';
+                return;
+            }
+
+            if (!profile.is_admin) {
+                loginError.textContent = 'Access denied - not an admin';
+                return;
+            }
+
+            this.currentUser = profile;
+            this.isAdmin = true;
+
+            // Load initial data
+            await this.loadUsers();
+            await this.loadLevelConfigs();
+            this.setupEventListeners();
+            this.showDashboard();
+        } catch (err) {
+            loginError.textContent = 'Login failed: ' + err.message;
         }
-
-        this.currentUser = profile;
-        this.isAdmin = profile.is_admin === true;
-
-        if (!this.isAdmin) {
-            this.showAccessDenied();
-            return false;
-        }
-
-        // Load initial data
-        await this.loadUsers();
-        await this.loadLevelConfigs();
-        this.setupEventListeners();
-        this.showDashboard();
-
-        return true;
     }
 
     /**
@@ -443,36 +467,18 @@ export class AdminDashboard {
     }
 
     /**
-     * Show login required message
+     * Show login screen
      */
-    showLoginRequired() {
-        document.getElementById('app').innerHTML = `
-            <div class="message-screen">
-                <h1>Login Required</h1>
-                <p>Please log in to access the admin dashboard.</p>
-                <a href="index.html" class="btn">Go to Login</a>
-            </div>
-        `;
-    }
-
-    /**
-     * Show access denied message
-     */
-    showAccessDenied() {
-        document.getElementById('app').innerHTML = `
-            <div class="message-screen">
-                <h1>Access Denied</h1>
-                <p>You do not have permission to access the admin dashboard.</p>
-                <a href="index.html" class="btn">Back to Game</a>
-            </div>
-        `;
+    showLoginScreen() {
+        document.getElementById('loginScreen').style.display = 'flex';
+        document.getElementById('dashboard')?.classList.add('hidden');
     }
 
     /**
      * Show dashboard
      */
     showDashboard() {
-        document.getElementById('loadingScreen')?.remove();
+        document.getElementById('loginScreen').style.display = 'none';
         document.getElementById('dashboard')?.classList.remove('hidden');
         // Show admin username in header
         const adminUsernameEl = document.getElementById('adminUsername');

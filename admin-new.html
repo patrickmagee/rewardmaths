@@ -331,9 +331,15 @@
 </head>
 <body>
     <div id="app">
-        <!-- Loading Screen -->
-        <div id="loadingScreen">
-            Loading admin dashboard...
+        <!-- Login Screen -->
+        <div id="loginScreen" style="display: flex; justify-content: center; align-items: center; min-height: 100vh;">
+            <div class="card" style="text-align: center; max-width: 300px;">
+                <h2 style="margin-bottom: 1rem; color: var(--primary);">Admin Login</h2>
+                <button id="patrickLoginBtn" class="btn btn-primary" style="width: 100%; padding: 1rem; font-size: 1.2rem;">
+                    🙂 Patrick
+                </button>
+                <p id="loginError" style="color: var(--danger); margin-top: 1rem;"></p>
+            </div>
         </div>
 
         <!-- Dashboard (hidden until authenticated) -->

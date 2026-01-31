@@ -3,7 +3,7 @@
  * Handles user login, logout using Supabase Auth
  */
 
-import { supabase, getCurrentProfile, signOut, onAuthStateChange } from './supabase.js';
+import { supabase, getCurrentProfile, signOut, onAuthStateChange } from './localdb.js';
 import { APP_CONFIG, ELEMENTS } from './config.js';
 import { formatTime, getElement } from './utils.js';
 
@@ -301,7 +301,7 @@ export class Auth {
      * @returns {string|null} Username or null
      */
     getUsername() {
-        return this.currentProfile?.username || null;
+        return this.currentProfile?.display_name || this.currentProfile?.username || null;
     }
 
     /**

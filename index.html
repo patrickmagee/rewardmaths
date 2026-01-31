@@ -19,26 +19,81 @@
         <p id="loginError" class="error"></p>
     </div>
 
+    <!-- Menu Screen -->
+    <div id="menuScreen" class="screen menu-screen" style="display: none;">
+        <div class="menu-header">
+            <span id="menuUserInfo"></span>
+            <button id="switchPlayerBtn" class="small-btn">Switch Player</button>
+        </div>
+        <h1>Choose Activity</h1>
+
+        <div class="category-section">
+            <h2>➕ Addition</h2>
+            <div class="difficulty-buttons">
+                <button class="category-btn easy" data-category="add_easy">Easy</button>
+                <button class="category-btn medium" data-category="add_medium">Medium</button>
+                <button class="category-btn hard" data-category="add_hard">Hard</button>
+            </div>
+        </div>
+
+        <div class="category-section">
+            <h2>➖ Subtraction</h2>
+            <div class="difficulty-buttons">
+                <button class="category-btn easy" data-category="sub_easy">Easy</button>
+                <button class="category-btn medium" data-category="sub_medium">Medium</button>
+                <button class="category-btn hard" data-category="sub_hard">Hard</button>
+            </div>
+        </div>
+
+        <div class="category-section">
+            <h2>✖️ Times Tables</h2>
+            <div class="times-table-grid">
+                <button class="times-table-btn" data-category="multiply_2">2×</button>
+                <button class="times-table-btn" data-category="multiply_3">3×</button>
+                <button class="times-table-btn" data-category="multiply_4">4×</button>
+                <button class="times-table-btn" data-category="multiply_5">5×</button>
+                <button class="times-table-btn" data-category="multiply_6">6×</button>
+                <button class="times-table-btn" data-category="multiply_7">7×</button>
+                <button class="times-table-btn" data-category="multiply_8">8×</button>
+                <button class="times-table-btn" data-category="multiply_9">9×</button>
+                <button class="times-table-btn" data-category="multiply_10">10×</button>
+                <button class="times-table-btn" data-category="multiply_11">11×</button>
+                <button class="times-table-btn" data-category="multiply_12">12×</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Game Screen -->
-    <div id="gameScreen" class="screen" style="display: none; position: relative;">
-        <div class="player-banner" id="playerBanner">
-            <span id="userInfo"></span>
+    <div id="gameScreen" class="screen game-screen" style="display: none;">
+        <div class="game-layout">
+            <div class="game-main">
+                <div class="game-header">
+                    <button id="backButton" class="small-btn">← Back</button>
+                    <div class="player-banner" id="playerBanner">
+                        <span id="userInfo"></span>
+                    </div>
+                    <div id="categoryDisplay" class="category-display"></div>
+                </div>
+
+                <div class="timer-display" id="timerDisplay">0:00</div>
+
+                <div class="progress-bar-wrapper">
+                    <div id="progressCircles" class="progress-circles"></div>
+                </div>
+
+                <div id="question" class="question"></div>
+                <input type="number" id="answer" placeholder="" autocomplete="off" spellcheck="false" pattern="[0-9]*" inputmode="numeric">
+                <button id="submitButton">Submit</button>
+                <p id="feedback" class="feedback"></p>
+            </div>
+
+            <div class="leaderboard" id="leaderboard">
+                <h3>🏆 Top 10</h3>
+                <ol id="leaderboardList" class="leaderboard-list">
+                    <li class="empty">No scores yet</li>
+                </ol>
+            </div>
         </div>
-        <h1>Reward Math</h1>
-        <div class="level-display-badge">
-            <div class="level-label">LEVEL</div>
-            <div id="levelNumber" class="level-number">1</div>
-            <div id="nextReward" class="next-reward"></div>
-        </div>
-        <div class="progress-bar-wrapper">
-            <div id="progressCircles" class="progress-circles"></div>
-            <div id="streakInfo" class="streak-info"></div>
-        </div>
-        <div id="question" class="question"></div>
-        <input type="number" id="answer" placeholder="" autocomplete="off" spellcheck="false" pattern="[0-9]*" inputmode="numeric">
-        <button id="submitButton">Submit</button>
-        <p id="feedback" class="feedback"></p>
-        <button id="logoutButton" class="logout-btn">Switch Player</button>
     </div>
 
     <!-- Popup Modal -->

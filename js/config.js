@@ -5,36 +5,78 @@
 
 // Application Constants
 export const APP_CONFIG = {
-    STORAGE_KEY: 'rewardmaths_levels',
-    MAX_LEVEL: 30,
-    MIN_LEVEL: 1,
-    QUESTIONS_PER_LEVEL: 20,
-    TIMEOUT_DURATIONS: [1000, 5000, 30000, 60000, 300000, 1800000, 3600000, 86400000]
+    QUESTIONS_PER_GAME: 20,
+    TOP_SCORES_COUNT: 10
+};
+
+// Game Categories
+export const CATEGORIES = {
+    ADD_EASY: { id: 'add_easy', name: 'Addition', difficulty: 'Easy', icon: '➕', color: '#22bb33' },
+    ADD_MEDIUM: { id: 'add_medium', name: 'Addition', difficulty: 'Medium', icon: '➕', color: '#f0ad4e' },
+    ADD_HARD: { id: 'add_hard', name: 'Addition', difficulty: 'Hard', icon: '➕', color: '#dc3545' },
+
+    SUB_EASY: { id: 'sub_easy', name: 'Subtraction', difficulty: 'Easy', icon: '➖', color: '#22bb33' },
+    SUB_MEDIUM: { id: 'sub_medium', name: 'Subtraction', difficulty: 'Medium', icon: '➖', color: '#f0ad4e' },
+    SUB_HARD: { id: 'sub_hard', name: 'Subtraction', difficulty: 'Hard', icon: '➖', color: '#dc3545' },
+
+    MULTIPLY_2: { id: 'multiply_2', name: '2 Times Table', difficulty: null, icon: '✖️', color: '#667eea' },
+    MULTIPLY_3: { id: 'multiply_3', name: '3 Times Table', difficulty: null, icon: '✖️', color: '#667eea' },
+    MULTIPLY_4: { id: 'multiply_4', name: '4 Times Table', difficulty: null, icon: '✖️', color: '#667eea' },
+    MULTIPLY_5: { id: 'multiply_5', name: '5 Times Table', difficulty: null, icon: '✖️', color: '#667eea' },
+    MULTIPLY_6: { id: 'multiply_6', name: '6 Times Table', difficulty: null, icon: '✖️', color: '#667eea' },
+    MULTIPLY_7: { id: 'multiply_7', name: '7 Times Table', difficulty: null, icon: '✖️', color: '#667eea' },
+    MULTIPLY_8: { id: 'multiply_8', name: '8 Times Table', difficulty: null, icon: '✖️', color: '#667eea' },
+    MULTIPLY_9: { id: 'multiply_9', name: '9 Times Table', difficulty: null, icon: '✖️', color: '#667eea' },
+    MULTIPLY_10: { id: 'multiply_10', name: '10 Times Table', difficulty: null, icon: '✖️', color: '#667eea' },
+    MULTIPLY_11: { id: 'multiply_11', name: '11 Times Table', difficulty: null, icon: '✖️', color: '#667eea' },
+    MULTIPLY_12: { id: 'multiply_12', name: '12 Times Table', difficulty: null, icon: '✖️', color: '#667eea' }
+};
+
+// Category difficulty settings
+export const DIFFICULTY_SETTINGS = {
+    add_easy: { min1: 1, max1: 10, min2: 1, max2: 10 },
+    add_medium: { min1: 10, max1: 50, min2: 10, max2: 50 },
+    add_hard: { min1: 50, max1: 100, min2: 50, max2: 100 },
+
+    sub_easy: { min1: 5, max1: 20, min2: 1, max2: 10 },      // Result always positive
+    sub_medium: { min1: 20, max1: 100, min2: 10, max2: 50 },
+    sub_hard: { min1: 100, max1: 200, min2: 50, max2: 100 }
 };
 
 // UI Element IDs
 export const ELEMENTS = {
     // Screens
     LOGIN_SCREEN: 'loginScreen',
+    MENU_SCREEN: 'menuScreen',
     GAME_SCREEN: 'gameScreen',
 
     // Login elements
     USER_BUTTONS: '.user-btn',
     LOGIN_ERROR: 'loginError',
-    
+
+    // Menu elements
+    MENU_USER_INFO: 'menuUserInfo',
+    SWITCH_PLAYER_BUTTON: 'switchPlayerBtn',
+    CATEGORY_BUTTONS: '.category-btn',
+    TIMES_TABLE_BUTTONS: '.times-table-btn',
+
     // Game elements
+    PLAYER_BANNER: 'playerBanner',
     USER_INFO: 'userInfo',
+    CATEGORY_DISPLAY: 'categoryDisplay',
     QUESTION: 'question',
     ANSWER: 'answer',
     SUBMIT_BUTTON: 'submitButton',
     FEEDBACK: 'feedback',
-    LOGOUT_BUTTON: 'logoutButton',
-    
+    BACK_BUTTON: 'backButton',
+
     // Progress elements
     PROGRESS_CIRCLES: 'progressCircles',
-    STREAK_INFO: 'streakInfo',
-    LEVEL_NUMBER: 'levelNumber',
-    NEXT_REWARD: 'nextReward',
+    TIMER_DISPLAY: 'timerDisplay',
+
+    // Leaderboard elements
+    LEADERBOARD: 'leaderboard',
+    LEADERBOARD_LIST: 'leaderboardList',
 
     // Popup elements
     POPUP_MODAL: 'popupModal',
@@ -42,50 +84,23 @@ export const ELEMENTS = {
     POPUP_OK_BUTTON: 'popupOkButton'
 };
 
-// Reward milestones configuration (adjusted for 30-level system)
-export const REWARDS = {
-    MILESTONES: [5, 10, 15, 20, 25, 30],
-    LEVEL_DOWN_MESSAGES: {
-        Tom: "🦖 Great effort, Tom! Even the best dinosaur trainers need to step back sometimes. You've got this!",
-        Eliza: "🌸 Great effort, Eliza-chan! Even magical girls sometimes need to power up at a lower level. Ganbatte!",
-        Patrick: "🌟 Great effort, Patrick! We're stepping back a level to build your confidence. You're doing great!"
-    },
-    MESSAGES: {
+// Personalized messages
+export const MESSAGES = {
+    GAME_COMPLETE: {
         Tom: [
-            "🦖 Awesome work, Tom! You're as unstoppable as Blue from Camp Cretaceous!",
-            "⚡ Incredible! You've got the power of Thor's hammer in math!",
-            "🦸‍♂️ Amazing! Batman would be proud of your detective-level problem solving!",
-            "🌟 Fantastic! You're leveling up like a true superhero origin story!",
-            "🔥 Outstanding! You're as fierce as the Indoraptor but way smarter!",
-            "💥 Spectacular! The Flash couldn't solve problems faster than you!",
-            "🎯 Brilliant! You've got the precision of Hawkeye's arrows!",
-            "🚀 Phenomenal! You're soaring higher than Iron Man!",
-            "⭐ Legendary! Even the dinosaurs of Isla Nublar respect your skills!",
-            "🏆 ULTIMATE CHAMPION! You've mastered math like a true hero!"
+            "🦖 Roar! Amazing work, Tom!",
+            "⚡ You're crushing it like a superhero!",
+            "🦸‍♂️ Batman would be proud!"
         ],
         Eliza: [
-            "🌸 Sugoi! You're as determined as Sailor Moon, Eliza-chan!",
-            "✨ Kawaii! Your math skills are sparkling like magical girl powers!",
-            "🎀 Incredible! You're leveling up like the main character in your favorite anime!",
-            "🌟 Amazing! You've got the spirit of a true magical girl warrior!",
-            "💫 Fantastic! Your dedication rivals any anime protagonist!",
-            "🦋 Beautiful work! You're graceful and powerful like a butterfly transformation!",
-            "🌙 Wonderful! You shine brighter than the moon in a magical anime!",
-            "🎭 Spectacular! Your skills are as impressive as any anime special attack!",
-            "🌺 Marvelous! You're blooming with knowledge like cherry blossoms!",
-            "👑 LEGENDARY PRINCESS! You've achieved the ultimate anime power level!"
+            "🌸 Sugoi! Great job, Eliza-chan!",
+            "✨ Your math skills are sparkling!",
+            "🎀 Kawaii! You're leveling up!"
         ],
         Patrick: [
-            "🎉 Excellent work, Patrick! You're crushing these math problems!",
-            "🌟 Great job! Your problem-solving skills are really shining!",
-            "🚀 Fantastic! You're reaching new heights with every level!",
-            "💪 Amazing! Your mathematical strength keeps growing!",
-            "🎯 Outstanding! You're hitting every target with precision!",
-            "⭐ Brilliant! Your dedication is truly paying off!",
-            "🔥 Incredible! You're on fire with these calculations!",
-            "🏆 Superb! You're becoming a true math champion!",
-            "💫 Phenomenal! Your skills are reaching stellar levels!",
-            "👑 MATH MASTER! You've conquered the ultimate challenge!"
+            "🎉 Excellent work, Patrick!",
+            "🌟 Your skills are really shining!",
+            "🚀 You're reaching new heights!"
         ]
     }
 };

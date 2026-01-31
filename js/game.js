@@ -1,37 +1,30 @@
 /**
  * Game Logic
- * Handles math question generation, answer checking, and game progression
- * Updated to support 20 questions per level with Supabase integration
+ * Handles math question generation, answer checking, and scoring
  */
 
-import { APP_CONFIG, ELEMENTS, REWARDS } from './config.js';
-import { randomInt, getElement, getIntegerValue, clamp, delay } from './utils.js';
+import { APP_CONFIG, ELEMENTS, MESSAGES } from './config.js';
+import { generateQuestion, getCategoryDisplayName } from './mathLevels.js';
 import { Storage } from './storage.js';
-import { MathLevels } from './mathLevels.js';
-import { LevelRulesManager, LEVEL_RULES } from './level_rules.js';
-import { PerformanceTracker } from './performanceTracker.js';
 
 /**
  * Game class for managing math game logic
  */
 export class Game {
-    constructor(auth, ui) {
+    constructor(auth) {
         this.auth = auth;
-        this.ui = ui;
+        this.category = null;
         this.currentQuestionNumber = 0;
         this.correctAnswers = 0;
-        this.level = 1;
         this.currentQuestion = null;
-        this.mathLevels = new MathLevels();
-        this.levelRulesManager = new LevelRulesManager();
-        this.performanceTracker = new PerformanceTracker();
-        this.sessionQuestions = [];
+        this.sessionResults = [];
         this.isProcessing = false;
+        this.startTime = null;
+        this.timerInterval = null;
     }
 
     /**
      * Gets the current user ID
-     * @returns {string|null} User ID
      */
     getUserId() {
         return this.auth.getUserId();
@@ -39,386 +32,303 @@ export class Game {
 
     /**
      * Gets the current username for display
-     * @returns {string} Username
      */
     getUsername() {
         return this.auth.getUsername() || 'Guest';
     }
 
     /**
-     * Starts a new game session
+     * Starts a new game with the selected category
+     * @param {string} categoryId - The category to play
      */
-    async start() {
+    async start(categoryId) {
+        this.category = categoryId;
         this.currentQuestionNumber = 0;
         this.correctAnswers = 0;
-        this.sessionQuestions = [];
+        this.sessionResults = [];
+        this.isProcessing = false;
 
-        const userId = this.getUserId();
+        // Update UI
+        this.updateCategoryDisplay();
+        this.updateProgressCircles();
+        await this.loadLeaderboard();
 
-        if (userId) {
-            // Load user's current level from Supabase
-            this.level = await Storage.getUserLevel(userId);
-        } else {
-            this.level = APP_CONFIG.MIN_LEVEL;
-        }
+        // Start timer
+        this.startTime = Date.now();
+        this.startTimer();
 
-        // Ensure level is within valid range (1-30)
-        this.level = clamp(this.level, APP_CONFIG.MIN_LEVEL, APP_CONFIG.MAX_LEVEL);
-
-        // Wait for math levels to load from Supabase
-        await this.mathLevels.loadLevels();
-
-        // Start performance tracking session
-        await this.performanceTracker.startSession(userId, this.level);
-
-        // Load current streaks
-        await this.levelRulesManager.loadStreaks(userId);
-
-        this.updateProgressBar();
-        this.updateLevelBar();
-        this.generateQuestion();
-        this.updateUserInfo();
-        this.updateStreakDisplay();
-    }
-
-    /**
-     * Generates a new math question based on current level
-     */
-    generateQuestion() {
-        this.currentQuestion = this.mathLevels.generateQuestion(this.level);
-        this.currentQuestionNumber++;
-
-        const questionElement = getElement(ELEMENTS.QUESTION);
-        questionElement.textContent = this.currentQuestion.text;
-        questionElement.dataset.answer = this.currentQuestion.answer;
-
-        // Start performance tracking for this question
-        this.performanceTracker.startQuestion(
-            this.currentQuestion.text,
-            this.currentQuestion.answer
-        );
-
-        // Store question for session tracking
-        this.sessionQuestions.push({
-            questionNumber: this.currentQuestionNumber,
-            question: this.currentQuestion.text,
-            correctAnswer: this.currentQuestion.answer,
-            userAnswer: null,
-            isCorrect: null,
-            timestamp: new Date().toISOString()
-        });
+        // Generate first question
+        this.nextQuestion();
 
         // Focus answer input
-        const answerInput = getElement(ELEMENTS.ANSWER);
-        answerInput.focus();
+        const answerInput = document.getElementById(ELEMENTS.ANSWER);
+        if (answerInput) answerInput.focus();
     }
 
     /**
-     * Checks the user's answer and updates game state
+     * Start the game timer
+     */
+    startTimer() {
+        this.updateTimerDisplay();
+        this.timerInterval = setInterval(() => this.updateTimerDisplay(), 1000);
+    }
+
+    /**
+     * Stop the game timer
+     */
+    stopTimer() {
+        if (this.timerInterval) {
+            clearInterval(this.timerInterval);
+            this.timerInterval = null;
+        }
+    }
+
+    /**
+     * Update timer display
+     */
+    updateTimerDisplay() {
+        const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = elapsed % 60;
+        const display = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+        const timerEl = document.getElementById(ELEMENTS.TIMER_DISPLAY);
+        if (timerEl) timerEl.textContent = display;
+    }
+
+    /**
+     * Get elapsed time in milliseconds
+     */
+    getElapsedTime() {
+        return Date.now() - this.startTime;
+    }
+
+    /**
+     * Update category display
+     */
+    updateCategoryDisplay() {
+        const displayEl = document.getElementById(ELEMENTS.CATEGORY_DISPLAY);
+        if (displayEl) {
+            displayEl.textContent = getCategoryDisplayName(this.category);
+        }
+    }
+
+    /**
+     * Generate and display next question
+     */
+    nextQuestion() {
+        this.currentQuestionNumber++;
+        this.currentQuestion = generateQuestion(this.category);
+
+        const questionEl = document.getElementById(ELEMENTS.QUESTION);
+        if (questionEl) {
+            questionEl.textContent = this.currentQuestion.text;
+        }
+
+        // Clear answer input
+        const answerInput = document.getElementById(ELEMENTS.ANSWER);
+        if (answerInput) {
+            answerInput.value = '';
+            answerInput.focus();
+        }
+
+        // Clear feedback
+        const feedbackEl = document.getElementById(ELEMENTS.FEEDBACK);
+        if (feedbackEl) {
+            feedbackEl.textContent = '';
+            feedbackEl.className = 'feedback';
+        }
+    }
+
+    /**
+     * Check the user's answer
+     * @returns {Promise<Object>} Result with isComplete flag
      */
     async checkAnswer() {
-        // Prevent double-processing
-        if (this.isProcessing) return;
+        if (this.isProcessing) return { isComplete: false };
 
-        const answerInput = getElement(ELEMENTS.ANSWER);
-        const userAnswerText = answerInput.value.trim();
+        const answerInput = document.getElementById(ELEMENTS.ANSWER);
+        const userAnswerText = answerInput?.value.trim();
 
-        // Quietly reject blank answers
-        if (userAnswerText === '') {
-            return;
-        }
+        if (!userAnswerText) return { isComplete: false };
 
         this.isProcessing = true;
 
-        const userAnswer = getIntegerValue(answerInput);
-        const correctAnswer = this.currentQuestion.answer;
-        const feedback = getElement(ELEMENTS.FEEDBACK);
+        const userAnswer = parseInt(userAnswerText, 10);
+        const isCorrect = userAnswer === this.currentQuestion.answer;
+        const feedbackEl = document.getElementById(ELEMENTS.FEEDBACK);
 
-        // Record the answer with performance tracking
-        await this.performanceTracker.recordAnswer(userAnswer);
+        // Record result
+        this.sessionResults.push({
+            question: this.currentQuestion.text,
+            correctAnswer: this.currentQuestion.answer,
+            userAnswer: userAnswer,
+            isCorrect: isCorrect
+        });
 
-        // Update session tracking
-        const currentQuestionIndex = this.sessionQuestions.length - 1;
-        this.sessionQuestions[currentQuestionIndex].userAnswer = userAnswer;
-        this.sessionQuestions[currentQuestionIndex].isCorrect = userAnswer === correctAnswer;
-
-        if (userAnswer === correctAnswer) {
-            await this.handleCorrectAnswer(feedback);
+        if (isCorrect) {
+            this.correctAnswers++;
+            if (feedbackEl) {
+                feedbackEl.textContent = 'Correct!';
+                feedbackEl.className = 'feedback correct';
+            }
         } else {
-            await this.handleIncorrectAnswer(feedback, correctAnswer);
+            if (feedbackEl) {
+                feedbackEl.textContent = `Wrong! Answer: ${this.currentQuestion.answer}`;
+                feedbackEl.className = 'feedback';
+            }
         }
 
-        answerInput.value = '';
+        // Update progress
+        this.updateProgressCircles();
+
+        // Check if game is complete
+        if (this.currentQuestionNumber >= APP_CONFIG.QUESTIONS_PER_GAME) {
+            this.isProcessing = false;
+            await this.completeGame();
+            return { isComplete: true };
+        }
+
+        // Wait briefly then show next question
+        await this.delay(isCorrect ? 500 : 1200);
+        this.nextQuestion();
         this.isProcessing = false;
+
+        return { isComplete: false };
     }
 
     /**
-     * Handles correct answer logic
-     * @param {HTMLElement} feedback - Feedback element
+     * Update progress circles display
      */
-    async handleCorrectAnswer(feedback) {
-        this.correctAnswers++;
-        this.updateProgressBar();
+    updateProgressCircles() {
+        const container = document.getElementById(ELEMENTS.PROGRESS_CIRCLES);
+        if (!container) return;
 
-        feedback.textContent = 'Correct!';
-        feedback.className = 'feedback correct';
-
-        // Check if we've completed all 20 questions
-        if (this.currentQuestionNumber >= LEVEL_RULES.QUESTIONS_PER_LEVEL) {
-            await this.handleLevelCompletion(feedback);
-        } else {
-            await delay(500);
-            this.generateQuestion();
-            feedback.textContent = '';
-        }
-    }
-
-    /**
-     * Handles incorrect answer logic
-     * @param {HTMLElement} feedback - Feedback element
-     * @param {number} correctAnswer - The correct answer
-     */
-    async handleIncorrectAnswer(feedback, correctAnswer) {
-        this.updateProgressBar();
-
-        // Show wrong answer feedback
-        feedback.textContent = `Wrong! The correct answer was ${correctAnswer}.`;
-        feedback.className = 'feedback';
-
-        await delay(1500);
-
-        // Check if we've completed all 20 questions
-        if (this.currentQuestionNumber >= LEVEL_RULES.QUESTIONS_PER_LEVEL) {
-            await this.handleLevelCompletion(feedback);
-        } else {
-            this.generateQuestion();
-            feedback.textContent = '';
-        }
-    }
-
-    /**
-     * Handles completion of 20 questions and level progression
-     * @param {HTMLElement} feedback - Feedback element
-     */
-    async handleLevelCompletion(feedback) {
-        const userId = this.getUserId();
-        const username = this.getUsername();
-        const score = this.correctAnswers;
-        const oldLevel = this.level;
-
-        // Show completion message
-        feedback.textContent = `Level complete! You got ${score}/${LEVEL_RULES.QUESTIONS_PER_LEVEL} correct.`;
-        feedback.className = 'feedback';
-
-        await delay(2000);
-
-        // Evaluate level progression using the rules
-        const progressionResult = await this.levelRulesManager.evaluateLevelProgression(
-            userId,
-            this.level,
-            score
-        );
-
-        this.level = progressionResult.newLevel;
-
-        // Update performance tracker with new level
-        this.performanceTracker.updateLevel(this.level);
-
-        // Complete the session
-        await this.performanceTracker.completeSession(
-            score,
-            progressionResult.levelChanged,
-            progressionResult.levelChanged ? this.level : null,
-            progressionResult.reason
-        );
-
-        // Save new level and streaks to Supabase
-        if (userId) {
-            await Storage.setUserLevel(userId, this.level);
-
-            // Record level change if it occurred
-            if (progressionResult.levelChanged) {
-                await Storage.recordLevelChange(
-                    userId,
-                    oldLevel,
-                    this.level,
-                    progressionResult.reason
-                );
-            }
-        }
-
-        this.updateLevelBar();
-        this.updateStreakDisplay();
-
-        // Show progression feedback
-        await this.showProgressionFeedback(feedback, progressionResult, score, username);
-
-        // Reset for next level and start new session
-        this.currentQuestionNumber = 0;
-        this.correctAnswers = 0;
-        this.sessionQuestions = [];
-        this.updateProgressBar();
-
-        // Start new performance tracking session
-        if (userId) {
-            await this.performanceTracker.startSession(userId, this.level);
-        }
-
-        this.generateQuestion();
-        feedback.textContent = '';
-    }
-
-    /**
-     * Shows progression feedback to user
-     * @param {HTMLElement} feedback - Feedback element
-     * @param {Object} progressionResult - Result from level rules evaluation
-     * @param {number} score - Score achieved
-     * @param {string} username - Current username
-     */
-    async showProgressionFeedback(feedback, progressionResult, score, username) {
-        // Show progression reason
-        feedback.textContent = progressionResult.reason;
-        if (progressionResult.streakInfo) {
-            feedback.textContent += ` (${progressionResult.streakInfo})`;
-        }
-        feedback.className = progressionResult.levelChanged ? 'feedback correct' : 'feedback';
-
-        await delay(2000);
-
-        if (progressionResult.levelChanged) {
-            const oldLevel = progressionResult.newLevel > this.level ?
-                this.level : progressionResult.newLevel;
-
-            if (progressionResult.newLevel < oldLevel) {
-                // Level down
-                const levelDownMessage = REWARDS.LEVEL_DOWN_MESSAGES[username] ||
-                    REWARDS.LEVEL_DOWN_MESSAGES.Patrick ||
-                    "Great effort! We're stepping back a level to build your confidence.";
-                await this.ui.showPopup(levelDownMessage);
-            } else {
-                // Level up
-                const levelUpMessage = this.ui.getLevelUpMessage(username, this.level);
-                await this.ui.showPopup(levelUpMessage);
-
-                // Check if this is a reward milestone
-                if (REWARDS.MILESTONES.includes(this.level)) {
-                    const rewardNumber = REWARDS.MILESTONES.indexOf(this.level) + 1;
-                    const rewardMessage = this.ui.getRewardMessage(username, rewardNumber);
-                    await this.ui.showPopup(rewardMessage);
-                }
-            }
-        }
-    }
-
-    /**
-     * Updates the progress circles display (20 circles for 20 questions)
-     */
-    updateProgressBar() {
-        const progressCircles = getElement(ELEMENTS.PROGRESS_CIRCLES);
-
-        // Create circles if they don't exist
-        if (progressCircles.children.length === 0) {
-            for (let i = 0; i < LEVEL_RULES.QUESTIONS_PER_LEVEL; i++) {
+        // Create circles if needed
+        if (container.children.length === 0) {
+            for (let i = 0; i < APP_CONFIG.QUESTIONS_PER_GAME; i++) {
                 const circle = document.createElement('div');
                 circle.className = 'progress-circle';
-                progressCircles.appendChild(circle);
+                container.appendChild(circle);
             }
         }
 
-        // Update circles based on session questions
-        const circles = progressCircles.children;
+        // Update circle states
+        const circles = container.children;
         for (let i = 0; i < circles.length; i++) {
-            if (i < this.sessionQuestions.length && this.sessionQuestions[i].isCorrect !== null) {
-                // Question has been answered
-                circles[i].className = this.sessionQuestions[i].isCorrect ?
-                    'progress-circle correct' : 'progress-circle incorrect';
+            if (i < this.sessionResults.length) {
+                circles[i].className = this.sessionResults[i].isCorrect
+                    ? 'progress-circle correct'
+                    : 'progress-circle incorrect';
             } else {
-                // Question not yet answered
                 circles[i].className = 'progress-circle';
             }
         }
     }
 
     /**
-     * Updates the level display badge
+     * Complete the game and save score
      */
-    updateLevelBar() {
-        const levelNumber = getElement(ELEMENTS.LEVEL_NUMBER);
-        const nextReward = getElement(ELEMENTS.NEXT_REWARD);
+    async completeGame() {
+        this.stopTimer();
+        const elapsedMs = this.getElapsedTime();
+        const score = this.correctAnswers;
+        const userId = this.getUserId();
 
-        // Update level number
-        levelNumber.textContent = this.level;
-
-        // Find next milestone reward
-        const nextMilestone = REWARDS.MILESTONES.find(m => m > this.level);
-        if (nextMilestone) {
-            const levelsToGo = nextMilestone - this.level;
-            nextReward.textContent = `${levelsToGo} more to Level ${nextMilestone} reward`;
-        } else {
-            nextReward.textContent = 'MAX LEVEL!';
-        }
-    }
-
-    /**
-     * Updates the user info display
-     */
-    updateUserInfo() {
-        const userInfo = getElement(ELEMENTS.USER_INFO);
-        userInfo.textContent = this.auth.getUserDisplayName();
-    }
-
-    /**
-     * Updates streak display information
-     */
-    updateStreakDisplay() {
-        const streakInfoElement = getElement(ELEMENTS.STREAK_INFO);
-        const streakInfo = this.levelRulesManager.getStreakInfo();
-
-        // Display streak info
-        let streakText = '';
-
-        if (streakInfo.highScoreStreak > 0) {
-            streakText += `High: ${streakInfo.highScoreStreak}/${streakInfo.highScoreNeeded}`;
+        // Save score to database
+        if (userId) {
+            await Storage.saveScore(userId, this.category, score, elapsedMs);
         }
 
-        if (streakInfo.lowScoreStreak > 0) {
-            if (streakText) streakText += ' | ';
-            streakText += `Low: ${streakInfo.lowScoreStreak}/${streakInfo.lowScoreLimit}`;
-        }
+        // Reload leaderboard to show new position
+        await this.loadLeaderboard();
 
-        streakInfoElement.textContent = streakText;
-    }
-
-    /**
-     * Gets current game statistics
-     * @returns {Object} Game statistics
-     */
-    getStats() {
         return {
-            level: this.level,
-            currentQuestionNumber: this.currentQuestionNumber,
-            correctAnswers: this.correctAnswers,
-            questionsRemaining: LEVEL_RULES.QUESTIONS_PER_LEVEL - this.currentQuestionNumber,
-            sessionQuestions: this.sessionQuestions
+            score: score,
+            total: APP_CONFIG.QUESTIONS_PER_GAME,
+            timeMs: elapsedMs
         };
     }
 
     /**
-     * Gets level progression history for current user
-     * @returns {Promise<Array>} Level change history
+     * Load and display leaderboard for current category
      */
-    async getLevelHistory() {
+    async loadLeaderboard() {
         const userId = this.getUserId();
-        if (!userId) return [];
+        if (!userId || !this.category) return;
 
-        return await Storage.getLevelHistory(userId);
+        const scores = await Storage.getTopScores(userId, this.category, APP_CONFIG.TOP_SCORES_COUNT);
+        this.renderLeaderboard(scores);
     }
 
     /**
-     * Gets current streak information
-     * @returns {Object} Streak information
+     * Render leaderboard
+     * @param {Array} scores - Array of score objects
      */
-    getCurrentStreakInfo() {
-        return this.levelRulesManager.getStreakInfo();
+    renderLeaderboard(scores) {
+        const listEl = document.getElementById(ELEMENTS.LEADERBOARD_LIST);
+        if (!listEl) return;
+
+        if (!scores || scores.length === 0) {
+            listEl.innerHTML = '<li class="empty">No scores yet</li>';
+            return;
+        }
+
+        listEl.innerHTML = scores.map((score, index) => {
+            const timeStr = this.formatTime(score.time_ms);
+            return `
+                <li>
+                    <span class="rank">${index + 1}.</span>
+                    <span class="score">${score.score}/${APP_CONFIG.QUESTIONS_PER_GAME}</span>
+                    <span class="time">${timeStr}</span>
+                </li>
+            `;
+        }).join('');
+    }
+
+    /**
+     * Format time in milliseconds to MM:SS
+     */
+    formatTime(ms) {
+        const totalSeconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+
+    /**
+     * Get personalized completion message
+     */
+    getCompletionMessage() {
+        const username = this.getUsername();
+        const messages = MESSAGES.GAME_COMPLETE[username] || MESSAGES.GAME_COMPLETE.Patrick;
+        return messages[Math.floor(Math.random() * messages.length)];
+    }
+
+    /**
+     * Get current game stats
+     */
+    getStats() {
+        return {
+            category: this.category,
+            questionNumber: this.currentQuestionNumber,
+            correctAnswers: this.correctAnswers,
+            totalQuestions: APP_CONFIG.QUESTIONS_PER_GAME,
+            elapsedTime: this.getElapsedTime()
+        };
+    }
+
+    /**
+     * Clean up game resources
+     */
+    cleanup() {
+        this.stopTimer();
+    }
+
+    /**
+     * Promise-based delay
+     */
+    delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 }

@@ -6,7 +6,8 @@
 import { Auth } from './auth.js';
 import { Game } from './game.js';
 import { UI } from './ui.js';
-import { isSupabaseConfigured } from './supabase.js';
+import { APP_CONFIG } from './config.js';
+import { isSupabaseConfigured } from './localdb.js';
 
 /**
  * Main Application class that coordinates all components
@@ -15,7 +16,7 @@ export class App {
     constructor() {
         this.auth = new Auth();
         this.ui = new UI();
-        this.game = null; // Initialize after auth is ready
+        this.game = null;
         this.isInitialized = false;
 
         this.init();
@@ -25,9 +26,9 @@ export class App {
      * Initializes the application
      */
     async init() {
-        // Check Supabase configuration
+        // Check database configuration
         if (!isSupabaseConfigured()) {
-            console.warn('Supabase is not configured. Please update js/supabase.js with your credentials.');
+            console.warn('Database is not configured.');
             this.ui.showLoginScreen();
             this.ui.showLoginError('App not configured. Please contact administrator.');
             return;
@@ -63,15 +64,17 @@ export class App {
      * Sets up all event listeners
      */
     setupEventListeners() {
-        this.ui.setupEventListeners(
-            (username) => this.handleLogin(username),
-            () => this.handleLogout(),
-            () => this.handleSubmitAnswer()
-        );
+        this.ui.setupEventListeners({
+            onLogin: (username) => this.handleLogin(username),
+            onSwitchPlayer: () => this.handleSwitchPlayer(),
+            onCategorySelect: (categoryId) => this.handleCategorySelect(categoryId),
+            onBackToMenu: () => this.handleBackToMenu(),
+            onSubmitAnswer: () => this.handleSubmitAnswer()
+        });
     }
 
     /**
-     * Handles auth state changes from Supabase
+     * Handles auth state changes
      * @param {string} event - Auth event type
      * @param {Object} session - Session object
      * @param {Object} profile - User profile
@@ -103,10 +106,9 @@ export class App {
             const result = await this.auth.loginByName(username);
 
             if (result.success) {
-                // Create game instance and start
-                this.game = new Game(this.auth, this.ui);
-                this.ui.showGameScreen();
-                await this.game.start();
+                // Show menu screen after login
+                const displayName = this.auth.getUsername();
+                this.ui.showMenuScreen(displayName);
             } else {
                 this.ui.hideLoading();
                 this.ui.showLoginError(result.error || 'Login failed. Please try again.');
@@ -119,16 +121,49 @@ export class App {
     }
 
     /**
-     * Handles user logout
+     * Handles switching to a different player
      */
-    async handleLogout() {
+    async handleSwitchPlayer() {
         try {
             await this.auth.logout();
             this.game = null;
             this.ui.showLoginScreen();
         } catch (error) {
-            console.error('Logout error:', error);
+            console.error('Switch player error:', error);
         }
+    }
+
+    /**
+     * Handles category selection from menu
+     * @param {string} categoryId - The selected category
+     */
+    async handleCategorySelect(categoryId) {
+        if (!categoryId) return;
+
+        // Create new game instance
+        this.game = new Game(this.auth);
+
+        // Show game screen
+        const displayName = this.auth.getUsername();
+        this.ui.showGameScreen(displayName);
+
+        // Start the game with selected category
+        await this.game.start(categoryId);
+    }
+
+    /**
+     * Handles going back to menu from game
+     */
+    handleBackToMenu() {
+        // Clean up current game
+        if (this.game) {
+            this.game.cleanup();
+            this.game = null;
+        }
+
+        // Show menu screen
+        const displayName = this.auth.getUsername();
+        this.ui.showMenuScreen(displayName);
     }
 
     /**
@@ -136,8 +171,31 @@ export class App {
      */
     async handleSubmitAnswer() {
         if (this.game) {
-            await this.game.checkAnswer();
+            const result = await this.game.checkAnswer();
+
+            // If game is complete, show completion popup and return to menu
+            if (result.isComplete) {
+                const stats = this.game.getStats();
+                const message = this.game.getCompletionMessage();
+                const scoreText = `Score: ${stats.correctAnswers}/${APP_CONFIG.QUESTIONS_PER_GAME}`;
+                const timeText = this.formatTime(stats.elapsedTime);
+
+                await this.ui.showPopup(`${message}<br><br>${scoreText}<br>Time: ${timeText}`);
+
+                // Return to menu
+                this.handleBackToMenu();
+            }
         }
+    }
+
+    /**
+     * Format time in milliseconds to MM:SS
+     */
+    formatTime(ms) {
+        const totalSeconds = Math.floor(ms / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
 
     /**

@@ -3,7 +3,7 @@
  * Handles screen transitions and UI interactions
  */
 
-import { ELEMENTS, REWARDS } from './config.js';
+import { ELEMENTS } from './config.js';
 import { getElement } from './utils.js';
 
 /**
@@ -34,18 +34,54 @@ export class UI {
     }
 
     /**
-     * Shows the game screen
+     * Shows the menu screen
+     * @param {string} displayName - User display name to show
      */
-    showGameScreen() {
+    showMenuScreen(displayName) {
+        this.hideAllScreens();
+        const menuScreen = getElement(ELEMENTS.MENU_SCREEN);
+        menuScreen.style.display = 'flex';
+        this.currentScreen = 'menu';
+
+        // Update user info display
+        const menuUserInfo = getElement(ELEMENTS.MENU_USER_INFO);
+        if (menuUserInfo) {
+            menuUserInfo.textContent = `Playing as: ${displayName}`;
+        }
+    }
+
+    /**
+     * Shows the game screen
+     * @param {string} displayName - User display name to show
+     */
+    showGameScreen(displayName) {
         this.hideAllScreens();
         const gameScreen = getElement(ELEMENTS.GAME_SCREEN);
         gameScreen.style.display = 'flex';
         this.currentScreen = 'game';
-        
+
+        // Update user info in game header
+        const userInfo = getElement(ELEMENTS.USER_INFO);
+        if (userInfo) {
+            userInfo.textContent = displayName;
+        }
+
         // Clear feedback
         const feedback = getElement(ELEMENTS.FEEDBACK);
         feedback.textContent = '';
-        
+
+        // Clear progress circles
+        const progressCircles = getElement(ELEMENTS.PROGRESS_CIRCLES);
+        if (progressCircles) {
+            progressCircles.innerHTML = '';
+        }
+
+        // Reset timer display
+        const timerDisplay = getElement(ELEMENTS.TIMER_DISPLAY);
+        if (timerDisplay) {
+            timerDisplay.textContent = '0:00';
+        }
+
         // Focus on answer input
         const answerInput = getElement(ELEMENTS.ANSWER);
         answerInput.focus();
@@ -56,9 +92,11 @@ export class UI {
      */
     hideAllScreens() {
         const loginScreen = getElement(ELEMENTS.LOGIN_SCREEN);
+        const menuScreen = getElement(ELEMENTS.MENU_SCREEN);
         const gameScreen = getElement(ELEMENTS.GAME_SCREEN);
-        
+
         loginScreen.style.display = 'none';
+        menuScreen.style.display = 'none';
         gameScreen.style.display = 'none';
     }
 
@@ -72,18 +110,51 @@ export class UI {
 
     /**
      * Sets up event listeners for UI elements
-     * @param {Function} onLogin - Login callback function (receives username)
-     * @param {Function} onLogout - Logout callback function
-     * @param {Function} onSubmitAnswer - Submit answer callback function
+     * @param {Object} callbacks - Callback functions
+     * @param {Function} callbacks.onLogin - Login callback (receives username)
+     * @param {Function} callbacks.onSwitchPlayer - Switch player callback
+     * @param {Function} callbacks.onCategorySelect - Category select callback (receives categoryId)
+     * @param {Function} callbacks.onBackToMenu - Back to menu callback
+     * @param {Function} callbacks.onSubmitAnswer - Submit answer callback
      */
-    setupEventListeners(onLogin, onLogout, onSubmitAnswer) {
-        // User selection buttons
+    setupEventListeners(callbacks) {
+        const { onLogin, onSwitchPlayer, onCategorySelect, onBackToMenu, onSubmitAnswer } = callbacks;
+
+        // User selection buttons (login screen)
         document.querySelectorAll(ELEMENTS.USER_BUTTONS).forEach(button => {
             button.addEventListener('click', () => {
                 const username = button.dataset.user;
                 onLogin(username);
             });
         });
+
+        // Switch player button (menu screen)
+        const switchPlayerBtn = getElement(ELEMENTS.SWITCH_PLAYER_BUTTON);
+        if (switchPlayerBtn) {
+            switchPlayerBtn.addEventListener('click', onSwitchPlayer);
+        }
+
+        // Category buttons (menu screen)
+        document.querySelectorAll(ELEMENTS.CATEGORY_BUTTONS).forEach(button => {
+            button.addEventListener('click', () => {
+                const category = button.dataset.category;
+                onCategorySelect(category);
+            });
+        });
+
+        // Times table buttons (menu screen)
+        document.querySelectorAll(ELEMENTS.TIMES_TABLE_BUTTONS).forEach(button => {
+            button.addEventListener('click', () => {
+                const category = button.dataset.category;
+                onCategorySelect(category);
+            });
+        });
+
+        // Back button (game screen)
+        const backButton = getElement(ELEMENTS.BACK_BUTTON);
+        if (backButton) {
+            backButton.addEventListener('click', onBackToMenu);
+        }
 
         // Submit button
         const submitButton = getElement(ELEMENTS.SUBMIT_BUTTON);
@@ -118,10 +189,6 @@ export class UI {
                 e.preventDefault();
             }
         });
-
-        // Logout button
-        const logoutButton = getElement(ELEMENTS.LOGOUT_BUTTON);
-        logoutButton.addEventListener('click', onLogout);
     }
 
     /**
@@ -169,7 +236,7 @@ export class UI {
         const feedback = getElement(ELEMENTS.FEEDBACK);
         feedback.textContent = message;
         feedback.className = className;
-        
+
         if (duration) {
             setTimeout(() => {
                 feedback.textContent = '';
@@ -197,41 +264,17 @@ export class UI {
             const modal = getElement(ELEMENTS.POPUP_MODAL);
             const messageElement = getElement(ELEMENTS.POPUP_MESSAGE);
             const okButton = getElement(ELEMENTS.POPUP_OK_BUTTON);
-            
+
             messageElement.innerHTML = message;
             modal.style.display = 'flex';
-            
+
             const handleClose = () => {
                 modal.style.display = 'none';
                 okButton.removeEventListener('click', handleClose);
                 resolve();
             };
-            
+
             okButton.addEventListener('click', handleClose);
         });
-    }
-
-    /**
-     * Gets personalized level up message for user
-     * @param {string} username - Username
-     * @param {number} level - Current level
-     * @returns {string} Personalized message
-     */
-    getLevelUpMessage(username, level) {
-        const messages = REWARDS.MESSAGES[username] || REWARDS.MESSAGES.Patrick;
-        const messageIndex = Math.min(Math.floor((level - 1) / 10), messages.length - 1);
-        return messages[messageIndex];
-    }
-
-    /**
-     * Gets reward unlock message for user
-     * @param {string} username - Username
-     * @param {number} rewardNumber - Reward number (1-10)
-     * @returns {string} Reward unlock message
-     */
-    getRewardMessage(username, rewardNumber) {
-        const baseMessage = `🎁 REWARD ${rewardNumber} UNLOCKED! 🎁<br><br>`;
-        const personalMessage = this.getLevelUpMessage(username, rewardNumber * 10);
-        return baseMessage + personalMessage;
     }
 }
