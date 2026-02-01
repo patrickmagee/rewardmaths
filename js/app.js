@@ -69,7 +69,9 @@ export class App {
             onSwitchPlayer: () => this.handleSwitchPlayer(),
             onCategorySelect: (categoryId) => this.handleCategorySelect(categoryId),
             onBackToMenu: () => this.handleBackToMenu(),
-            onSubmitAnswer: () => this.handleSubmitAnswer()
+            onSubmitAnswer: () => this.handleSubmitAnswer(),
+            onRestart: () => this.handleRestart(),
+            onExit: () => this.handleBackToMenu()
         });
     }
 
@@ -164,6 +166,22 @@ export class App {
         // Show menu screen
         const displayName = this.auth.getUsername();
         this.ui.showMenuScreen(displayName);
+    }
+
+    /**
+     * Handles restarting the current game
+     */
+    async handleRestart() {
+        if (this.game) {
+            const categoryId = this.game.category;
+            this.game.cleanup();
+
+            // Create new game with same category
+            this.game = new Game(this.auth);
+            const displayName = this.auth.getUsername();
+            this.ui.showGameScreen(displayName);
+            await this.game.start(categoryId);
+        }
     }
 
     /**

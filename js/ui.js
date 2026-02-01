@@ -111,14 +111,9 @@ export class UI {
     /**
      * Sets up event listeners for UI elements
      * @param {Object} callbacks - Callback functions
-     * @param {Function} callbacks.onLogin - Login callback (receives username)
-     * @param {Function} callbacks.onSwitchPlayer - Switch player callback
-     * @param {Function} callbacks.onCategorySelect - Category select callback (receives categoryId)
-     * @param {Function} callbacks.onBackToMenu - Back to menu callback
-     * @param {Function} callbacks.onSubmitAnswer - Submit answer callback
      */
     setupEventListeners(callbacks) {
-        const { onLogin, onSwitchPlayer, onCategorySelect, onBackToMenu, onSubmitAnswer } = callbacks;
+        const { onLogin, onSwitchPlayer, onCategorySelect, onBackToMenu, onSubmitAnswer, onRestart, onExit } = callbacks;
 
         // User selection buttons (login screen)
         document.querySelectorAll(ELEMENTS.USER_BUTTONS).forEach(button => {
@@ -148,6 +143,18 @@ export class UI {
             backButton.addEventListener('click', onBackToMenu);
         }
 
+        // Restart button (game screen)
+        const restartButton = getElement(ELEMENTS.RESTART_BUTTON);
+        if (restartButton) {
+            restartButton.addEventListener('click', onRestart);
+        }
+
+        // Exit button (game screen)
+        const exitButton = getElement(ELEMENTS.EXIT_BUTTON);
+        if (exitButton) {
+            exitButton.addEventListener('click', onExit);
+        }
+
         // Submit button
         const submitButton = getElement(ELEMENTS.SUBMIT_BUTTON);
         submitButton.addEventListener('click', onSubmitAnswer);
@@ -155,14 +162,13 @@ export class UI {
         // Enter key on answer input and input validation
         const answerInput = getElement(ELEMENTS.ANSWER);
         answerInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !this.isPopupVisible()) {
                 onSubmitAnswer();
             }
         });
 
         // Restrict input to digits only
         answerInput.addEventListener('input', (e) => {
-            // Remove any non-digit characters
             e.target.value = e.target.value.replace(/[^0-9]/g, '');
         });
 
@@ -181,6 +187,14 @@ export class UI {
                 e.preventDefault();
             }
         });
+    }
+
+    /**
+     * Check if popup is currently visible
+     */
+    isPopupVisible() {
+        const modal = document.getElementById(ELEMENTS.POPUP_MODAL);
+        return modal && modal.style.display !== 'none';
     }
 
     /**

@@ -69,6 +69,8 @@ export const ELEMENTS = {
     SUBMIT_BUTTON: 'submitButton',
     FEEDBACK: 'feedback',
     BACK_BUTTON: 'backButton',
+    RESTART_BUTTON: 'restartButton',
+    EXIT_BUTTON: 'exitButton',
 
     // Progress elements
     PROGRESS_CIRCLES: 'progressCircles',

@@ -292,6 +292,30 @@
     animation: pop-green 0.5s;
 }
 
+/* Game Action Buttons */
+.game-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.action-btn {
+    padding: 8px 16px;
+    font-size: 0.9em;
+    background: #e0e0e0;
+    color: #444;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    flex: 1;
+}
+
+.action-btn:hover {
+    background: #d0d0d0;
+    transform: translateY(-1px);
+}
+
 /* Leaderboard */
 .leaderboard {
     width: 220px;
