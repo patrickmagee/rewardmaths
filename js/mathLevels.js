@@ -5,6 +5,9 @@
 
 import { DIFFICULTY_SETTINGS } from './config.js';
 
+// Track last question to avoid repeats
+let lastQuestionText = null;
+
 /**
  * Generate a random integer between min and max (inclusive)
  */
@@ -13,20 +16,37 @@ function randomInt(min, max) {
 }
 
 /**
- * Generate a question for the given category
+ * Generate a question for the given category (avoids repeating last question)
  * @param {string} categoryId - Category identifier (e.g., 'add_easy', 'multiply_5')
  * @returns {Object} Question object with text and answer
  */
 export function generateQuestion(categoryId) {
-    if (categoryId.startsWith('add_')) {
-        return generateAdditionQuestion(categoryId);
-    } else if (categoryId.startsWith('sub_')) {
-        return generateSubtractionQuestion(categoryId);
-    } else if (categoryId.startsWith('multiply_')) {
-        return generateMultiplicationQuestion(categoryId);
-    }
+    let question;
+    let attempts = 0;
+    const maxAttempts = 10;
 
-    throw new Error(`Unknown category: ${categoryId}`);
+    do {
+        if (categoryId.startsWith('add_')) {
+            question = generateAdditionQuestion(categoryId);
+        } else if (categoryId.startsWith('sub_')) {
+            question = generateSubtractionQuestion(categoryId);
+        } else if (categoryId.startsWith('multiply_')) {
+            question = generateMultiplicationQuestion(categoryId);
+        } else {
+            throw new Error(`Unknown category: ${categoryId}`);
+        }
+        attempts++;
+    } while (question.text === lastQuestionText && attempts < maxAttempts);
+
+    lastQuestionText = question.text;
+    return question;
+}
+
+/**
+ * Reset the last question tracker (call when starting a new game)
+ */
+export function resetLastQuestion() {
+    lastQuestionText = null;
 }
 
 /**

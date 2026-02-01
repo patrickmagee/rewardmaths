@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'RewardMathsDB';
-const DB_VERSION = 2; // Bumped for new schema
+const DB_VERSION = 3; // Bumped to reset scores
 
 class LocalDatabase {
     constructor() {
@@ -29,7 +29,7 @@ class LocalDatabase {
                 const db = event.target.result;
 
                 // Delete old stores if they exist
-                const oldStores = ['game_sessions', 'question_attempts', 'level_configs', 'level_history'];
+                const oldStores = ['game_sessions', 'question_attempts', 'level_configs', 'level_history', 'scores'];
                 oldStores.forEach(store => {
                     if (db.objectStoreNames.contains(store)) {
                         db.deleteObjectStore(store);

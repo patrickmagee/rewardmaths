@@ -5,7 +5,7 @@
 
 // Application Constants
 export const APP_CONFIG = {
-    QUESTIONS_PER_GAME: 20,
+    QUESTIONS_PER_GAME: 10,
     TOP_SCORES_COUNT: 10
 };
 

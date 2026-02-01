@@ -4,7 +4,7 @@
  */
 
 import { APP_CONFIG, ELEMENTS, MESSAGES } from './config.js';
-import { generateQuestion, getCategoryDisplayName } from './mathLevels.js';
+import { generateQuestion, getCategoryDisplayName, resetLastQuestion } from './mathLevels.js';
 import { Storage } from './storage.js';
 
 /**
@@ -47,6 +47,7 @@ export class Game {
         this.correctAnswers = 0;
         this.sessionResults = [];
         this.isProcessing = false;
+        resetLastQuestion();
 
         // Update UI
         this.updateCategoryDisplay();
