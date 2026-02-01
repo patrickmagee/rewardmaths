@@ -277,11 +277,13 @@ export class Game {
 
         listEl.innerHTML = scores.map((score, index) => {
             const timeStr = this.formatTime(score.time_ms);
+            const dateStr = this.formatDate(score.played_at);
             return `
                 <li>
                     <span class="rank">${index + 1}.</span>
                     <span class="score">${score.score}/${APP_CONFIG.QUESTIONS_PER_GAME}</span>
                     <span class="time">${timeStr}</span>
+                    <span class="date">${dateStr}</span>
                 </li>
             `;
         }).join('');
@@ -295,6 +297,19 @@ export class Game {
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+
+    /**
+     * Format date to DD/MM HH:MM
+     */
+    formatDate(isoString) {
+        if (!isoString) return '';
+        const date = new Date(isoString);
+        const day = date.getDate().toString().padStart(2, '0');
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const hours = date.getHours().toString().padStart(2, '0');
+        const mins = date.getMinutes().toString().padStart(2, '0');
+        return `${day}/${month} ${hours}:${mins}`;
     }
 
     /**

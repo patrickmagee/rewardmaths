@@ -191,17 +191,20 @@ export class App {
         if (this.game) {
             const result = await this.game.checkAnswer();
 
-            // If game is complete, show completion popup and return to menu
+            // If game is complete, show completion popup with options
             if (result.isComplete) {
                 const stats = this.game.getStats();
                 const message = this.game.getCompletionMessage();
                 const scoreText = `Score: ${stats.correctAnswers}/${APP_CONFIG.QUESTIONS_PER_GAME}`;
                 const timeText = this.formatTime(stats.elapsedTime);
 
-                await this.ui.showPopup(`${message}<br><br>${scoreText}<br>Time: ${timeText}`);
+                const choice = await this.ui.showPopup(`${message}<br><br>${scoreText}<br>Time: ${timeText}`);
 
-                // Return to menu
-                this.handleBackToMenu();
+                if (choice === 'playAgain') {
+                    await this.handleRestart();
+                } else {
+                    this.handleBackToMenu();
+                }
             }
         }
     }

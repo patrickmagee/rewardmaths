@@ -261,26 +261,36 @@ export class UI {
     }
 
     /**
-     * Shows a popup with a message
+     * Shows a popup with a message and Play Again/Exit options
      * @param {string} message - Message to display
-     * @returns {Promise} Promise that resolves when popup is dismissed
+     * @returns {Promise<string>} Promise that resolves with 'playAgain' or 'exit'
      */
     showPopup(message) {
         return new Promise((resolve) => {
             const modal = getElement(ELEMENTS.POPUP_MODAL);
             const messageElement = getElement(ELEMENTS.POPUP_MESSAGE);
-            const okButton = getElement(ELEMENTS.POPUP_OK_BUTTON);
+            const playAgainButton = getElement(ELEMENTS.POPUP_PLAY_AGAIN_BUTTON);
+            const exitButton = getElement(ELEMENTS.POPUP_EXIT_BUTTON);
 
             messageElement.innerHTML = message;
             modal.style.display = 'flex';
 
-            const handleClose = () => {
+            const handlePlayAgain = () => {
                 modal.style.display = 'none';
-                okButton.removeEventListener('click', handleClose);
-                resolve();
+                playAgainButton.removeEventListener('click', handlePlayAgain);
+                exitButton.removeEventListener('click', handleExit);
+                resolve('playAgain');
             };
 
-            okButton.addEventListener('click', handleClose);
+            const handleExit = () => {
+                modal.style.display = 'none';
+                playAgainButton.removeEventListener('click', handlePlayAgain);
+                exitButton.removeEventListener('click', handleExit);
+                resolve('exit');
+            };
+
+            playAgainButton.addEventListener('click', handlePlayAgain);
+            exitButton.addEventListener('click', handleExit);
         });
     }
 }

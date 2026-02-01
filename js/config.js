@@ -83,7 +83,8 @@ export const ELEMENTS = {
     // Popup elements
     POPUP_MODAL: 'popupModal',
     POPUP_MESSAGE: 'popupMessage',
-    POPUP_OK_BUTTON: 'popupOkButton'
+    POPUP_PLAY_AGAIN_BUTTON: 'popupPlayAgainButton',
+    POPUP_EXIT_BUTTON: 'popupExitButton'
 };
 
 // Personalized messages

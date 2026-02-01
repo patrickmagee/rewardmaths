@@ -368,7 +368,15 @@
     font-size: 0.85em;
 }
 
-.leaderboard-list li.current .time {
+.leaderboard-list .date {
+    color: #999;
+    font-size: 0.75em;
+    display: block;
+    margin-top: 2px;
+}
+
+.leaderboard-list li.current .time,
+.leaderboard-list li.current .date {
     color: rgba(255,255,255,0.8);
 }
 
@@ -406,22 +414,43 @@
     color: #333;
 }
 
-.popup-ok-btn {
-    background: #007bff;
-    color: white;
+.popup-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+}
+
+.popup-btn {
     border: none;
     border-radius: 10px;
     font-size: 1.1em;
     font-weight: bold;
-    padding: 12px 30px;
+    padding: 12px 25px;
     cursor: pointer;
     transition: all 0.2s;
-    box-shadow: 0 4px 8px rgba(0,123,255,0.3);
+    min-width: 130px;
 }
 
-.popup-ok-btn:hover {
-    background: #0056b3;
+.popup-btn.play-again {
+    background: linear-gradient(135deg, #00c853 0%, #4caf50 100%);
+    color: white;
+    box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+}
+
+.popup-btn.play-again:hover {
     transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(76, 175, 80, 0.4);
+}
+
+.popup-btn.exit {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+.popup-btn.exit:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(102, 126, 234, 0.4);
 }
 
 /* Animations */
