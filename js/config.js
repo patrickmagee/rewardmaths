@@ -34,13 +34,13 @@ export const CATEGORIES = {
 
 // Category difficulty settings
 export const DIFFICULTY_SETTINGS = {
-    add_easy: { min1: 1, max1: 10, min2: 1, max2: 10 },
-    add_medium: { min1: 10, max1: 50, min2: 10, max2: 50 },
-    add_hard: { min1: 50, max1: 100, min2: 50, max2: 100 },
+    add_easy: { min1: 1, max1: 10, min2: 1, max2: 10 },           // Single + Single
+    add_medium: { min1: 10, max1: 99, min2: 1, max2: 9 },         // Double + Single
+    add_hard: { min1: 10, max1: 99, min2: 10, max2: 99 },         // Double + Double
 
-    sub_easy: { min1: 5, max1: 20, min2: 1, max2: 10 },      // Result always positive
-    sub_medium: { min1: 20, max1: 100, min2: 10, max2: 50 },
-    sub_hard: { min1: 100, max1: 200, min2: 50, max2: 100 }
+    sub_easy: { min1: 5, max1: 20, min2: 1, max2: 10 },           // Result always positive
+    sub_medium: { min1: 10, max1: 99, min2: 1, max2: 9 },         // Double - Single
+    sub_hard: { min1: 20, max1: 99, min2: 10, max2: 50 }          // Double - Double
 };
 
 // UI Element IDs
