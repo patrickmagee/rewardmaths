@@ -23,43 +23,74 @@
     <div id="menuScreen" class="screen menu-screen" style="display: none;">
         <div class="menu-header">
             <span id="menuUserInfo"></span>
-            <button id="switchPlayerBtn" class="small-btn">Switch Player</button>
-        </div>
-        <h1>Choose Your Challenge</h1>
-
-        <div class="category-section">
-            <h2>Addition</h2>
-            <div class="difficulty-buttons">
-                <button class="category-btn easy" data-category="add_easy">Easy</button>
-                <button class="category-btn medium" data-category="add_medium">Medium</button>
-                <button class="category-btn hard" data-category="add_hard">Hard</button>
-            </div>
+            <button id="switchPlayerBtn" class="small-btn">Switch</button>
         </div>
 
-        <div class="category-section">
-            <h2>Subtraction</h2>
-            <div class="difficulty-buttons">
-                <button class="category-btn easy" data-category="sub_easy">Easy</button>
-                <button class="category-btn medium" data-category="sub_medium">Medium</button>
-                <button class="category-btn hard" data-category="sub_hard">Hard</button>
-            </div>
-        </div>
+        <div class="game-grid">
+            <!-- Addition Row -->
+            <button class="game-tile green" data-category="add_easy">
+                <span class="tile-icon">➕</span>
+                <span class="tile-label">Easy</span>
+            </button>
+            <button class="game-tile green" data-category="add_medium">
+                <span class="tile-icon">➕</span>
+                <span class="tile-label">Medium</span>
+            </button>
+            <button class="game-tile green" data-category="add_hard">
+                <span class="tile-icon">➕</span>
+                <span class="tile-label">Hard</span>
+            </button>
 
-        <div class="category-section times-section">
-            <h2>Times Tables</h2>
-            <div class="times-table-grid">
-                <button class="times-table-btn" data-category="multiply_2">2×</button>
-                <button class="times-table-btn" data-category="multiply_3">3×</button>
-                <button class="times-table-btn" data-category="multiply_4">4×</button>
-                <button class="times-table-btn" data-category="multiply_5">5×</button>
-                <button class="times-table-btn" data-category="multiply_6">6×</button>
-                <button class="times-table-btn" data-category="multiply_7">7×</button>
-                <button class="times-table-btn" data-category="multiply_8">8×</button>
-                <button class="times-table-btn" data-category="multiply_9">9×</button>
-                <button class="times-table-btn" data-category="multiply_10">10×</button>
-                <button class="times-table-btn" data-category="multiply_11">11×</button>
-                <button class="times-table-btn" data-category="multiply_12">12×</button>
-            </div>
+            <!-- Subtraction Row -->
+            <button class="game-tile orange" data-category="sub_easy">
+                <span class="tile-icon">➖</span>
+                <span class="tile-label">Easy</span>
+            </button>
+            <button class="game-tile orange" data-category="sub_medium">
+                <span class="tile-icon">➖</span>
+                <span class="tile-label">Medium</span>
+            </button>
+            <button class="game-tile orange" data-category="sub_hard">
+                <span class="tile-icon">➖</span>
+                <span class="tile-label">Hard</span>
+            </button>
+
+            <!-- Times Tables Row 1 -->
+            <button class="game-tile purple" data-category="multiply_2">
+                <span class="tile-number">2×</span>
+            </button>
+            <button class="game-tile purple" data-category="multiply_3">
+                <span class="tile-number">3×</span>
+            </button>
+            <button class="game-tile purple" data-category="multiply_4">
+                <span class="tile-number">4×</span>
+            </button>
+            <button class="game-tile purple" data-category="multiply_5">
+                <span class="tile-number">5×</span>
+            </button>
+            <button class="game-tile purple" data-category="multiply_6">
+                <span class="tile-number">6×</span>
+            </button>
+            <button class="game-tile purple" data-category="multiply_7">
+                <span class="tile-number">7×</span>
+            </button>
+
+            <!-- Times Tables Row 2 -->
+            <button class="game-tile purple" data-category="multiply_8">
+                <span class="tile-number">8×</span>
+            </button>
+            <button class="game-tile purple" data-category="multiply_9">
+                <span class="tile-number">9×</span>
+            </button>
+            <button class="game-tile purple" data-category="multiply_10">
+                <span class="tile-number">10×</span>
+            </button>
+            <button class="game-tile purple" data-category="multiply_11">
+                <span class="tile-number">11×</span>
+            </button>
+            <button class="game-tile purple" data-category="multiply_12">
+                <span class="tile-number">12×</span>
+            </button>
         </div>
     </div>
 

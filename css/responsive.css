@@ -22,50 +22,34 @@
 
     /* Menu responsive */
     .menu-screen {
-        padding: 20px;
-    }
-
-    .menu-screen h1 {
-        font-size: 1.6em;
+        padding: 12px;
+        max-width: 100%;
     }
 
     .menu-header {
-        padding: 12px 15px;
-        flex-direction: column;
-        gap: 10px;
+        padding: 8px 10px;
     }
 
-    #menuUserInfo {
+    .game-grid {
+        grid-template-columns: repeat(6, 1fr);
+        gap: 6px;
+    }
+
+    .game-tile {
+        min-height: 50px;
+        border-radius: 8px;
+    }
+
+    .tile-icon {
         font-size: 1em;
     }
 
-    .category-section {
-        padding: 15px;
-        margin-bottom: 15px;
+    .tile-label {
+        font-size: 0.5em;
     }
 
-    .category-section h2 {
-        font-size: 1.1em;
-    }
-
-    .difficulty-buttons {
-        flex-direction: column;
-        gap: 10px;
-    }
-
-    .category-btn {
-        padding: 15px 20px;
-        font-size: 1.1em;
-    }
-
-    .times-table-grid {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 10px;
-    }
-
-    .times-table-btn {
-        padding: 15px 12px;
-        font-size: 1.2em;
+    .tile-number {
+        font-size: 1em;
     }
 
     /* Game screen responsive */
@@ -140,45 +124,44 @@
         font-size: 1.4em;
     }
 
-    .menu-screen h1 {
-        font-size: 1.4em;
-        margin-bottom: 20px;
+    .menu-screen {
+        padding: 10px;
     }
 
     .menu-header {
-        padding: 10px 12px;
-        border-radius: 12px;
+        padding: 6px 8px;
+        border-radius: 8px;
     }
 
     #menuUserInfo {
-        font-size: 0.95em;
-    }
-
-    .small-btn {
-        padding: 8px 14px;
         font-size: 0.8em;
     }
 
-    .category-section {
-        padding: 12px;
-        border-radius: 15px;
+    .small-btn {
+        padding: 4px 8px;
+        font-size: 0.7em;
     }
 
-    .category-btn {
-        padding: 14px 16px;
-        font-size: 1em;
-        border-radius: 10px;
+    .game-grid {
+        grid-template-columns: repeat(6, 1fr);
+        gap: 5px;
     }
 
-    .times-table-grid {
-        grid-template-columns: repeat(3, 1fr);
-        gap: 8px;
+    .game-tile {
+        min-height: 45px;
+        border-radius: 6px;
     }
 
-    .times-table-btn {
-        padding: 14px 10px;
-        font-size: 1.1em;
-        border-radius: 12px;
+    .tile-icon {
+        font-size: 0.9em;
+    }
+
+    .tile-label {
+        font-size: 0.45em;
+    }
+
+    .tile-number {
+        font-size: 0.85em;
     }
 
     .game-header {
@@ -222,26 +205,24 @@
     }
 
     .menu-screen {
-        max-width: 750px;
-        padding: 50px 60px;
+        max-width: 550px;
+        padding: 20px;
     }
 
     h1 {
         font-size: 2.2em;
     }
 
-    .menu-screen h1 {
-        font-size: 2.4em;
+    .game-tile {
+        min-height: 70px;
     }
 
-    .category-btn {
-        padding: 22px 28px;
-        font-size: 1.25em;
+    .tile-icon {
+        font-size: 1.4em;
     }
 
-    .times-table-btn {
-        padding: 24px 18px;
-        font-size: 1.5em;
+    .tile-number {
+        font-size: 1.4em;
     }
 
     .game-screen {
@@ -290,19 +271,7 @@
     }
 
     .menu-screen {
-        padding: 15px 25px;
-    }
-
-    .category-section {
-        margin-bottom: 12px;
-    }
-
-    .difficulty-buttons {
-        flex-direction: row;
-    }
-
-    .times-table-grid {
-        grid-template-columns: repeat(6, 1fr);
+        padding: 10px 20px;
     }
 
     .question {

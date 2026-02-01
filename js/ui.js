@@ -134,16 +134,8 @@ export class UI {
             switchPlayerBtn.addEventListener('click', onSwitchPlayer);
         }
 
-        // Category buttons (menu screen)
-        document.querySelectorAll(ELEMENTS.CATEGORY_BUTTONS).forEach(button => {
-            button.addEventListener('click', () => {
-                const category = button.dataset.category;
-                onCategorySelect(category);
-            });
-        });
-
-        // Times table buttons (menu screen)
-        document.querySelectorAll(ELEMENTS.TIMES_TABLE_BUTTONS).forEach(button => {
+        // Game tile buttons (menu screen) - all category selections
+        document.querySelectorAll('.game-tile').forEach(button => {
             button.addEventListener('click', () => {
                 const category = button.dataset.category;
                 onCategorySelect(category);

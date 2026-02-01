@@ -18,7 +18,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 20px;
+    padding: 10px;
 }
 
 h1 {
@@ -63,8 +63,6 @@ button {
     border-radius: 10px;
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
-    margin: 10px;
-    width: 100%;
 }
 
 button:hover {
