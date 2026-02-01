@@ -513,29 +513,6 @@ export async function initializeDefaultData() {
         await createDefaultUsers();
     }
 
-    // One-time: Clear Eliza's scores
-    await clearUserScores('eliza');
-}
-
-/**
- * Clear all scores for a specific user
- */
-async function clearUserScores(username) {
-    await localDB.ensureReady();
-
-    // Find user by username
-    const profiles = await localDB.getAll('profiles');
-    const user = profiles.find(p => p.username === username);
-    if (!user) return;
-
-    // Get all scores and delete ones matching this user
-    const scores = await localDB.getAll('scores');
-    for (const score of scores) {
-        if (score.user_id === user.id) {
-            await localDB.delete('scores', score.id);
-        }
-    }
-    console.log(`Cleared scores for ${username}`);
 }
 
 async function createDefaultUsers() {
