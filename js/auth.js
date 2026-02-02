@@ -92,13 +92,14 @@ export class Auth {
     }
 
     /**
-     * Simple login by username (no password required)
+     * Login by username with password
      * @param {string} username - Username to login as (Tom, Patrick, Eliza)
+     * @param {string} password - User's password
      * @returns {Promise<Object>} Result object with success boolean and error if failed
      */
-    async loginByName(username) {
+    async loginByName(username, password) {
         try {
-            const { data, error } = await supabase.auth.signInByName(username);
+            const { data, error } = await supabase.auth.signInByName(username, password);
 
             if (error) {
                 console.error('Login error:', error.message);

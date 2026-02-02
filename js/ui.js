@@ -27,10 +27,39 @@ export class UI {
         const errorElement = getElement(ELEMENTS.LOGIN_ERROR);
         errorElement.textContent = '';
 
+        // Hide password section
+        this.hidePasswordSection();
+
         // Re-enable user buttons
         document.querySelectorAll(ELEMENTS.USER_BUTTONS).forEach(btn => {
             btn.disabled = false;
         });
+    }
+
+    /**
+     * Shows the password section for a selected user
+     * @param {string} username - The selected username
+     */
+    showPasswordSection(username) {
+        const section = getElement(ELEMENTS.PASSWORD_SECTION);
+        const selectedUser = getElement(ELEMENTS.SELECTED_USER);
+        const passwordInput = getElement(ELEMENTS.PASSWORD_INPUT);
+
+        selectedUser.textContent = username;
+        section.style.display = 'block';
+        passwordInput.value = '';
+        passwordInput.focus();
+    }
+
+    /**
+     * Hides the password section
+     */
+    hidePasswordSection() {
+        const section = getElement(ELEMENTS.PASSWORD_SECTION);
+        const passwordInput = getElement(ELEMENTS.PASSWORD_INPUT);
+
+        if (section) section.style.display = 'none';
+        if (passwordInput) passwordInput.value = '';
     }
 
     /**
@@ -115,13 +144,48 @@ export class UI {
     setupEventListeners(callbacks) {
         const { onLogin, onSwitchPlayer, onCategorySelect, onBackToMenu, onSubmitAnswer, onRestart, onExit } = callbacks;
 
-        // User selection buttons (login screen)
+        // Track selected user for password login
+        let selectedUsername = null;
+
+        // User selection buttons (login screen) - show password section
         document.querySelectorAll(ELEMENTS.USER_BUTTONS).forEach(button => {
             button.addEventListener('click', () => {
-                const username = button.dataset.user;
-                onLogin(username);
+                selectedUsername = button.dataset.user;
+                this.showPasswordSection(selectedUsername);
             });
         });
+
+        // Login button (submit password)
+        const loginButton = getElement(ELEMENTS.LOGIN_BUTTON);
+        if (loginButton) {
+            loginButton.addEventListener('click', () => {
+                const passwordInput = getElement(ELEMENTS.PASSWORD_INPUT);
+                const password = passwordInput?.value || '';
+                if (selectedUsername) {
+                    onLogin(selectedUsername, password);
+                }
+            });
+        }
+
+        // Cancel button (hide password section)
+        const cancelButton = getElement(ELEMENTS.CANCEL_BUTTON);
+        if (cancelButton) {
+            cancelButton.addEventListener('click', () => {
+                selectedUsername = null;
+                this.hidePasswordSection();
+                this.clearLoginError();
+            });
+        }
+
+        // Enter key on password input
+        const passwordInput = getElement(ELEMENTS.PASSWORD_INPUT);
+        if (passwordInput) {
+            passwordInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && selectedUsername) {
+                    onLogin(selectedUsername, passwordInput.value || '');
+                }
+            });
+        }
 
         // Switch player button (menu screen)
         const switchPlayerBtn = getElement(ELEMENTS.SWITCH_PLAYER_BUTTON);

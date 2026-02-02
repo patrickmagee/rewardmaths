@@ -16,6 +16,14 @@
             <button class="user-btn" data-user="Patrick">🙂 Patrick</button>
             <button class="user-btn" data-user="Eliza">🌸 Eliza</button>
         </div>
+        <div id="passwordSection" class="password-section" style="display: none;">
+            <p id="passwordPrompt" class="password-prompt">Password for <span id="selectedUser"></span>:</p>
+            <input type="password" id="passwordInput" placeholder="Enter password" autocomplete="off">
+            <div class="password-buttons">
+                <button id="loginButton" class="login-btn">Login</button>
+                <button id="cancelButton" class="cancel-btn">Cancel</button>
+            </div>
+        </div>
         <p id="loginError" class="error"></p>
     </div>
 

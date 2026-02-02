@@ -65,7 +65,7 @@ export class App {
      */
     setupEventListeners() {
         this.ui.setupEventListeners({
-            onLogin: (username) => this.handleLogin(username),
+            onLogin: (username, password) => this.handleLogin(username, password),
             onSwitchPlayer: () => this.handleSwitchPlayer(),
             onCategorySelect: (categoryId) => this.handleCategorySelect(categoryId),
             onBackToMenu: () => this.handleBackToMenu(),
@@ -91,12 +91,18 @@ export class App {
     }
 
     /**
-     * Handles user login by name
+     * Handles user login by name with password
      * @param {string} username - The username to login as
+     * @param {string} password - The user's password
      */
-    async handleLogin(username) {
+    async handleLogin(username, password) {
         if (!username) {
             this.ui.showLoginError('Please select a user.');
+            return;
+        }
+
+        if (!password) {
+            this.ui.showLoginError('Please enter your password.');
             return;
         }
 
@@ -105,7 +111,7 @@ export class App {
         this.ui.clearLoginError();
 
         try {
-            const result = await this.auth.loginByName(username);
+            const result = await this.auth.loginByName(username, password);
 
             if (result.success) {
                 // Show menu screen after login

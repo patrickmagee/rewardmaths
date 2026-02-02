@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'RewardMathsDB';
-const DB_VERSION = 3; // Bumped to reset scores
+const DB_VERSION = 4; // Bumped to add passwords
 
 class LocalDatabase {
     constructor() {
@@ -175,7 +175,7 @@ class LocalAuth {
         return { data: { user: null }, error: null };
     }
 
-    async signInByName(username) {
+    async signInByName(username, password) {
         try {
             // Find user by username (case-insensitive)
             const profiles = await this.db.getByIndex('profiles', 'username', username.toLowerCase());
@@ -185,6 +185,11 @@ class LocalAuth {
             }
 
             const profile = profiles[0];
+
+            // Check password if provided and user has one set
+            if (profile.password && password !== profile.password) {
+                return { data: { user: null }, error: { message: 'Wrong password' } };
+            }
 
             // Create session
             const user = {
@@ -516,11 +521,11 @@ export async function initializeDefaultData() {
 }
 
 async function createDefaultUsers() {
-    // Create default users (simple names, no passwords needed)
+    // Create default users with passwords
     const users = [
-        { username: 'tom', display_name: 'Tom', emoji: '🦖', is_admin: false },
-        { username: 'patrick', display_name: 'Patrick', emoji: '🙂', is_admin: true },
-        { username: 'eliza', display_name: 'Eliza', emoji: '🌸', is_admin: false }
+        { username: 'tom', display_name: 'Tom', emoji: '🦖', is_admin: false, password: 'dino' },
+        { username: 'patrick', display_name: 'Patrick', emoji: '🙂', is_admin: true, password: 'laura' },
+        { username: 'eliza', display_name: 'Eliza', emoji: '🌸', is_admin: false, password: 'anime' }
     ];
 
     for (const user of users) {
@@ -532,6 +537,7 @@ async function createDefaultUsers() {
             display_name: user.display_name,
             is_admin: user.is_admin || false,
             avatar_emoji: user.emoji,
+            password: user.password,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
         });

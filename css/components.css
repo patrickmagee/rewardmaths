@@ -67,6 +67,76 @@
     transform: translateY(0) scale(0.98);
 }
 
+/* Password Section */
+.password-section {
+    width: 100%;
+    max-width: 280px;
+    margin-top: 20px;
+    text-align: center;
+}
+
+.password-prompt {
+    font-size: 1.1em;
+    color: #555;
+    margin-bottom: 10px;
+}
+
+#selectedUser {
+    font-weight: bold;
+    color: #667eea;
+}
+
+#passwordInput {
+    width: 100%;
+    padding: 15px;
+    font-size: 1.2em;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    margin-bottom: 15px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+#passwordInput:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.password-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.login-btn, .cancel-btn {
+    flex: 1;
+    padding: 12px 20px;
+    font-size: 1em;
+    font-weight: bold;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.login-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.login-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.cancel-btn {
+    background: #e0e0e0;
+    color: #555;
+}
+
+.cancel-btn:hover {
+    background: #d0d0d0;
+}
+
 /* Menu Screen */
 .menu-screen {
     max-width: 520px;

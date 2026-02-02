@@ -53,6 +53,11 @@ export const ELEMENTS = {
     // Login elements
     USER_BUTTONS: '.user-btn',
     LOGIN_ERROR: 'loginError',
+    PASSWORD_SECTION: 'passwordSection',
+    PASSWORD_INPUT: 'passwordInput',
+    SELECTED_USER: 'selectedUser',
+    LOGIN_BUTTON: 'loginButton',
+    CANCEL_BUTTON: 'cancelButton',
 
     // Menu elements
     MENU_USER_INFO: 'menuUserInfo',
