@@ -19,6 +19,7 @@ export class Game {
         this.currentQuestion = null;
         this.sessionResults = [];
         this.isProcessing = false;
+        this.isComplete = false;
         this.startTime = null;
         this.timerInterval = null;
     }
@@ -47,6 +48,7 @@ export class Game {
         this.correctAnswers = 0;
         this.sessionResults = [];
         this.isProcessing = false;
+        this.isComplete = false;
         resetLastQuestion();
 
         // Update UI
@@ -146,7 +148,7 @@ export class Game {
      * @returns {Promise<Object>} Result with isComplete flag
      */
     async checkAnswer() {
-        if (this.isProcessing) return { isComplete: false };
+        if (this.isProcessing || this.isComplete) return { isComplete: false };
 
         const answerInput = document.getElementById(ELEMENTS.ANSWER);
         const userAnswerText = answerInput?.value.trim();
@@ -176,7 +178,7 @@ export class Game {
         } else {
             if (feedbackEl) {
                 feedbackEl.textContent = `Wrong! Answer: ${this.currentQuestion.answer}`;
-                feedbackEl.className = 'feedback';
+                feedbackEl.className = 'feedback incorrect';
             }
         }
 
@@ -185,7 +187,7 @@ export class Game {
 
         // Check if game is complete
         if (this.currentQuestionNumber >= APP_CONFIG.QUESTIONS_PER_GAME) {
-            this.isProcessing = false;
+            this.isComplete = true;
             await this.completeGame();
             return { isComplete: true };
         }

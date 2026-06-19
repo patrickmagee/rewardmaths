@@ -20,12 +20,12 @@ export class UI {
     showLoginScreen() {
         this.hideAllScreens();
         const loginScreen = getElement(ELEMENTS.LOGIN_SCREEN);
-        loginScreen.style.display = 'flex';
+        if (loginScreen) loginScreen.style.display = 'flex';
         this.currentScreen = 'login';
 
         // Clear any previous error messages
         const errorElement = getElement(ELEMENTS.LOGIN_ERROR);
-        errorElement.textContent = '';
+        if (errorElement) errorElement.textContent = '';
 
         // Hide password section
         this.hidePasswordSection();
@@ -45,10 +45,12 @@ export class UI {
         const selectedUser = getElement(ELEMENTS.SELECTED_USER);
         const passwordInput = getElement(ELEMENTS.PASSWORD_INPUT);
 
-        selectedUser.textContent = username;
-        section.style.display = 'block';
-        passwordInput.value = '';
-        passwordInput.focus();
+        if (selectedUser) selectedUser.textContent = username;
+        if (section) section.style.display = 'block';
+        if (passwordInput) {
+            passwordInput.value = '';
+            passwordInput.focus();
+        }
     }
 
     /**
@@ -69,7 +71,7 @@ export class UI {
     showMenuScreen(displayName) {
         this.hideAllScreens();
         const menuScreen = getElement(ELEMENTS.MENU_SCREEN);
-        menuScreen.style.display = 'flex';
+        if (menuScreen) menuScreen.style.display = 'flex';
         this.currentScreen = 'menu';
 
         // Update user info display
@@ -86,7 +88,7 @@ export class UI {
     showGameScreen(displayName) {
         this.hideAllScreens();
         const gameScreen = getElement(ELEMENTS.GAME_SCREEN);
-        gameScreen.style.display = 'flex';
+        if (gameScreen) gameScreen.style.display = 'flex';
         this.currentScreen = 'game';
 
         // Update user info in game header
@@ -97,7 +99,7 @@ export class UI {
 
         // Clear feedback
         const feedback = getElement(ELEMENTS.FEEDBACK);
-        feedback.textContent = '';
+        if (feedback) feedback.textContent = '';
 
         // Clear progress circles
         const progressCircles = getElement(ELEMENTS.PROGRESS_CIRCLES);
@@ -113,7 +115,7 @@ export class UI {
 
         // Focus on answer input
         const answerInput = getElement(ELEMENTS.ANSWER);
-        answerInput.focus();
+        if (answerInput) answerInput.focus();
     }
 
     /**
@@ -124,9 +126,9 @@ export class UI {
         const menuScreen = getElement(ELEMENTS.MENU_SCREEN);
         const gameScreen = getElement(ELEMENTS.GAME_SCREEN);
 
-        loginScreen.style.display = 'none';
-        menuScreen.style.display = 'none';
-        gameScreen.style.display = 'none';
+        if (loginScreen) loginScreen.style.display = 'none';
+        if (menuScreen) menuScreen.style.display = 'none';
+        if (gameScreen) gameScreen.style.display = 'none';
     }
 
     /**
@@ -194,7 +196,7 @@ export class UI {
         }
 
         // Game tile buttons (menu screen) - all category selections
-        document.querySelectorAll('.game-tile').forEach(button => {
+        document.querySelectorAll(ELEMENTS.GAME_TILES).forEach(button => {
             button.addEventListener('click', () => {
                 const category = button.dataset.category;
                 onCategorySelect(category);
@@ -221,36 +223,24 @@ export class UI {
 
         // Submit button
         const submitButton = getElement(ELEMENTS.SUBMIT_BUTTON);
-        submitButton.addEventListener('click', onSubmitAnswer);
+        if (submitButton) {
+            submitButton.addEventListener('click', onSubmitAnswer);
+        }
 
         // Enter key on answer input and input validation
         const answerInput = getElement(ELEMENTS.ANSWER);
-        answerInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !this.isPopupVisible()) {
-                onSubmitAnswer();
-            }
-        });
+        if (answerInput) {
+            answerInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !this.isPopupVisible()) {
+                    onSubmitAnswer();
+                }
+            });
 
-        // Restrict input to digits only
-        answerInput.addEventListener('input', (e) => {
-            e.target.value = e.target.value.replace(/[^0-9]/g, '');
-        });
-
-        answerInput.addEventListener('keydown', (e) => {
-            // Allow: backspace, delete, tab, escape, enter, and arrow keys
-            if ([8, 9, 27, 13, 37, 38, 39, 40, 46].indexOf(e.keyCode) !== -1 ||
-                // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
-                (e.keyCode === 65 && e.ctrlKey === true) ||
-                (e.keyCode === 67 && e.ctrlKey === true) ||
-                (e.keyCode === 86 && e.ctrlKey === true) ||
-                (e.keyCode === 88 && e.ctrlKey === true)) {
-                return;
-            }
-            // Ensure that it is a number and stop the keypress
-            if ((e.shiftKey || (e.keyCode < 48 || e.keyCode > 57)) && (e.keyCode < 96 || e.keyCode > 105)) {
-                e.preventDefault();
-            }
-        });
+            // Restrict input to digits only
+            answerInput.addEventListener('input', (e) => {
+                e.target.value = e.target.value.replace(/[^0-9]/g, '');
+            });
+        }
     }
 
     /**
@@ -285,7 +275,7 @@ export class UI {
      */
     showLoginError(message) {
         const errorElement = getElement(ELEMENTS.LOGIN_ERROR);
-        errorElement.textContent = message;
+        if (errorElement) errorElement.textContent = message;
     }
 
     /**
@@ -293,7 +283,7 @@ export class UI {
      */
     clearLoginError() {
         const errorElement = getElement(ELEMENTS.LOGIN_ERROR);
-        errorElement.textContent = '';
+        if (errorElement) errorElement.textContent = '';
     }
 
     /**
@@ -304,6 +294,7 @@ export class UI {
      */
     showFeedback(message, className = 'feedback', duration = null) {
         const feedback = getElement(ELEMENTS.FEEDBACK);
+        if (!feedback) return;
         feedback.textContent = message;
         feedback.className = className;
 
@@ -320,6 +311,7 @@ export class UI {
      */
     clearFeedback() {
         const feedback = getElement(ELEMENTS.FEEDBACK);
+        if (!feedback) return;
         feedback.textContent = '';
         feedback.className = 'feedback';
     }
@@ -336,25 +328,48 @@ export class UI {
             const playAgainButton = getElement(ELEMENTS.POPUP_PLAY_AGAIN_BUTTON);
             const exitButton = getElement(ELEMENTS.POPUP_EXIT_BUTTON);
 
-            messageElement.innerHTML = message;
+            // If core elements are missing, resolve safely instead of throwing
+            if (!modal || !playAgainButton || !exitButton) {
+                resolve('exit');
+                return;
+            }
+
+            if (messageElement) messageElement.innerHTML = message;
             modal.style.display = 'flex';
 
-            const handlePlayAgain = () => {
+            const cleanup = () => {
                 modal.style.display = 'none';
                 playAgainButton.removeEventListener('click', handlePlayAgain);
                 exitButton.removeEventListener('click', handleExit);
+                document.removeEventListener('keydown', handleKeydown);
+            };
+
+            const handlePlayAgain = () => {
+                cleanup();
                 resolve('playAgain');
             };
 
             const handleExit = () => {
-                modal.style.display = 'none';
-                playAgainButton.removeEventListener('click', handlePlayAgain);
-                exitButton.removeEventListener('click', handleExit);
+                cleanup();
                 resolve('exit');
+            };
+
+            const handleKeydown = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handlePlayAgain();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    handleExit();
+                }
             };
 
             playAgainButton.addEventListener('click', handlePlayAgain);
             exitButton.addEventListener('click', handleExit);
+            document.addEventListener('keydown', handleKeydown);
+
+            // Focus the Play Again button when the dialog opens
+            playAgainButton.focus();
         });
     }
 }

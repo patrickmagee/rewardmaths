@@ -18,13 +18,14 @@
         </div>
         <div id="passwordSection" class="password-section" style="display: none;">
             <p id="passwordPrompt" class="password-prompt">Password for <span id="selectedUser"></span>:</p>
-            <input type="password" id="passwordInput" placeholder="Enter password" autocomplete="off">
+            <label for="passwordInput" class="visually-hidden">Password</label>
+            <input type="password" id="passwordInput" placeholder="Enter password" autocomplete="off" aria-label="Password">
             <div class="password-buttons">
                 <button id="loginButton" class="login-btn">Login</button>
                 <button id="cancelButton" class="cancel-btn">Cancel</button>
             </div>
         </div>
-        <p id="loginError" class="error"></p>
+        <p id="loginError" class="error" role="alert" aria-live="assertive"></p>
     </div>
 
     <!-- Menu Screen -->
@@ -121,9 +122,10 @@
                 </div>
 
                 <div id="question" class="question"></div>
-                <input type="number" id="answer" placeholder="" autocomplete="off" spellcheck="false" pattern="[0-9]*" inputmode="numeric">
+                <label for="answer" class="visually-hidden">Your answer</label>
+                <input type="number" id="answer" placeholder="" autocomplete="off" spellcheck="false" pattern="[0-9]*" inputmode="numeric" aria-label="Your answer">
                 <button id="submitButton">Submit</button>
-                <p id="feedback" class="feedback"></p>
+                <p id="feedback" class="feedback" role="status" aria-live="polite"></p>
 
                 <div class="game-actions">
                     <button id="restartButton" class="action-btn">🔄 Restart</button>
@@ -141,7 +143,7 @@
     </div>
 
     <!-- Popup Modal -->
-    <div id="popupModal" class="popup-modal" style="display: none;">
+    <div id="popupModal" class="popup-modal" style="display: none;" role="dialog" aria-modal="true" aria-label="Game complete">
         <div class="popup-content">
             <div id="popupMessage" class="popup-message"></div>
             <div class="popup-buttons">

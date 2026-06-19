@@ -6,6 +6,46 @@
 const DB_NAME = 'RewardMathsDB';
 const DB_VERSION = 4; // Bumped to add passwords
 
+/**
+ * Applies the schema for the current DB version. Runs inside onupgradeneeded.
+ * Exported so the score-retention invariant can be tested across version bumps.
+ *
+ * IMPORTANT: 'scores' is intentionally NOT in the deletion list. Removing it here
+ * is what guarantees a future DB_VERSION bump does not wipe saved scores. Only
+ * dead stores from the abandoned design are cleaned up.
+ *
+ * @param {IDBDatabase} db - the upgrading database connection
+ */
+export function upgradeDatabase(db) {
+    // Delete dead stores from the old Supabase/30-level design (NOT 'scores').
+    const oldStores = ['game_sessions', 'question_attempts', 'level_configs', 'level_history'];
+    oldStores.forEach(store => {
+        if (db.objectStoreNames.contains(store)) {
+            db.deleteObjectStore(store);
+        }
+    });
+
+    // Profiles table
+    if (!db.objectStoreNames.contains('profiles')) {
+        const profiles = db.createObjectStore('profiles', { keyPath: 'id' });
+        profiles.createIndex('username', 'username', { unique: true });
+        profiles.createIndex('email', 'email', { unique: true });
+    }
+
+    // Scores table - stores every game result
+    if (!db.objectStoreNames.contains('scores')) {
+        const scores = db.createObjectStore('scores', { keyPath: 'id', autoIncrement: true });
+        scores.createIndex('user_id', 'user_id');
+        scores.createIndex('category', 'category');
+        scores.createIndex('user_category', ['user_id', 'category']);
+    }
+
+    // Auth sessions (for local auth)
+    if (!db.objectStoreNames.contains('auth_sessions')) {
+        db.createObjectStore('auth_sessions', { keyPath: 'id' });
+    }
+}
+
 class LocalDatabase {
     constructor() {
         this.db = null;
@@ -26,35 +66,7 @@ class LocalDatabase {
             };
 
             request.onupgradeneeded = (event) => {
-                const db = event.target.result;
-
-                // Delete old stores if they exist
-                const oldStores = ['game_sessions', 'question_attempts', 'level_configs', 'level_history', 'scores'];
-                oldStores.forEach(store => {
-                    if (db.objectStoreNames.contains(store)) {
-                        db.deleteObjectStore(store);
-                    }
-                });
-
-                // Profiles table
-                if (!db.objectStoreNames.contains('profiles')) {
-                    const profiles = db.createObjectStore('profiles', { keyPath: 'id' });
-                    profiles.createIndex('username', 'username', { unique: true });
-                    profiles.createIndex('email', 'email', { unique: true });
-                }
-
-                // Scores table - stores every game result
-                if (!db.objectStoreNames.contains('scores')) {
-                    const scores = db.createObjectStore('scores', { keyPath: 'id', autoIncrement: true });
-                    scores.createIndex('user_id', 'user_id');
-                    scores.createIndex('category', 'category');
-                    scores.createIndex('user_category', ['user_id', 'category']);
-                }
-
-                // Auth sessions (for local auth)
-                if (!db.objectStoreNames.contains('auth_sessions')) {
-                    db.createObjectStore('auth_sessions', { keyPath: 'id' });
-                }
+                upgradeDatabase(event.target.result);
             };
         });
     }
@@ -186,8 +198,8 @@ class LocalAuth {
 
             const profile = profiles[0];
 
-            // Check password if provided and user has one set
-            if (profile.password && password !== profile.password) {
+            // Reject profiles with no password set (misconfiguration) and wrong passwords
+            if (!profile.password || password !== profile.password) {
                 return { data: { user: null }, error: { message: 'Wrong password' } };
             }
 
@@ -242,16 +254,6 @@ class LocalAuth {
 
     notifyListeners(event, session) {
         this.listeners.forEach(callback => callback(event, session));
-    }
-
-    hashPassword(password) {
-        let hash = 0;
-        for (let i = 0; i < password.length; i++) {
-            const char = password.charCodeAt(i);
-            hash = ((hash << 5) - hash) + char;
-            hash = hash & hash;
-        }
-        return 'local-hash-' + Math.abs(hash).toString(36);
     }
 }
 
@@ -326,6 +328,11 @@ class QueryBuilder {
                 data.sort((a, b) => {
                     const aVal = a[this.orderByField];
                     const bVal = b[this.orderByField];
+                    const aNull = aVal == null;
+                    const bNull = bVal == null;
+                    if (aNull && bNull) return 0;
+                    if (aNull) return 1; // nullish values always sort to the end
+                    if (bNull) return -1;
                     if (aVal < bVal) return this.orderAsc ? -1 : 1;
                     if (aVal > bVal) return this.orderAsc ? 1 : -1;
                     return 0;
@@ -333,7 +340,7 @@ class QueryBuilder {
             }
 
             // Apply limit
-            if (this.limitCount) {
+            if (this.limitCount != null) {
                 data = data.slice(0, this.limitCount);
             }
 
@@ -370,7 +377,7 @@ class TableInterface {
         try {
             const items = Array.isArray(data) ? data : [data];
             for (const item of items) {
-                await this.db.put(this.tableName, item);
+                await this.db.add(this.tableName, item);
             }
             return { data: items, error: null };
         } catch (error) {
@@ -382,7 +389,7 @@ class TableInterface {
         return new UpdateBuilder(this.db, this.tableName, data);
     }
 
-    async delete() {
+    delete() {
         return new DeleteBuilder(this.db, this.tableName);
     }
 }
@@ -546,11 +553,7 @@ async function createDefaultUsers() {
     console.log('Default users created: Tom, Patrick, Eliza');
 }
 
-// Auto-initialize on load
-initializeDefaultData().catch(console.error);
-
-export const SUPABASE_CONFIG = {
-    url: 'local',
-    isConfigured: true,
-    isLocal: true
-};
+// Auto-initialize on load. `ready` resolves once the default profiles have been
+// seeded, so the app can await it before enabling login (prevents a first-load
+// race where a very fast login could miss the not-yet-written profiles).
+export const ready = initializeDefaultData().catch(console.error);

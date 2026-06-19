@@ -7,7 +7,7 @@ import { Auth } from './auth.js';
 import { Game } from './game.js';
 import { UI } from './ui.js';
 import { APP_CONFIG } from './config.js';
-import { isSupabaseConfigured } from './localdb.js';
+import { isSupabaseConfigured, ready } from './localdb.js';
 
 /**
  * Main Application class that coordinates all components
@@ -43,6 +43,10 @@ export class App {
             // Always start fresh - clear any existing session
             // This is a kid's app, so always show user selection
             await this.auth.logout();
+
+            // Ensure the default profiles are seeded before enabling login,
+            // so a very fast first login can't miss the not-yet-written users.
+            await ready;
 
             // Show login screen
             this.ui.showLoginScreen();
