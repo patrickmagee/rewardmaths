@@ -19,3 +19,18 @@ export function getElement(id) {
     }
     return element;
 }
+
+/**
+ * Returns the epoch-ms timestamp of the most recent Sunday at 00:00 LOCAL time.
+ * This is the start of the current "challenge week" — the weekly perfect-score
+ * ticks count games played on or after this instant, so they reset to zero at
+ * Sunday midnight automatically (no stored state or scheduled job needed).
+ * @param {Date} [now] - reference time (defaults to the current time)
+ * @returns {number} epoch milliseconds of the week start
+ */
+export function getWeekStartMs(now = new Date()) {
+    const d = new Date(now.getTime());
+    d.setHours(0, 0, 0, 0);              // midnight at the start of today (local)
+    d.setDate(d.getDate() - d.getDay()); // getDay(): Sun=0..Sat=6 -> back to Sunday
+    return d.getTime();
+}

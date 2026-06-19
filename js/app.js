@@ -6,8 +6,10 @@
 import { Auth } from './auth.js';
 import { Game } from './game.js';
 import { UI } from './ui.js';
+import { Storage } from './storage.js';
 import { APP_CONFIG } from './config.js';
 import { isSupabaseConfigured, ready } from './localdb.js';
+import { getWeekStartMs } from './utils.js';
 
 /**
  * Main Application class that coordinates all components
@@ -72,10 +74,10 @@ export class App {
             onLogin: (username, password) => this.handleLogin(username, password),
             onSwitchPlayer: () => this.handleSwitchPlayer(),
             onCategorySelect: (categoryId) => this.handleCategorySelect(categoryId),
-            onBackToMenu: () => this.handleBackToMenu(),
+            onBackToMenu: () => { this.handleBackToMenu().catch((e) => console.error(e)); },
             onSubmitAnswer: () => this.handleSubmitAnswer(),
             onRestart: () => this.handleRestart(),
-            onExit: () => this.handleBackToMenu()
+            onExit: () => { this.handleBackToMenu().catch((e) => console.error(e)); }
         });
     }
 
@@ -118,9 +120,8 @@ export class App {
             const result = await this.auth.loginByName(username, password);
 
             if (result.success) {
-                // Show menu screen after login
-                const displayName = this.auth.getUsername();
-                this.ui.showMenuScreen(displayName);
+                // Show menu screen (with this week's aced ticks) after login
+                await this.showMenu();
             } else {
                 this.ui.hideLoading();
                 this.ui.showLoginError(result.error || 'Login failed. Please try again.');
@@ -166,16 +167,47 @@ export class App {
     /**
      * Handles going back to menu from game
      */
-    handleBackToMenu() {
+    async handleBackToMenu() {
         // Clean up current game
         if (this.game) {
             this.game.cleanup();
             this.game = null;
         }
 
-        // Show menu screen
+        // Show menu screen (refreshing this week's aced ticks)
+        await this.showMenu();
+    }
+
+    /**
+     * Shows the menu screen and refreshes this week's "aced" ticks.
+     */
+    async showMenu() {
         const displayName = this.auth.getUsername();
         this.ui.showMenuScreen(displayName);
+        await this.refreshWeeklyTicks();
+    }
+
+    /**
+     * Computes which categories the current user has aced (scored
+     * QUESTIONS_PER_GAME/10) since the start of this week — the most recent
+     * Sunday midnight, local time — and marks those tiles. Because the window
+     * is derived from the current time, the ticks reset every Sunday with no
+     * stored state or scheduled job.
+     */
+    async refreshWeeklyTicks() {
+        const userId = this.auth.getUserId();
+        if (!userId) return;
+        try {
+            const sinceIso = new Date(getWeekStartMs()).toISOString();
+            const aced = await Storage.getWeeklyPerfectCategories(userId, sinceIso);
+            // Latest-request-wins: if the player switched, logged out, or left the
+            // menu while this read was in flight, drop the now-stale result rather
+            // than painting one user's ticks for another.
+            if (this.auth.getUserId() !== userId || this.ui.getCurrentScreen() !== 'menu') return;
+            this.ui.updateWeeklyTicks(aced);
+        } catch (error) {
+            console.error('Failed to refresh weekly ticks:', error);
+        }
     }
 
     /**
@@ -213,7 +245,7 @@ export class App {
                 if (choice === 'playAgain') {
                     await this.handleRestart();
                 } else {
-                    this.handleBackToMenu();
+                    await this.handleBackToMenu();
                 }
             }
         }

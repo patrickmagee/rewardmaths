@@ -9,6 +9,8 @@ category keeps a personal top-10 leaderboard.
 - **Category practice**: Addition (Easy/Medium/Hard), Subtraction (Easy/Medium/Hard),
   and times tables 2× to 12×.
 - **10 questions per game** with a running timer (`APP_CONFIG.QUESTIONS_PER_GAME`).
+- **Weekly ticks**: each category tile shows a green tick once you score a perfect 10/10
+  in it that week; the ticks reset every Sunday at midnight (local time).
 - **Personal leaderboard**: per-category top 10, sorted by score (descending) then time
   (ascending).
 - **Visual progress**: a row of circles fills green (correct) / red (incorrect) as you

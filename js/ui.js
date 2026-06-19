@@ -79,6 +79,38 @@ export class UI {
         if (menuUserInfo) {
             menuUserInfo.textContent = `Playing as: ${displayName}`;
         }
+
+        // Render the weekly ticks in their default (not-yet-earned) state so a
+        // previous player's green ticks never linger; the app then refreshes
+        // them for the current user via updateWeeklyTicks(acedCategories).
+        this.updateWeeklyTicks([]);
+    }
+
+    /**
+     * Marks each category tile with a weekly "aced" tick. Tiles whose category
+     * is in `acedCategories` get a solid green tick; all others show the faint
+     * default tick. The tick badges are created once and then reused.
+     * @param {string[]} acedCategories - category ids aced (10/10) this week
+     */
+    updateWeeklyTicks(acedCategories) {
+        const aced = new Set(acedCategories || []);
+        document.querySelectorAll(ELEMENTS.GAME_TILES).forEach((tile) => {
+            let tick = tile.querySelector('.tile-tick');
+            if (!tick) {
+                tick = document.createElement('span');
+                tick.className = 'tile-tick';
+                tick.setAttribute('aria-hidden', 'true');
+                tick.textContent = '✓';
+                tile.appendChild(tick);
+            }
+            const isAced = aced.has(tile.dataset.category);
+            tile.classList.toggle('aced', isAced);
+            if (isAced) {
+                tile.title = 'Completed 10/10 this week!';
+            } else {
+                tile.removeAttribute('title');
+            }
+        });
     }
 
     /**

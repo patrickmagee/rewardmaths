@@ -53,11 +53,16 @@ from `js/`:
 - **`js/game.js` (timer)** — `tests/unit/timer.test.js`: MM:SS formatting (e.g. `65s → 1:05`,
   `610s → 10:10`), `getElapsedTime()` under fake timers, `cleanup()`/`stopTimer()` idempotency,
   and the positive elapsed time captured at completion.
+- **Weekly ticks** — `tests/unit/week.test.js` covers `getWeekStartMs()` (most recent Sunday
+  local midnight, idempotent within the week, week-apart spacing); `tests/unit/weekly-ticks.test.js`
+  covers `Storage.getWeeklyPerfectCategories()` (only 10/10 scores on/after the week start count,
+  boundary inclusive, last-week excluded, deduped, per-user scoped).
 
 ### End-to-end (Playwright — `tests/e2e/`)
 Drives the real `index.html` served at `http://127.0.0.1:8000` (config in
 `playwright.config.js`, static server in `tests/static-server.mjs`): login, category
-selection, answering questions, and the leaderboard.
+selection, answering questions, the leaderboard, the completion popup (Play Again / Exit /
+Escape), and the weekly "aced" tick lighting up after a 10/10.
 
 ---
 

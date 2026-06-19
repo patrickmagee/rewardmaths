@@ -4,6 +4,7 @@
  */
 
 import { supabase } from './localdb.js';
+import { APP_CONFIG } from './config.js';
 
 /**
  * Storage class for managing game scores in IndexedDB
@@ -77,6 +78,42 @@ export class Storage {
             return sorted.slice(0, limit);
         } catch (error) {
             console.error('Error getting scores:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Get the categories in which the user scored a perfect game
+     * (APP_CONFIG.QUESTIONS_PER_GAME correct) on or after the given time.
+     * Used to render the weekly "aced" ticks on the menu tiles.
+     * `played_at` and `sinceIso` are both ISO-8601 UTC strings, so a string
+     * comparison is also a chronological comparison.
+     * @param {string} userId - User ID
+     * @param {string} sinceIso - ISO timestamp; scores with played_at >= this count
+     * @returns {Promise<string[]>} Unique category ids aced since `sinceIso`
+     */
+    static async getWeeklyPerfectCategories(userId, sinceIso) {
+        try {
+            const { data, error } = await supabase
+                .from('scores')
+                .select('*')
+                .eq('user_id', userId);
+
+            if (error || !data) {
+                if (error) console.error('Error getting weekly scores:', error);
+                return [];
+            }
+
+            const perfect = APP_CONFIG.QUESTIONS_PER_GAME;
+            const categories = new Set();
+            for (const row of data) {
+                if (row.score === perfect && row.played_at && row.played_at >= sinceIso) {
+                    categories.add(row.category);
+                }
+            }
+            return [...categories];
+        } catch (error) {
+            console.error('Error getting weekly perfect categories:', error);
             return [];
         }
     }

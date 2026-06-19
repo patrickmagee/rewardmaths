@@ -188,6 +188,7 @@
 }
 
 .game-tile {
+    position: relative; /* anchor for the weekly "aced" tick badge */
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -244,6 +245,37 @@
 .tile-number {
     font-size: 1.2em;
     font-weight: 800;
+}
+
+/* Weekly perfect-score ("aced") tick badge, top-right of each tile */
+.tile-tick {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6em;
+    line-height: 1;
+    font-weight: 900;
+    pointer-events: none; /* never intercept the tile's click */
+    transition: all 0.2s ease;
+    /* Default: not yet earned this week — faint hollow badge. */
+    background: rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.45);
+}
+
+.game-tile.aced .tile-tick {
+    /* Earned a 10/10 this week — solid white badge with a green check. */
+    background: #ffffff;
+    color: #00b020;
+    border-color: #ffffff;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.85);
+    animation: pop-green 0.4s ease;
 }
 
 

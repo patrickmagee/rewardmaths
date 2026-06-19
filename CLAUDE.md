@@ -147,6 +147,16 @@ IndexedDB.
 - The leaderboard (`storage.js getTopScores`) shows the player's top 10 results for
   that category, sorted by score descending, then `time_ms` ascending.
 
+### Weekly "aced" ticks
+Each menu category tile carries a tick badge that turns solid green when the logged-in
+user has scored a perfect game (`QUESTIONS_PER_GAME`/10) in that category **this week**.
+The week starts at the most recent **Sunday 00:00 local time**, so the ticks reset every
+Sunday automatically. It is *derived* state, not stored: `app.js refreshWeeklyTicks()`
+calls `storage.js getWeeklyPerfectCategories(userId, sinceIso)` (perfect scores with
+`played_at >= weekStart`) on every menu view, and `ui.js updateWeeklyTicks()` toggles the
+`.aced` class per `.game-tile`. `utils.js getWeekStartMs()` computes the week boundary.
+There is no stored flag and no scheduled job to maintain.
+
 ### Difficulty (from `DIFFICULTY_SETTINGS` in `config.js`)
 - `add_easy`: single + single. `add_medium`: double + single. `add_hard`: double + double.
 - `sub_easy/medium/hard`: subtraction with a guaranteed non-negative result.

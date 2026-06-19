@@ -201,3 +201,88 @@ test('COMPLETION ESCAPE: pressing Escape on the popup exits to the menu', async 
   await expect(page.locator('#menuScreen')).toBeVisible();
   await expect(page.locator('#gameScreen')).toBeHidden();
 });
+
+/**
+ * Play a full 10-question game, deliberately missing the FIRST question so the
+ * final score is 9/10 (not a perfect game).
+ */
+async function playWithOneMiss(page) {
+  const questionEl = page.locator('#question');
+  const answerEl = page.locator('#answer');
+
+  for (let i = 0; i < 10; i++) {
+    await expect(questionEl).not.toHaveText('');
+    const qText = (await questionEl.textContent()) || '';
+    const answer = solve(qText);
+    const submitted = i === 0 ? answer + 1 : answer; // miss only the first one
+    await answerEl.fill(String(submitted));
+    await page.locator('#submitButton').click();
+    if (i < 9) {
+      await expect
+        .poll(async () => (await questionEl.textContent()) || '', { timeout: 5000 })
+        .not.toBe(qText);
+    }
+  }
+}
+
+test('WEEKLY TICK: acing a category 10/10 marks its tile (and not others) for the week', async ({ page }) => {
+  await login(page);
+
+  // Before playing, no tile is marked as aced this week.
+  await expect(page.locator('.game-tile.aced')).toHaveCount(0);
+
+  await page.locator('.game-tile[data-category="add_easy"]').click();
+  await expect(page.locator('#gameScreen')).toBeVisible();
+  await playAllCorrect(page);
+  await expect(page.locator('#popupModal')).toBeVisible();
+
+  // Exit back to the menu — the aced tile now carries a visible green tick.
+  await page.locator('#popupExitButton').click();
+  await expect(page.locator('#menuScreen')).toBeVisible();
+
+  const acedTile = page.locator('.game-tile[data-category="add_easy"]');
+  await expect(acedTile).toHaveClass(/aced/);
+  await expect(acedTile.locator('.tile-tick')).toBeVisible();
+
+  // A category we did not play is not ticked.
+  await expect(page.locator('.game-tile[data-category="sub_easy"]')).not.toHaveClass(/aced/);
+  await expect(page.locator('.game-tile.aced')).toHaveCount(1);
+});
+
+test('WEEKLY TICK: a non-perfect game (9/10) does NOT tick the tile', async ({ page }) => {
+  await login(page);
+  await page.locator('.game-tile[data-category="add_easy"]').click();
+  await expect(page.locator('#gameScreen')).toBeVisible();
+
+  await playWithOneMiss(page);
+  await expect(page.locator('#popupModal')).toBeVisible();
+
+  await page.locator('#popupExitButton').click();
+  await expect(page.locator('#menuScreen')).toBeVisible();
+
+  await expect(page.locator('.game-tile[data-category="add_easy"]')).not.toHaveClass(/aced/);
+  await expect(page.locator('.game-tile.aced')).toHaveCount(0);
+});
+
+test('WEEKLY TICK: ticks are per-user — switching players resets them', async ({ page }) => {
+  // Tom aces add_easy.
+  await login(page); // Tom / dino
+  await page.locator('.game-tile[data-category="add_easy"]').click();
+  await expect(page.locator('#gameScreen')).toBeVisible();
+  await playAllCorrect(page);
+  await expect(page.locator('#popupModal')).toBeVisible();
+  await page.locator('#popupExitButton').click();
+  await expect(page.locator('#menuScreen')).toBeVisible();
+  await expect(page.locator('.game-tile[data-category="add_easy"]')).toHaveClass(/aced/);
+
+  // Switch to Eliza (who has aced nothing) — the tick must not linger.
+  await page.locator('#switchPlayerBtn').click();
+  await expect(page.locator('#loginScreen')).toBeVisible();
+  await page.locator('.user-btn[data-user="Eliza"]').click();
+  await page.locator('#passwordInput').fill('anime');
+  await page.locator('#loginButton').click();
+  await expect(page.locator('#menuScreen')).toBeVisible();
+
+  await expect(page.locator('.game-tile[data-category="add_easy"]')).not.toHaveClass(/aced/);
+  await expect(page.locator('.game-tile.aced')).toHaveCount(0);
+});
