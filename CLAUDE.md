@@ -1,330 +1,264 @@
-# Reward Maths Game - Claude Code Project Guide
+# Reward Maths Game — Claude Code Project Guide
 
-**Last Updated**: January 2026
-**Version**: 3.0 (Local-First Database)
-**Status**: Ready to Use
-
----
-
-## Quick Start for Claude
-
-### What Is This Project?
-A modern, modular math learning game for children featuring:
-- Progressive difficulty across 30 levels (P6/P7 focused)
-- 20 questions per level with sophisticated progression rules
-- Visual progress tracking with 20 color-coded circles
-- Streak tracking and performance analytics
-- **Local IndexedDB database** (offline-first, no cloud dependency)
-- Optional Supabase cloud backend for multi-device sync
-- Clean ES6 modular architecture with zero dependencies
-
-### Project Health: 10/10
-
-**Strengths:**
-- Well-architected modular ES6 codebase
-- Local-first database (works offline)
-- Comprehensive admin dashboard
-- 30-level P6/P7 curriculum design
-- Clean separation of concerns
-- Auto-seeds default users on first run
-
-### Default Login Credentials
-| User | Email | Password |
-|------|-------|----------|
-| Admin | admin@rewardmaths.local | admin123 |
-| Tom | tom@rewardmaths.local | tom123 |
-| Eliza | eliza@rewardmaths.local | eliza123 |
-| Patrick | patrick@rewardmaths.local | patrick123 |
+**Last Updated**: 2026-07-01
+**Version**: 4.0 (Local IndexedDB + Cloudflare KV)
+**Status**: Live at https://rewardmaths.pages.dev
 
 ---
 
-## Project Structure Overview
+## What Is This Project?
+
+A simple, zero-dependency math practice game for kids, for **home use**. A child logs
+in with a username + password, picks a category (addition, subtraction, or a times
+table), answers **10 timed questions**, and gets a score. Best scores per category are
+kept and shared across the family's devices. A parent/admin dashboard shows each
+child's activity.
+
+- Vanilla **ES6 modules**, no framework, no build step for the app itself.
+- **Local-first**: works fully offline against browser IndexedDB.
+- **Shared scores**: a Cloudflare Pages Function backed by **Cloudflare KV** syncs
+  score history across devices.
+- Hosted free on **Cloudflare Pages**.
+
+> **There is no Supabase.** Earlier versions targeted Supabase; that is gone. The
+> `supabase` object exported by `js/localdb.js` is a **local IndexedDB shim** that
+> mimics the Supabase client API so the older calling code (`.from().select()`,
+> `.auth.signInByName()`, etc.) keeps working unchanged. Do not add a Supabase client,
+> credentials, or cloud calls. All shared state goes through Cloudflare.
+
+---
+
+## Architecture at a Glance
 
 ```
-TE_Math/
-├── index.html                   # Main game interface (email login)
-├── admin-new.html               # Admin dashboard
-├── test_level_rules.html        # Test suite
+Browser (static site, ES6 modules)
+├── index.html         Game UI            → js/app.js → js/game.js
+├── admin-new.html     Admin dashboard    → js/admin.js
 │
-├── js/                          # Modular ES6 JavaScript
-│   ├── app.js                   # Main application controller
-│   ├── game.js                  # Core game logic (async operations)
-│   ├── level_rules.js           # Progression rules & streak tracking
-│   ├── auth.js                  # Supabase authentication
-│   ├── ui.js                    # UI management & transitions
-│   ├── storage.js               # Supabase data operations
-│   ├── supabase.js              # Supabase client initialization
-│   ├── mathLevels.js            # Question generation (loads from Supabase)
-│   ├── performanceTracker.js    # Performance data collection
-│   ├── admin.js                 # Admin dashboard logic
-│   ├── config.js                # Configuration constants
-│   └── utils.js                 # Helper functions
+├── Data layer
+│   ├── js/localdb.js      IndexedDB "supabase" shim  (local, offline mirror)
+│   ├── js/scoreStore.js   fetch adapter for /api/scores
+│   └── js/storage.js      Storage: merges local + remote scores
 │
-├── css/                         # Modular CSS
-│   ├── main.css                 # Main CSS (imports all modules)
-│   ├── base.css                 # Base styles & reset
-│   ├── components.css           # Component-specific styles
-│   └── responsive.css           # Media queries
-│
-├── supabase/                    # Supabase configuration
-│   └── migrations/
-│       ├── 001_initial_schema.sql    # Database schema, RLS, functions
-│       └── 002_seed_level_configs.sql # 30-level P6/P7 curriculum
-│
-└── Documentation/
-    ├── CLAUDE.md                # This file
-    └── README.md                # Main project documentation
+└── Cloudflare
+    └── functions/api/scores.js   Pages Function  ── KV binding: env.SCORES
+                                                     (shared score history)
 ```
+
+### Two data stores, on purpose
+
+| Store | Where | Holds | Source of truth for |
+|-------|-------|-------|---------------------|
+| **IndexedDB** (`RewardMathsDB`) | each browser, via `js/localdb.js` | `profiles`, `scores`, `auth_sessions` | **profiles & auth** (per-device); offline score mirror |
+| **Cloudflare KV** (`SCORES`) | cloud, via `functions/api/scores.js` | score history | **shared scores** across devices |
+
+- **Scores** are written to *both* (local mirror + KV) and **read merged** from both,
+  so offline play and cross-device play both work.
+- **Profiles / login / levels** live **only** in local IndexedDB — they are **not**
+  synced across devices yet. See "Known limitations" below.
 
 ---
 
-## Quick Start
+## Data Flow
 
-### Running Locally
-```bash
-# Start local server
+### Saving a score (`Storage.saveScore`, `js/storage.js`)
+1. Build the record `{ user_id, category, score, time_ms, played_at }`.
+2. Write the **local** IndexedDB mirror and **POST** to `/api/scores` **concurrently**
+   (`Promise.allSettled`) — a slow network never blocks the local write.
+3. Return `true` if the score survived in **at least one** store.
+
+### Reading best scores (`Storage.getTopScores`, `js/storage.js`)
+1. Fetch remote (`GET /api/scores?user_id=&category=`) and local **concurrently**.
+2. **Merge** both lists, **dedupe** (`user_id|category|score|time_ms|played_at`),
+   sort best-first (higher score, then faster time), slice to the limit.
+   Merging is why a just-played score shows immediately even before KV propagates,
+   and why offline/pre-existing scores are never hidden by an empty remote result.
+
+### Admin stats (`js/admin.js`)
+- `fetchAllScores()` → `GET /api/scores?all=1` (every score across all users), with a
+  fall back to this device's local `scores` if the API is unreachable.
+- Users tab aggregates per-user totals; Performance tab builds per-game session rows
+  (joined to profile names) and the CSV export.
+
+---
+
+## The Cloudflare Function: `functions/api/scores.js`
+
+KV key scheme: `scores:<category>:<user_id>` → JSON array of score objects, kept
+best-first and capped at `PER_USER_CAP` (50). A per-user history read is a single KV
+`get`.
+
+Routes:
+| Method | Query | Returns |
+|--------|-------|---------|
+| `GET`  | `?user_id=&category=` | that user's history for the category |
+| `GET`  | `?all=1` | every score across all users (admin dashboard) |
+| `POST` | body `{ user_id, category, score, time_ms, played_at? }` | appends, trims to cap |
+
+Notes:
+- `?all=1` follows the KV **list cursor to completion** and **skips corrupt values**
+  (one bad key cannot 500 the whole response).
+- There is **no cross-user leaderboard route** — it was unused and was removed. The app
+  only ever shows a single player's own best scores.
+- No auth on the API (home use, low stakes; only score counts, no PII).
+
+---
+
+## Authentication (`js/localdb.js` `LocalAuth`, `js/auth.js`)
+
+- **Username + password**, checked locally against the `profiles` store.
+  `signInByName(username, password)`:
+  - looks up the profile by username (**case-insensitive**, lower-cased),
+  - **requires** a password — an account with no password set is **rejected** (not
+    waved through), and a wrong password is rejected.
+- Session is stored in the `auth_sessions` store and restored on load.
+- Passwords are stored/compared as **plaintext** in IndexedDB (fine for a home game;
+  see limitations).
+
+### Default users (seeded on first load, `createDefaultUsers`)
+| Username | Password | Role |
+|----------|----------|------|
+| `tom` | `dino` | player |
+| `patrick` | `laura` | **admin** |
+| `eliza` | `anime` | player |
+
+Seeding only happens when the `profiles` store is empty. The admin dashboard logs in as
+`patrick`.
+
+---
+
+## The Game (`js/game.js`, `js/mathLevels.js`, `js/config.js`)
+
+- Player picks a **category** (`js/config.js` `CATEGORIES`):
+  - Addition / Subtraction × Easy / Medium / Hard (operand ranges in
+    `DIFFICULTY_SETTINGS`).
+  - Times tables **2–12**.
+- **`APP_CONFIG.QUESTIONS_PER_GAME = 10`** questions per game, timed.
+- Score = number correct out of 10, plus total `time_ms`. Saved via `Storage.saveScore`.
+- After a game, the player's **best scores for that category** are shown (merged
+  local+remote).
+- `QUESTIONS_PER_GAME` is defined **once** in `js/config.js`; `js/admin.js` imports it
+  (do not redeclare it).
+
+> **Levels are vestigial.** `profiles.current_level` exists and the admin can "Set
+> Level", but gameplay is **category-based**, not level-based. `js/mathLevels.js`
+> generates questions per category. Old references to a 30-level curriculum and
+> `level_configs` are legacy; `level_configs` has no local store (reads return `[]`).
+
+---
+
+## Admin Dashboard (`admin-new.html`, `js/admin.js`)
+
+Log in as `patrick`. Tabs:
+- **Users** — per-user aggregate stats (sessions, questions, accuracy) computed from the
+  **shared KV** scores (`?all=1`), local fallback. "Set Level" edits `current_level`.
+- **Performance** — per-game **Session History** (User · Date · Category · Score ·
+  Accuracy · Time) with user/date filters, plus **CSV export**. Both are built from the
+  same score data.
+- **Create User** — creates a local profile. Stores the password on the profile (so the
+  new account can actually log in).
+- **Level configs** — legacy editor; no local backing store.
+
+---
+
+## Local Development
+
+```powershell
+# ES6 modules need to be served over HTTP, not opened as file://
 python -m http.server 8000
-
-# Open in browser
-http://localhost:8000
+# Game:  http://localhost:8000/index.html
+# Admin: http://localhost:8000/admin-new.html
 ```
 
-The app automatically creates default users on first load. Just log in with any of the default credentials above.
+Running the static files this way exercises the **local IndexedDB** path. The
+`/api/scores` Function is not served by `http.server`, so `remote*` calls fail fast
+(4s timeout) and the app falls back to local — which is the intended offline behavior.
+To exercise the Function locally, use `npx wrangler pages dev dist` after a build.
 
 ---
 
-## Optional: Supabase Cloud Setup
+## Build & Deploy (Cloudflare Pages)
 
-To enable multi-device sync with Supabase cloud:
+**Live:** https://rewardmaths.pages.dev  (migrated off Bluehost 2026-07-01).
 
-### 1. Create Supabase Project
-1. Go to [supabase.com](https://supabase.com)
-2. Create a new project
-3. Note your project URL and anon key
+### 1. Assemble `dist/`
+```powershell
+./build-dist.ps1
+```
+`build-dist.ps1` produces a clean `dist/` containing the deployable assets **and** the
+Pages Functions:
+```
+dist/
+├── index.html  admin-new.html  favicon.svg
+├── css/  js/
+└── functions/            # Pages Functions must live inside the deployed dir
+```
+`dist/` is a build artifact — always regenerate it; don't hand-edit it.
 
-### 2. Run Database Migrations
-In Supabase SQL Editor, run in order:
-1. `supabase/migrations/001_initial_schema.sql`
-2. `supabase/migrations/002_seed_level_configs.sql`
+### 2. Deploy
+```powershell
+# Load the API token (repo-local, gitignored — never commit it)
+$env:CLOUDFLARE_API_TOKEN  = (Get-Content .cloudflare.env | ? { $_ -match '^CLOUDFLARE_API_TOKEN=' })  -replace '^CLOUDFLARE_API_TOKEN=',''
+$env:CLOUDFLARE_ACCOUNT_ID = (Get-Content .cloudflare.env | ? { $_ -match '^CLOUDFLARE_ACCOUNT_ID=' }) -replace '^CLOUDFLARE_ACCOUNT_ID=',''
 
-### 3. Switch to Cloud Mode
-Edit `js/supabase.js`:
-- Comment out the `localdb.js` imports
-- Uncomment the Supabase cloud section
-- Add your credentials
+npx wrangler pages deploy dist --project-name rewardmaths --branch main
+```
 
----
-
-## Database Schema
-
-### Tables
-
-**`profiles`** (extends auth.users)
-- User profile data, current level, streaks, admin status
-
-**`game_sessions`**
-- 20-question session records with scores and timing
-
-**`question_attempts`**
-- Individual question attempts with response times
-
-**`level_configs`**
-- Admin-editable level configurations
-
-**`level_history`**
-- Record of level changes per user
-
-### Views
-- `performance_analysis` - Detailed session analysis
-- `daily_performance` - Daily summary statistics
-- `user_stats` - Overall user statistics
-
----
-
-## Level System (30 Levels, P6/P7 Focus)
-
-| Phase | Levels | Focus |
-|-------|--------|-------|
-| Foundation | 1-5 | Add/subtract to 20, easy times tables (2,5,10) |
-| Times Tables | 6-13 | Progressive mastery of tables 2-12 |
-| Division | 14-15 | Division using learned tables |
-| Mixed Speed | 16-25 | All 4 operations, numbers to 100 |
-| Mastery | 26-30 | Speed challenges, full operations |
-
----
-
-## Level Progression Rules
-
-```javascript
-// 1. Perfect Score - Immediate Level Up
-20/20 correct → Level up automatically
-
-// 2. High Score Streak - Level Up
-19/20 correct × 3 times in a row → Level up
-
-// 3. Low Score Streak - Level Down
-<15 correct × 2 times in a row → Level down
-
-// 4. Very Low Score - Immediate Level Down
-<12 correct → Level down immediately
-
-// 5. Medium Scores - No Change
-15-18 correct → Stay at level, reset all streaks
+### KV binding
+`wrangler.toml` marks this as a Pages project and binds the KV namespace as
+`env.SCORES`:
+```toml
+name = "rewardmaths"
+pages_build_output_dir = "dist"
+[[kv_namespaces]]
+binding = "SCORES"
+id = "dd938e9f5745405b91a8e6e1dd01b3cf"
 ```
 
 ---
 
-## Authentication
+## File Map
 
-### Email/Password Login
-- Users log in with email and password via Supabase Auth
-- Sessions persist across browser refreshes
-- Profile data loaded from `profiles` table
-
-### Admin Features
-- Create child accounts
-- Set user levels
-- View performance analytics
-- Edit level configurations
-- Export data to CSV
-
----
-
-## Key Files
-
-### Configuration
-- `js/supabase.js` - Supabase client (needs credentials)
-- `js/config.js` - App constants, reward messages
-
-### Game Logic
-- `js/game.js` - Main game flow, async operations
-- `js/level_rules.js` - Progression logic
-- `js/mathLevels.js` - Question generation
-
-### Data Layer
-- `js/storage.js` - Supabase CRUD operations
-- `js/performanceTracker.js` - Session/attempt recording
-
-### UI
-- `js/auth.js` - Login/logout handling
-- `js/ui.js` - Screen transitions, popups
-- `js/app.js` - Application controller
+| File | Responsibility |
+|------|----------------|
+| `index.html` | Game UI + login |
+| `admin-new.html` | Admin dashboard UI |
+| `js/app.js` | App bootstrap / controller |
+| `js/game.js` | Game flow: category → 10 questions → score |
+| `js/mathLevels.js` | Question generation per category |
+| `js/config.js` | `APP_CONFIG`, `CATEGORIES`, `DIFFICULTY_SETTINGS`, messages |
+| `js/auth.js` | Login/logout UX over `LocalAuth` |
+| `js/localdb.js` | IndexedDB store **+** Supabase-shaped shim (`supabase`, `LocalAuth`) |
+| `js/scoreStore.js` | `remoteSaveScore` / `remoteGetScores` / `remoteGetAllScores` |
+| `js/storage.js` | `Storage`: merge-read + concurrent-write scores |
+| `js/admin.js` | Admin: users, per-game history, CSV, create user, set level |
+| `js/ui.js` | Screen transitions, popups |
+| `js/utils.js` | Helpers (time formatting, DOM) |
+| `functions/api/scores.js` | Pages Function: shared score history over KV |
+| `build-dist.ps1` | Assemble `dist/` for deploy |
+| `wrangler.toml` | Pages + KV config |
+| `.cloudflare.env` | API token / account id (gitignored) |
 
 ---
 
-## Common Tasks
+## Known Limitations / Follow-ups
 
-### Modify Level Rules
-Edit `js/level_rules.js`:
-```javascript
-export const LEVEL_RULES = {
-    QUESTIONS_PER_LEVEL: 20,
-    PERFECT_SCORE_THRESHOLD: 20,
-    HIGH_SCORE_THRESHOLD: 19,
-    HIGH_SCORE_STREAK_REQUIRED: 3,
-    LOW_SCORE_THRESHOLD: 15,
-    LOW_SCORE_STREAK_REQUIRED: 2,
-    VERY_LOW_SCORE_THRESHOLD: 12
-};
-```
-
-### Modify Level Configurations
-Either:
-1. Use admin dashboard at `admin-new.html`
-2. Edit directly in Supabase `level_configs` table
-3. Modify `supabase/migrations/002_seed_level_configs.sql`
-
-### Add Reward Messages
-Edit `js/config.js`:
-```javascript
-export const REWARDS = {
-    MILESTONES: [5, 10, 15, 20, 25, 30],
-    MESSAGES: {
-        Username: [ /* personalized messages */ ]
-    }
-};
-```
+Tracked as GitHub issues — check the tracker before "fixing" these afresh:
+- **Profiles & levels are local-only** — not shared through Cloudflare, so the user
+  list and `current_level` reflect only the device you're on. Scores *are* shared.
+- **Passwords are plaintext** in IndexedDB (`hashPassword` exists but is unused).
+- **Create-user username case** — `createUser` stores the username as typed, but login
+  lower-cases it; an account created with capitals won't be found at login.
+- **Levels / `level_configs` / `mathLevels` level machinery** is partly vestigial.
 
 ---
 
-## Testing
+## Conventions
 
-### Local Development
-```bash
-# Start local server
-python -m http.server 8000
-
-# Test game
-http://localhost:8000/index.html
-
-# Test admin
-http://localhost:8000/admin-new.html
-```
-
-### Verification Checklist
-- [ ] Supabase credentials configured
-- [ ] Migrations run successfully
-- [ ] Admin user created
-- [ ] Login with email works
-- [ ] Game loads and questions generate
-- [ ] Performance tracking records data
-- [ ] Admin dashboard shows users
-
----
-
-## Browser Compatibility
-
-- Chrome/Edge: Full support (recommended)
-- Firefox: Full support
-- Safari: Full support
-- Mobile: Responsive design
-
-### Requirements
-- ES6 Modules
-- Fetch API
-- Modern CSS (Grid, Flexbox)
-
----
-
-## Security
-
-### Row Level Security (RLS)
-- Users can only read/write their own data
-- Admins can read/write all data
-- Level configs are public read, admin write
-
-### Authentication
-- Supabase handles password hashing
-- Session tokens managed by Supabase client
-- No sensitive data in localStorage
-
----
-
-## Troubleshooting
-
-### "App not configured" Error
-- Update credentials in `js/supabase.js`
-
-### Login Fails
-- Check email/password are correct
-- Verify user exists in Supabase Auth
-- Check profile exists in `profiles` table
-
-### Questions Not Loading
-- Run level_configs seed migration
-- Check browser console for errors
-
-### Admin Access Denied
-- Set `is_admin = TRUE` for user in `profiles` table
-
----
-
-## Summary
-
-This is a **complete Supabase-powered math learning game** ready to deploy once:
-1. Supabase project is created
-2. Credentials are configured
-3. Database migrations are run
-4. Admin user is created
-
-The codebase is clean, modular, and well-documented with proper async/await patterns throughout.
+- Vanilla ES6 modules, JSDoc on functions, small focused functions.
+- Keep all shared state going through Cloudflare KV; keep local IndexedDB as the
+  offline mirror. Don't reintroduce a cloud DB client.
+- After changing app files, **rebuild `dist/` and redeploy** — the live site serves
+  `dist/`, not the repo root.
+- Keep this file and `README.md` current when architecture, hosting, or credentials
+  change.

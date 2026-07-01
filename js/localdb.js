@@ -68,6 +68,12 @@ class LocalDatabase {
     // Generic CRUD operations
     async getAll(storeName) {
         await this.ensureReady();
+        // Gracefully handle Supabase tables/views that have no local store
+        // (e.g. user_stats, performance_analysis, level_configs) so callers
+        // just get an empty result instead of an IndexedDB error.
+        if (!this.db.objectStoreNames.contains(storeName)) {
+            return [];
+        }
         return new Promise((resolve, reject) => {
             const tx = this.db.transaction(storeName, 'readonly');
             const store = tx.objectStore(storeName);
@@ -186,8 +192,11 @@ class LocalAuth {
 
             const profile = profiles[0];
 
-            // Check password if provided and user has one set
-            if (profile.password && password !== profile.password) {
+            // Every account must have a password; reject if unset or wrong.
+            if (!profile.password) {
+                return { data: { user: null }, error: { message: 'Account has no password set' } };
+            }
+            if (password !== profile.password) {
                 return { data: { user: null }, error: { message: 'Wrong password' } };
             }
 
@@ -214,6 +223,21 @@ class LocalAuth {
         } catch (error) {
             return { data: { user: null }, error: { message: error.message } };
         }
+    }
+
+    /**
+     * Minimal local stand-in for Supabase auth.signUp.
+     * Returns a fresh user id; the caller creates the matching profile row.
+     * @param {{email?: string, password?: string, options?: {data?: Object}}} params
+     */
+    async signUp({ email, password, options } = {}) {
+        const id = `user-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const user = {
+            id,
+            email,
+            user_metadata: options?.data || {}
+        };
+        return { data: { user, session: null }, error: null };
     }
 
     async signOut() {

@@ -18,6 +18,9 @@ Desktop.ini
 dist/
 build/
 
+# Wrangler / Cloudflare local cache
+.wrangler/
+
 # SFTP/SSH config files (never commit private keys)
 *.pem
 *.ppk
@@ -32,6 +35,7 @@ build/
 # Ignore sensitive config files
 .env
 .env.*
+.cloudflare.env
 
 # Ignore system files
 ~$*

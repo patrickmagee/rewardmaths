@@ -3,7 +3,12 @@
  * Handles admin functionality for user management and performance analytics
  */
 
-import { supabase, getCurrentProfile, signOut } from './supabase.js';
+import { supabase, getCurrentProfile, signOut } from './localdb.js';
+import { remoteGetAllScores } from './scoreStore.js';
+import { APP_CONFIG } from './config.js';
+
+// Questions per completed game (single source of truth in config.js).
+const QUESTIONS_PER_GAME = APP_CONFIG.QUESTIONS_PER_GAME;
 
 /**
  * Admin Dashboard class
@@ -35,8 +40,9 @@ export class AdminDashboard {
         loginError.textContent = '';
 
         try {
-            // Login as Patrick
-            const { data, error } = await supabase.auth.signInByName('patrick');
+            // Login as Patrick (admin). Prompt for the account password.
+            const password = prompt('Enter Patrick\'s password:') || '';
+            const { data, error } = await supabase.auth.signInByName('patrick', password);
 
             if (error) {
                 loginError.textContent = error.message;
@@ -105,14 +111,37 @@ export class AdminDashboard {
      */
     async loadUsers() {
         try {
-            const { data, error } = await supabase
-                .from('user_stats')
+            // Derive per-user stats from local profiles + score history,
+            // since the Supabase user_stats view has no local equivalent.
+            const { data: profiles, error } = await supabase
+                .from('profiles')
                 .select('*')
                 .order('username');
 
             if (error) throw error;
 
-            this.users = data || [];
+            const scores = await this.fetchAllScores();
+
+            this.users = (profiles || []).map(profile => {
+                const userScores = scores.filter(s => s.user_id === profile.id);
+                const totalSessions = userScores.length;
+                const totalQuestions = totalSessions * QUESTIONS_PER_GAME;
+                const totalCorrect = userScores.reduce((sum, s) => sum + (s.score || 0), 0);
+                const accuracy = totalQuestions > 0
+                    ? Math.round((totalCorrect / totalQuestions) * 100)
+                    : 0;
+
+                return {
+                    id: profile.id,
+                    username: profile.username,
+                    display_name: profile.display_name,
+                    current_level: profile.current_level || 1,
+                    total_sessions: totalSessions,
+                    total_questions_answered: totalQuestions,
+                    overall_accuracy: accuracy
+                };
+            });
+
             this.renderUsersTable();
             this.updateUserFilter();
         } catch (error) {
@@ -190,6 +219,54 @@ export class AdminDashboard {
     }
 
     /**
+     * Fetch every stored score from the shared Cloudflare KV store,
+     * falling back to this device's local copy if the API is unreachable.
+     * @returns {Promise<Array>} raw score records
+     */
+    async fetchAllScores() {
+        try {
+            return await remoteGetAllScores();
+        } catch (err) {
+            console.warn('Remote scores unavailable, using local:', err.message);
+            const { data: local } = await supabase.from('scores').select('*');
+            return local || [];
+        }
+    }
+
+    /**
+     * Build per-game session rows from stored scores, joined to profile names
+     * and filtered by the current user/date filters. Newest first.
+     * @param {{userId?: string, startDate?: string, endDate?: string}} filters
+     * @returns {Promise<Array>}
+     */
+    async getSessionRows({ userId, startDate, endDate } = {}) {
+        const [scores, { data: profiles }] = await Promise.all([
+            this.fetchAllScores(),
+            supabase.from('profiles').select('*')
+        ]);
+
+        const nameById = new Map((profiles || []).map(p => [p.id, p.display_name || p.username]));
+
+        let rows = scores.map(s => ({
+            user_id: s.user_id,
+            display_name: nameById.get(s.user_id) || s.user_id,
+            category: s.category,
+            played_at: s.played_at,
+            score: s.score || 0,
+            total: QUESTIONS_PER_GAME,
+            accuracy: Math.round(((s.score || 0) / QUESTIONS_PER_GAME) * 100),
+            time_ms: s.time_ms || 0
+        }));
+
+        if (userId) rows = rows.filter(r => r.user_id === userId);
+        if (startDate) rows = rows.filter(r => r.played_at >= startDate);
+        if (endDate) rows = rows.filter(r => r.played_at <= endDate + 'T23:59:59');
+
+        rows.sort((a, b) => (a.played_at < b.played_at ? 1 : -1)); // newest first
+        return rows;
+    }
+
+    /**
      * Load performance data
      */
     async loadPerformanceData() {
@@ -198,28 +275,9 @@ export class AdminDashboard {
         const endDate = document.getElementById('endDate')?.value;
 
         try {
-            let query = supabase
-                .from('performance_analysis')
-                .select('*')
-                .order('started_at', { ascending: false })
-                .limit(100);
-
-            if (userId) {
-                query = query.eq('user_id', userId);
-            }
-            if (startDate) {
-                query = query.gte('started_at', startDate);
-            }
-            if (endDate) {
-                query = query.lte('started_at', endDate + 'T23:59:59');
-            }
-
-            const { data, error } = await query;
-
-            if (error) throw error;
-
-            this.renderPerformanceTable(data || []);
-            this.updateStats(data || []);
+            const rows = await this.getSessionRows({ userId, startDate, endDate });
+            this.renderPerformanceTable(rows);
+            this.updateStats(rows);
         } catch (error) {
             console.error('Failed to load performance data:', error);
             this.showError('Failed to load performance data: ' + error.message);
@@ -229,19 +287,18 @@ export class AdminDashboard {
     /**
      * Render performance table
      */
-    renderPerformanceTable(data) {
+    renderPerformanceTable(rows) {
         const tbody = document.getElementById('performanceTableBody');
         if (!tbody) return;
 
-        tbody.innerHTML = data.map(row => `
+        tbody.innerHTML = rows.map(row => `
             <tr>
-                <td>${this.escapeHtml(row.display_name || row.username)}</td>
-                <td>${new Date(row.started_at).toLocaleDateString()}</td>
-                <td>${row.level_number}</td>
-                <td>${row.correct_answers}/${row.total_questions}</td>
-                <td>${row.accuracy_percentage}%</td>
-                <td>${row.average_response_time_ms ? (row.average_response_time_ms / 1000).toFixed(1) + 's' : '-'}</td>
-                <td>${row.level_changed ? (row.new_level > row.level_number ? 'Up' : 'Down') : '-'}</td>
+                <td>${this.escapeHtml(row.display_name)}</td>
+                <td>${new Date(row.played_at).toLocaleDateString()}</td>
+                <td>${this.escapeHtml(row.category)}</td>
+                <td>${row.score}/${row.total}</td>
+                <td>${row.accuracy}%</td>
+                <td>${(row.time_ms / 1000).toFixed(1)}s</td>
             </tr>
         `).join('');
     }
@@ -249,10 +306,10 @@ export class AdminDashboard {
     /**
      * Update summary stats
      */
-    updateStats(data) {
-        const totalSessions = data.length;
-        const totalQuestions = data.reduce((sum, row) => sum + (row.total_questions || 0), 0);
-        const totalCorrect = data.reduce((sum, row) => sum + (row.correct_answers || 0), 0);
+    updateStats(rows) {
+        const totalSessions = rows.length;
+        const totalQuestions = totalSessions * QUESTIONS_PER_GAME;
+        const totalCorrect = rows.reduce((sum, row) => sum + (row.score || 0), 0);
         const avgAccuracy = totalQuestions > 0 ? ((totalCorrect / totalQuestions) * 100).toFixed(1) : 0;
 
         document.getElementById('statSessions').textContent = totalSessions;
@@ -391,6 +448,7 @@ export class AdminDashboard {
                         id: authData.user.id,
                         username: username,
                         display_name: displayName,
+                        password: password,
                         current_level: 1,
                         is_admin: false
                     });
@@ -416,30 +474,18 @@ export class AdminDashboard {
         const endDate = document.getElementById('endDate')?.value;
 
         try {
-            let query = supabase
-                .from('performance_analysis')
-                .select('*')
-                .order('started_at', { ascending: false });
-
-            if (userId) query = query.eq('user_id', userId);
-            if (startDate) query = query.gte('started_at', startDate);
-            if (endDate) query = query.lte('started_at', endDate + 'T23:59:59');
-
-            const { data, error } = await query;
-
-            if (error) throw error;
+            const sessionRows = await this.getSessionRows({ userId, startDate, endDate });
 
             // Generate CSV
-            const headers = ['Username', 'Date', 'Level', 'Correct', 'Total', 'Accuracy', 'Avg Time (s)', 'Level Changed'];
-            const rows = (data || []).map(row => [
-                row.display_name || row.username,
-                new Date(row.started_at).toISOString(),
-                row.level_number,
-                row.correct_answers,
-                row.total_questions,
-                row.accuracy_percentage,
-                row.average_response_time_ms ? (row.average_response_time_ms / 1000).toFixed(2) : '',
-                row.level_changed ? (row.new_level > row.level_number ? 'Up' : 'Down') : ''
+            const headers = ['User', 'Date', 'Category', 'Score', 'Total', 'Accuracy', 'Time (s)'];
+            const rows = sessionRows.map(row => [
+                row.display_name,
+                new Date(row.played_at).toISOString(),
+                row.category,
+                row.score,
+                row.total,
+                row.accuracy,
+                (row.time_ms / 1000).toFixed(2)
             ]);
 
             const csv = [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');

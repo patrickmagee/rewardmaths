@@ -1,0 +1,12 @@
+# Cloudflare Pages config for the RewardMaths project.
+# `pages_build_output_dir` marks this as a Pages configuration and points at the
+# assembled deploy folder. The KV binding below is applied to Pages Functions
+# (available as `env.SCORES`) whenever we run `wrangler pages deploy`.
+name = "rewardmaths"
+pages_build_output_dir = "dist"
+compatibility_date = "2024-11-01"
+
+# Shared score history store (see functions/api/scores.js).
+[[kv_namespaces]]
+binding = "SCORES"
+id = "dd938e9f5745405b91a8e6e1dd01b3cf"

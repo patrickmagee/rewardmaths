@@ -1,227 +1,147 @@
 # Reward Maths Game
 
-A modern, maintainable math game for kids with login, progressive difficulty, and per-user level tracking. The codebase has been refactored for improved maintainability and organization.
+A simple, zero-dependency math practice game for kids — for **home use**. Log in, pick a
+category, answer 10 timed questions, beat your best score. Scores are shared across the
+family's devices via Cloudflare; everything also works offline.
 
-## Features
-- **Predefined Users**: Tom, Patrick, Eliza (password: username + 1234)
-- **Progressive Login Timeout**: Progressive lockout for failed logins
-- **Blank Login**: Allows play without a username
-- **Math Game**: Answer 20 questions per level with advanced progression rules
-- **Levels**: 1-100, per-user, saved in browser localStorage
-- **Level Progression Rules**:
-  - 20/20 correct = auto level up
-  - 19/20 three times in a row = level up
-  - Less than 15 correct twice in a row = level down
-  - Less than 12 correct = immediate level down
-- **Progress Tracking**:
-  - Visual progress circles (2 rows of 10) - green for correct, red for incorrect
-  - Vertical bar for level (1-100)
-- **Responsive UI**: Clean, modern, mobile-friendly
-- **Animated Feedback**: Green animation for correct answers
-- **Logout**: Small, grey button
-- **User Info**: Username and smiley at top
+**Live:** https://rewardmaths.pages.dev
 
-## Refactored File Structure
+---
 
-### Core Files
-- `index.html` — Main HTML structure
-- `favicon.svg` — Site icon
-- `README.md` — This file
+## How it plays
 
-### JavaScript Modules (js/)
-- `js/app.js` — Main application controller and initialization
-- `js/config.js` — Configuration constants and settings
-- `js/auth.js` — Authentication and login management
-- `js/game.js` — Game logic and math question handling
-- `js/storage.js` — localStorage operations for user data
-- `js/ui.js` — UI management and screen transitions
-- `js/utils.js` — Utility functions and helpers
+1. Log in with a username + password (see default users below).
+2. Pick a category:
+   - **Addition** / **Subtraction** — Easy, Medium, or Hard.
+   - **Times tables** — 2 through 12.
+3. Answer **10 timed questions**.
+4. Your score (correct out of 10) and time are saved, and your **best scores for that
+   category** are shown.
 
-### CSS Modules (css/)
-- `css/main.css` — Main CSS file that imports all modules
-- `css/base.css` — Base styles, reset, typography, and fundamentals
-- `css/components.css` — Component-specific styles
-- `css/responsive.css` — Media queries and responsive design
+### Default users
+| Username | Password | Role |
+|----------|----------|------|
+| `tom` | `dino` | player |
+| `patrick` | `laura` | admin |
+| `eliza` | `anime` | player |
 
-### Legacy Files (Backup)
-- `script.js.backup` — Original monolithic JavaScript file
-- `styles.css.backup` — Original monolithic CSS file
+These are seeded automatically the first time the app runs (when no users exist yet).
 
-## Architecture Improvements
+---
 
-### JavaScript Refactoring
-- **Modular Design**: Split monolithic code into focused modules
-- **Class-Based Architecture**: Used ES6 classes for better organization
-- **Separation of Concerns**: Each module has a single responsibility
-- **Error Handling**: Improved error handling throughout
-- **Documentation**: Comprehensive JSDoc comments
-- **ES6 Modules**: Modern import/export syntax
+## Architecture
 
-### CSS Refactoring
-- **Modular CSS**: Split styles into logical modules
-- **Eliminated Duplicates**: Removed redundant CSS rules
-- **Better Organization**: Grouped related styles together
-- **Improved Maintainability**: Easier to find and modify specific styles
-- **Responsive Design**: Dedicated responsive styles module
+Vanilla **ES6 modules**, no framework, no dependencies. Two data stores:
 
-### Benefits of Refactoring
-1. **Maintainability**: Easier to update and modify code
-2. **Readability**: Clear separation of concerns and documentation
-3. **Scalability**: Easy to add new features without affecting existing code
-4. **Debugging**: Easier to locate and fix issues
-5. **Testing**: Modular structure enables better testing
-6. **Collaboration**: Multiple developers can work on different modules
+- **Local IndexedDB** (`js/localdb.js`) — per-browser store for **profiles, login, and
+  an offline mirror of scores**. It exposes a Supabase-shaped API (`supabase.from(...)`,
+  `supabase.auth...`) so the calling code stays simple, but it is **entirely local** —
+  there is no Supabase/cloud database.
+- **Cloudflare KV** (`functions/api/scores.js`) — a Cloudflare Pages Function that
+  stores **shared score history** so scores sync across devices.
 
-## How to Run Locally
-1. Open `index.html` in your browser.
-2. Log in as Tom, Patrick, or Eliza (password: e.g. Tom1234), or leave blank to play as guest.
-3. Play the game! Progress and level are saved per user in your browser.
+Scores are **written to both** stores and **read merged** from both, so offline play and
+cross-device play both work. Profiles/login live only in local IndexedDB (not yet
+synced across devices).
 
-**Note**: The refactored version uses ES6 modules, so you may need to serve the files through a local server (like Live Server in VS Code) rather than opening the HTML file directly, depending on your browser's security settings.
+```
+Browser (static ES6 modules)
+├── index.html      → js/app.js → js/game.js        (the game)
+├── admin-new.html  → js/admin.js                    (parent dashboard)
+├── js/localdb.js    IndexedDB shim (local)
+├── js/scoreStore.js fetch adapter for /api/scores
+├── js/storage.js    merges local + remote scores
+└── functions/api/scores.js  Pages Function → Cloudflare KV (env.SCORES)
+```
 
-## How to Deploy to Website
-1. Ensure you have SCP and SSH access to your web host.
-2. Upload all files to your web root (e.g. `/home/plantcon/public_html/website_f273a6c3`):
-   ```powershell
-   scp -i $env:USERPROFILE\.ssh\id_rsa -r c:\Projects\TE_Math\* plantcon@67.20.113.97:/home/plantcon/public_html/website_f273a6c3
-   ```
-3. Visit your site (e.g. https://rewardmaths.com) and verify the game works.
+### Key files
+| File | Purpose |
+|------|---------|
+| `js/game.js` | Game flow: category → 10 questions → score |
+| `js/mathLevels.js` | Question generation per category |
+| `js/config.js` | `APP_CONFIG`, `CATEGORIES`, difficulty settings, messages |
+| `js/localdb.js` | Local IndexedDB store + Supabase-shaped shim + local auth |
+| `js/scoreStore.js` | Talks to `/api/scores` (`remoteSaveScore/GetScores/GetAllScores`) |
+| `js/storage.js` | `Storage`: concurrent save, merged read |
+| `js/admin.js` | Admin dashboard: users, session history, CSV export |
+| `functions/api/scores.js` | Shared score history over Cloudflare KV |
 
-## How to Push to GitHub
-1. Make sure your repo is set up:
-   ```powershell
-   git remote add origin https://github.com/patrickmagee/rewardmaths.git
-   ```
-2. Commit and push:
-   ```powershell
-   git add .
-   git commit -m "Refactor: Modular architecture for improved maintainability"
-   git push -u origin master
-   ```
+### The scores API (`functions/api/scores.js`)
+KV key scheme `scores:<category>:<user_id>` → JSON array (best-first, capped at 50).
 
-## Development Guidelines
+| Method | Query | Returns |
+|--------|-------|---------|
+| `GET` | `?user_id=&category=` | that user's history for the category |
+| `GET` | `?all=1` | every score (admin dashboard stats) |
+| `POST` | `{ user_id, category, score, time_ms, played_at? }` | appends a score |
 
-### Adding New Features
-1. **JavaScript**: Create new modules in the `js/` directory or extend existing classes
-2. **CSS**: Add styles to the appropriate CSS module or create new ones
-3. **Configuration**: Update `js/config.js` for new constants or settings
+---
 
-### Code Style
-- Use ES6+ features (classes, modules, arrow functions, etc.)
-- Follow JSDoc commenting standards
-- Use meaningful variable and function names
-- Keep functions small and focused
-- Separate concerns between modules
+## Admin dashboard
 
-### File Organization
-- Keep related functionality together in modules
-- Use clear, descriptive file names
-- Maintain the separation between JS and CSS modules
-- Update imports when adding new modules
+Open `admin-new.html` and log in as `patrick`.
+- **Users** — per-user stats (sessions, questions, accuracy) from the shared KV store.
+- **Performance** — per-game Session History (User · Date · Category · Score · Accuracy ·
+  Time), filterable by user/date, with CSV export.
+- **Create User** / **Set Level** — manage local profiles.
 
-## For AI Code Assistants
+---
 
-### Architecture Overview
-- **Type**: Modular ES6 class-based structure with no external dependencies
-- **Entry Point**: `js/app.js` initializes the application
-- **State Management**: Handled through class instances and localStorage
-- **UI Updates**: Managed through the UI class with clear separation
-- **Configuration**: Centralized in `js/config.js`
+## Run locally
 
-### Key Files and Their Purposes
-1. **`js/app.js`** - Main application controller, initializes all modules
-2. **`js/game.js`** - Core game logic, handles 20-question sessions and level progression
-3. **`js/level_rules.js`** - Level progression rules and streak tracking (NEW in 2025)
-4. **`js/auth.js`** - User authentication and login management
-5. **`js/ui.js`** - UI management, screen transitions, and user feedback
-6. **`js/storage.js`** - localStorage operations for user data persistence
-7. **`js/mathLevels.js`** - Math question generation based on difficulty levels
-8. **`js/utils.js`** - Utility functions and helpers
-9. **`js/config.js`** - All configuration constants and settings
+ES6 modules must be served over HTTP (not opened as `file://`):
 
-### Level System (Updated 2025)
-The game now uses a sophisticated 20-question level progression system:
+```powershell
+python -m http.server 8000
+# Game:  http://localhost:8000/index.html
+# Admin: http://localhost:8000/admin-new.html
+```
 
-#### Current Rules:
-- **20/20 correct** → Automatic level up
-- **19/20 three times in a row** → Level up
-- **Less than 15 correct twice in a row** → Level down  
-- **Less than 12 correct** → Immediate level down
-- **15-18 correct** → Stay at current level, reset streaks
+`python -m http.server` does not run the Cloudflare Function, so `/api/scores` calls
+fail fast and the app falls back to local IndexedDB — the intended offline behavior. To
+test the Function locally, build `dist/` (below) and run `npx wrangler pages dev dist`.
 
-#### Implementation:
-- Level rules are in `js/level_rules.js` (LevelRulesManager class)
-- Game logic handles 20-question sessions in `js/game.js`
-- Streak tracking and level history are automatically maintained
-- Progress bar shows "X/20 (Y correct)" format
+---
 
-### Testing
-- **Test Suite**: `test_level_rules.html` - Comprehensive testing for level progression
-- **Unit Tests**: 13 tests covering all progression rules
-- **Scenario Tests**: Realistic usage patterns with different performance types
-- **Local Testing**: Use `python -m http.server 8000` to run locally
+## Build & deploy (Cloudflare Pages)
 
-### Common Modifications
+Hosted free on Cloudflare Pages (migrated off Bluehost 2026-07-01).
 
-#### Adding New Level Rules:
-1. Modify `LEVEL_RULES` constants in `js/level_rules.js`
-2. Update `evaluateLevelProgression()` method if needed
-3. Run test suite to verify changes
+**1. Assemble `dist/`** (static assets + Pages Functions):
+```powershell
+./build-dist.ps1
+```
+`dist/` is a build artifact — always regenerate it, never hand-edit it.
 
-#### Changing Question Count:
-1. Update `QUESTIONS_PER_LEVEL` in `js/config.js`
-2. Update `LEVEL_RULES.QUESTIONS_PER_LEVEL` in `js/level_rules.js`
-3. Test thoroughly with `test_level_rules.html`
+**2. Deploy:**
+```powershell
+# Load the API token (repo-local, gitignored — never commit it)
+$env:CLOUDFLARE_API_TOKEN  = (Get-Content .cloudflare.env | ? { $_ -match '^CLOUDFLARE_API_TOKEN=' })  -replace '^CLOUDFLARE_API_TOKEN=',''
+$env:CLOUDFLARE_ACCOUNT_ID = (Get-Content .cloudflare.env | ? { $_ -match '^CLOUDFLARE_ACCOUNT_ID=' }) -replace '^CLOUDFLARE_ACCOUNT_ID=',''
 
-#### Adding New Users:
-1. Add to `USERS` array in `js/config.js`
-2. Add personalized messages to `REWARDS.MESSAGES` and `REWARDS.LEVEL_DOWN_MESSAGES`
+npx wrangler pages deploy dist --project-name rewardmaths --branch main
+```
 
-#### Modifying Math Questions:
-1. Edit `math_levels.json` for question templates
-2. Modify `js/mathLevels.js` for generation logic
-3. Test across different levels
+The KV namespace binding (`SCORES`) lives in `wrangler.toml` and is applied to the
+Functions at deploy time. After deploying, verify at https://rewardmaths.pages.dev.
 
-### Deployment Process
-1. **Local Testing**: Use local server to test changes
-2. **Test Suite**: Run `test_level_rules.html` to verify functionality
-3. **Deploy**: Use SCP command from README to upload to Bluehost
-4. **Verify**: Test live site functionality
+---
 
-### Code Style Guidelines
-- Use ES6+ features (classes, modules, arrow functions, const/let)
-- Follow JSDoc commenting standards for all functions
-- Keep functions small and focused (single responsibility)
-- Use meaningful variable and function names
-- Separate concerns between modules
-- Update imports when adding new modules
+## Known limitations / follow-ups
 
-### Debugging Tips
-- Check browser console for errors
-- Use `game.getStats()` to inspect current game state
-- Use `levelRulesManager.getStreakInfo(username)` to check streaks
-- Use `levelRulesManager.getLevelHistory(username)` to see level changes
-- Test individual components with the test suite
+Tracked as GitHub issues:
+- **Profiles & levels are local-only** — not synced across devices (scores are).
+- **Passwords are stored plaintext** in IndexedDB (home-use game).
+- **Create-user username case** — created as typed, but login lower-cases it.
+- **Level machinery is partly vestigial** — gameplay is category-based, not level-based.
 
-### Performance Considerations
-- localStorage is used for persistence (no server database)
-- Streak tracking is optimized for minimal storage
-- Level history is limited to last 50 entries per user
-- Math question generation is cached per level
+---
 
-### Security Notes
-- No sensitive data stored (educational game only)
-- User passwords are simple (username + "1234")
-- No server-side authentication required
-- All data stored in browser localStorage
+## Notes for AI code assistants
 
-### Future Enhancement Areas
-- Add more sophisticated math question types
-- Implement additional reward milestones
-- Add sound effects and animations
-- Create admin panel for configuration
-- Add multiplayer features
-- Implement cloud save functionality
-
-## Contact
-For support, contact admin@rewardmaths.com
+- **No Supabase / no cloud DB.** The `supabase` export in `js/localdb.js` is a local
+  IndexedDB shim. All *shared* state goes through Cloudflare KV via `/api/scores`.
+- After editing app files, **rebuild `dist/` and redeploy** — the live site serves
+  `dist/`, not the repo root.
+- `QUESTIONS_PER_GAME` is defined once in `js/config.js`; import it, don't redeclare.
+- See `CLAUDE.md` for the full architecture, data-flow, and conventions.
