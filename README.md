@@ -107,23 +107,24 @@ test the Function locally, build `dist/` (below) and run `npx wrangler pages dev
 
 Hosted free on Cloudflare Pages (migrated off Bluehost 2026-07-01).
 
-**1. Assemble `dist/`** (static assets + Pages Functions):
-```powershell
-./build-dist.ps1
-```
-`dist/` is a build artifact — always regenerate it, never hand-edit it.
+**Push to deploy:** a `git push` to `master` automatically builds and deploys to
+production via GitHub Actions (`.github/workflows/deploy.yml`, using the
+`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` repo secrets). Feature branches and PRs
+do **not** deploy. You can also trigger it manually from the Actions tab.
 
-**2. Deploy:**
+**Manual fallback** (from your machine, if ever needed):
 ```powershell
+./build-dist.ps1   # assemble dist/ (static assets + Pages Functions)
+
 # Load the API token (repo-local, gitignored — never commit it)
 $env:CLOUDFLARE_API_TOKEN  = (Get-Content .cloudflare.env | ? { $_ -match '^CLOUDFLARE_API_TOKEN=' })  -replace '^CLOUDFLARE_API_TOKEN=',''
 $env:CLOUDFLARE_ACCOUNT_ID = (Get-Content .cloudflare.env | ? { $_ -match '^CLOUDFLARE_ACCOUNT_ID=' }) -replace '^CLOUDFLARE_ACCOUNT_ID=',''
 
 npx wrangler pages deploy dist --project-name rewardmaths --branch main
 ```
-
-The KV namespace binding (`SCORES`) lives in `wrangler.toml` and is applied to the
-Functions at deploy time. After deploying, verify at https://rewardmaths.pages.dev.
+`dist/` is a build artifact — always regenerate it, never hand-edit it. The KV binding
+(`SCORES`) comes from `wrangler.toml`. After deploying, verify at
+https://rewardmaths.pages.dev.
 
 ---
 
@@ -141,7 +142,7 @@ Tracked as GitHub issues:
 
 - **No Supabase / no cloud DB.** The `supabase` export in `js/localdb.js` is a local
   IndexedDB shim. All *shared* state goes through Cloudflare KV via `/api/scores`.
-- After editing app files, **rebuild `dist/` and redeploy** — the live site serves
-  `dist/`, not the repo root.
+- After editing app files, **push to `master`** — GitHub Actions builds and deploys
+  automatically (`.github/workflows/deploy.yml`).
 - `QUESTIONS_PER_GAME` is defined once in `js/config.js`; import it, don't redeclare.
 - See `CLAUDE.md` for the full architecture, data-flow, and conventions.

@@ -181,28 +181,30 @@ To exercise the Function locally, use `npx wrangler pages dev dist` after a buil
 
 **Live:** https://rewardmaths.pages.dev  (migrated off Bluehost 2026-07-01).
 
-### 1. Assemble `dist/`
-```powershell
-./build-dist.ps1
-```
-`build-dist.ps1` produces a clean `dist/` containing the deployable assets **and** the
-Pages Functions:
-```
-dist/
-├── index.html  admin-new.html  favicon.svg
-├── css/  js/
-└── functions/            # Pages Functions must live inside the deployed dir
-```
-`dist/` is a build artifact — always regenerate it; don't hand-edit it.
+### Primary: push-to-deploy (GitHub Actions)
+**A `git push` to `master` auto-deploys to production.** The workflow
+`.github/workflows/deploy.yml` assembles the deploy folder on a Linux runner and
+publishes it with `cloudflare/wrangler-action`, using the repo Actions secrets
+`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID`. It also runs on manual dispatch
+(Actions tab → "Deploy to Cloudflare Pages" → Run workflow, or `gh workflow run
+deploy.yml`). Pushing to a feature branch or opening a PR does **not** deploy.
 
-### 2. Deploy
+Note: the workflow does its own portable `dist/` assembly (copies static assets +
+`functions/`) because `build-dist.ps1` is PowerShell and can't run on the Linux runner.
+
+### Fallback: manual deploy from your machine
+Still works if you need it (e.g. Actions is down):
 ```powershell
+./build-dist.ps1   # assembles dist/ = index.html, admin-new.html, favicon.svg, css/, js/, functions/
+
 # Load the API token (repo-local, gitignored — never commit it)
 $env:CLOUDFLARE_API_TOKEN  = (Get-Content .cloudflare.env | ? { $_ -match '^CLOUDFLARE_API_TOKEN=' })  -replace '^CLOUDFLARE_API_TOKEN=',''
 $env:CLOUDFLARE_ACCOUNT_ID = (Get-Content .cloudflare.env | ? { $_ -match '^CLOUDFLARE_ACCOUNT_ID=' }) -replace '^CLOUDFLARE_ACCOUNT_ID=',''
 
 npx wrangler pages deploy dist --project-name rewardmaths --branch main
 ```
+`dist/` is a build artifact (gitignored) — always regenerate it; don't hand-edit it.
+Pages Functions must live inside the deployed dir (`dist/functions/`).
 
 ### KV binding
 `wrangler.toml` marks this as a Pages project and binds the KV namespace as
@@ -235,9 +237,10 @@ id = "dd938e9f5745405b91a8e6e1dd01b3cf"
 | `js/ui.js` | Screen transitions, popups |
 | `js/utils.js` | Helpers (time formatting, DOM) |
 | `functions/api/scores.js` | Pages Function: shared score history over KV |
-| `build-dist.ps1` | Assemble `dist/` for deploy |
+| `build-dist.ps1` | Assemble `dist/` for the manual deploy fallback |
+| `.github/workflows/deploy.yml` | Push-to-deploy: build + publish on push to `master` |
 | `wrangler.toml` | Pages + KV config |
-| `.cloudflare.env` | API token / account id (gitignored) |
+| `.cloudflare.env` | API token / account id for manual deploy (gitignored) |
 
 ---
 
@@ -258,7 +261,8 @@ Tracked as GitHub issues — check the tracker before "fixing" these afresh:
 - Vanilla ES6 modules, JSDoc on functions, small focused functions.
 - Keep all shared state going through Cloudflare KV; keep local IndexedDB as the
   offline mirror. Don't reintroduce a cloud DB client.
-- After changing app files, **rebuild `dist/` and redeploy** — the live site serves
-  `dist/`, not the repo root.
+- After changing app files, **push to `master`** — the GitHub Actions workflow builds
+  and deploys automatically. The live site serves the deployed bundle, not the repo
+  root directly.
 - Keep this file and `README.md` current when architecture, hosting, or credentials
   change.
