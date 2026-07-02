@@ -77,6 +77,21 @@ export async function getAnswers(user, { sinceDay = null } = {}) {
     return sinceDay ? list.filter(a => a.day >= sinceDay) : list;
 }
 
+/** Delete every stored answer for one user (test-account reset). */
+export async function deleteAnswers(user) {
+    const db = await openDb();
+    return tx(db, 'answers', 'readwrite', s => new Promise((resolve, reject) => {
+        const req = s.index('user').openCursor(IDBKeyRange.only(user));
+        req.onsuccess = () => {
+            const c = req.result;
+            if (!c) return resolve();
+            c.delete();
+            c.continue();
+        };
+        req.onerror = () => reject(req.error);
+    }));
+}
+
 export async function getProfiles() {
     const db = await openDb();
     return tx(db, 'profiles', 'readonly', s => new Promise((resolve, reject) => {

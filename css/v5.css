@@ -166,6 +166,15 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
     border: 1.5px solid var(--stroke); border-radius: 50%;
 }
 .round-card.done .rc-state { color: var(--good); border-color: transparent; }
+.round-card.play-big {
+    justify-content: center; min-height: 88px;
+    background: linear-gradient(180deg, #3fdd8e, #17a45e);
+    border: 0; color: #05130b;
+    font-size: 1.6rem; font-weight: 800; letter-spacing: 0.01em;
+    box-shadow: 0 8px 28px -10px #34d284;
+}
+.round-card.play-big:active { filter: brightness(1.08); transform: scale(0.99); }
+.reset-test { margin-top: 14px; opacity: 0.55; font-size: 0.85rem; }
 
 .lock-card {
     width: 100%; background: var(--panel); border: 1px solid var(--stroke);

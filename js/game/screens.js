@@ -103,17 +103,20 @@ export function renderToday(ctx) {
                     ${ctx.tomorrowHint ? `<div class="lock-preview">${COPY.stopPreview(ctx.tomorrowHint)}</div>` : ''}
                 </section>` : `
                 <section class="rounds">
-                    ${ctx.roundCards.map(c => `
+                    ${ctx.roundCards.map(c => c.big ? `
+                        <button class="round-card play-big" data-idx="${c.idx}">${c.name} ▶</button>` : `
                         <button class="round-card ${c.done ? 'done' : ''}" data-idx="${c.idx}" ${c.done ? 'disabled' : ''}>
                             <span class="rc-name">${c.name}</span>
                             <span class="rc-state">${c.done ? '✓' : '▶'}</span>
                         </button>`).join('')}
                 </section>`}
+            ${ctx.isTest ? `<button class="link reset-test">reset test data</button>` : ''}
         </div>`;
 
     app().querySelectorAll('.round-card:not(.done)').forEach(b =>
         b.addEventListener('click', () => ctx.onRound(Number(b.dataset.idx))));
     app().querySelector('.logout').addEventListener('click', ctx.onLogout);
+    app().querySelector('.reset-test')?.addEventListener('click', ctx.onReset);
 }
 
 /** Round screen: question, keypad, feedback states, clock. */

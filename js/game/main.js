@@ -132,7 +132,7 @@ async function showToday() {
         };
     }).filter(c => !c.done);
     if (!roundCards.length && !medal.goldDone) {
-        roundCards.push({ idx: 2, name: 'Play', done: false });
+        roundCards.push({ idx: 2, name: 'Play', done: false, big: true });
     }
 
     const wt = workingTable(S.derived.state);
@@ -148,6 +148,13 @@ async function showToday() {
         tomorrowHint: wt ? `${wt}s and a mix` : 'a fresh mix',
         onRound: (idx) => startRound(S.todayPlan[Math.min(idx, S.todayPlan.length - 1)]),
         onLogout: () => showWho(),
+        isTest: S.user === 'test',
+        onReset: async () => {
+            // Test-account only: wipe KV + local, restart from a true Day 1.
+            await fetch('/api/answers?user=test', { method: 'DELETE' }).catch(() => {});
+            await db.deleteAnswers('test');
+            location.reload();
+        },
     });
 }
 

@@ -77,6 +77,25 @@ export async function onRequestPost({ request, env }) {
     return json({ day, answers: merged });
 }
 
+/** Full wipe — allowed for the dedicated test account ONLY. */
+export async function onRequestDelete({ request, env }) {
+    const url = new URL(request.url);
+    const user = url.searchParams.get('user');
+    if (user !== 'test') {
+        return json({ error: 'reset is allowed for the test account only' }, 403);
+    }
+    let cursor, deleted = 0;
+    do {
+        const page = await env.SCORES.list({ prefix: `answers:${user}:`, cursor });
+        for (const k of page.keys) {
+            await env.SCORES.delete(k.name);
+            deleted++;
+        }
+        cursor = page.list_complete ? undefined : page.cursor;
+    } while (cursor);
+    return json({ deleted });
+}
+
 async function readDay(env, user, day) {
     try {
         const v = await env.SCORES.get(keyFor(user, day), 'json');
