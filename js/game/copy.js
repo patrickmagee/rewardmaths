@@ -23,6 +23,8 @@ export const COPY = {
 
     roundNames: { review: 'Warm-up', focus: 'Challenge', mixed: 'Mix it up', sprint: 'Sprint!', placement: 'Explorer', free: 'Free play' },
 
+    secondChance: '2nd chance',
+
     correction: (factId) => {
         const { a, op, b, answer } = parseFact(factId);
         const sym = { mul: '×', add: '+', sub: '−' }[op];
@@ -35,7 +37,6 @@ export const COPY = {
         ? `${rounds} round${rounds === 1 ? '' : 's'} today — ${next.roundsLeft} more for ${next.medal}`
         : `Gold — every medal earned today`,
     personalBest: (theme, delta) => `New personal best on the ${theme} — ${delta} faster than last week`,
-    factsToWatch: '2 to watch',
     badRound: (hardThing) =>
         `That was a tough set — ${hardThing} are the hard ones, and you stuck with the whole round. They'll show up again tomorrow.`,
     goodRound: (score, total) => `${score} out of ${total}`,

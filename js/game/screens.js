@@ -5,7 +5,7 @@
 import { COPY } from './copy.js';
 import { Keypad } from './keypad.js';
 import { RoundSession } from './session.js';
-import { parseFact, factCue } from '../engine/facts.js';
+import { parseFact } from '../engine/facts.js';
 import { DAY } from '../config.js';
 
 const app = () => document.getElementById('app');
@@ -129,6 +129,7 @@ export function renderRound(plan, opts) {
                 <span class="round-clock"></span>
             </header>
             <div class="q-zone">
+                <div class="q-badge"></div>
                 <div class="q-fact"></div>
                 <div class="q-feedback"></div>
             </div>
@@ -136,6 +137,7 @@ export function renderRound(plan, opts) {
         </div>`;
 
     const factEl = app().querySelector('.q-fact');
+    const badgeEl = app().querySelector('.q-badge');
     const fbEl = app().querySelector('.q-feedback');
     const progEl = app().querySelector('.round-progress');
     const clockEl = app().querySelector('.round-clock');
@@ -190,6 +192,7 @@ export function renderRound(plan, opts) {
             }),
             showQuestion: (factId, fact, meta) => {
                 showFact(factId);
+                badgeEl.textContent = meta.requeued ? COPY.secondChance : '';
                 fbEl.textContent = '';
                 renderDots();
                 pad.reset();
@@ -228,9 +231,10 @@ export function renderRound(plan, opts) {
     return session;
 }
 
-/** Round-end: score, recap with one tap-retry each, medal progress. */
+/** Round-end: score + medal progress. (No revision recap — kids don't
+ *  engage with it; the learning moment is the in-round 2nd chance.) */
 export function renderEnd(result, ctx) {
-    const { score, total, factsToWatch, hardTheme } = result;
+    const { score, total, hardTheme } = result;
     const bad = score / total <= 0.5;
     app().innerHTML = `
         <div class="screen end">
@@ -239,35 +243,9 @@ export function renderEnd(result, ctx) {
             ${ctx.improvementLine ? `<div class="end-improve">${ctx.improvementLine}</div>` : ''}
             <div class="end-medal">${COPY.medalProgress(ctx.medal.rounds, ctx.medal.next)}</div>
             ${ctx.easyBronzeLine ? `<div class="end-note">${ctx.easyBronzeLine}</div>` : ''}
-            ${factsToWatch.length ? `
-                <section class="recap">
-                    <h3>${COPY.factsToWatch}</h3>
-                    ${factsToWatch.map(f => recapItem(f)).join('')}
-                </section>` : ''}
             <button class="primary next">Done</button>
         </div>`;
-
-    // A real retrieval moment: the fact shows WITHOUT its answer; the tap
-    // reveals it (plus the strategy cue). Not logged — UI reinforcement only.
-    app().querySelectorAll('.recap-try').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const cue = factCue(btn.dataset.fact);
-            btn.closest('.recap-item').innerHTML =
-                `<span class="recap-shown">${COPY.correction(btn.dataset.fact)}</span>` +
-                (cue ? `<span class="cue">${cue}</span>` : '');
-        }, { once: true });
-    });
     app().querySelector('.next').addEventListener('click', ctx.onNext);
-}
-
-function recapItem(factId) {
-    const { a, op, b } = parseFact(factId);
-    const sym = { mul: '×', add: '+', sub: '−' }[op];
-    return `
-        <div class="recap-item">
-            <span>${a} ${sym} ${b} = ?</span>
-            <button class="recap-try" data-fact="${factId}">answer →</button>
-        </div>`;
 }
 
 export function renderBreak({ onDone }) {

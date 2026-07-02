@@ -221,6 +221,12 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
     font-variant-numeric: tabular-nums; text-align: center;
 }
 .q-answer-slot { color: var(--accent); }
+.q-badge {
+    min-height: 1.5rem; color: var(--fix);
+    font-size: 0.85rem; font-weight: 800;
+    letter-spacing: 0.14em; text-transform: uppercase;
+    margin-bottom: 6px;
+}
 .q-feedback {
     min-height: 3.4rem; margin-top: 12px; text-align: center;
     font-size: 1.5rem; display: flex; flex-direction: column; gap: 4px;
@@ -238,16 +244,6 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
     max-width: 44ch; line-height: 1.55; }
 .end-improve { color: var(--good); }
 .end-medal { margin-top: 14px; font-size: 1rem; color: var(--dim); }
-.recap { width: 100%; max-width: 400px; margin-top: 18px; }
-.recap h3 { text-align: center; }
-.recap-item {
-    display: flex; justify-content: space-between; align-items: center;
-    background: var(--panel); border: 1px solid var(--stroke);
-    border-radius: 14px; padding: 13px 18px;
-    margin-top: 8px; font-size: 1.15rem; font-weight: 700;
-}
-.recap-try { color: var(--accent); font-size: 0.92rem; }
-.recap-shown { color: var(--good); font-size: 0.95rem; }
 .end .primary { margin-top: 24px; }
 
 /* ---- Break / free ---- */

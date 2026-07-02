@@ -58,6 +58,7 @@ export class RoundSession {
             index: this.answers.filter(a => !a.requeued).length,
             total: this.plan.items.length,
             untimed: this.plan.untimed,
+            requeued: !!item.requeued,
         });
     }
 
