@@ -183,9 +183,9 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
     align-items: center; color: var(--dim); font-size: 0.9rem;
 }
 .round-name { font-weight: 700; color: var(--text); }
-.round-progress { display: flex; gap: 6px; justify-content: center; }
+.round-progress { display: flex; gap: 8px; justify-content: center; }
 .round-progress .dot {
-    width: 8px; height: 8px; border-radius: 50%;
+    width: 13px; height: 13px; border-radius: 50%;
     background: var(--stroke);
 }
 .round-progress .dot.ok { background: var(--good); }
@@ -245,14 +245,8 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
 }
 .free-btn:active { background: var(--panel-2); }
 
-/* Landscape tablets/laptops: question left, keypad right. */
-@media (orientation: landscape) and (min-width: 700px) {
-    .screen.round { flex-direction: row; flex-wrap: wrap;
-        align-items: stretch; gap: 12px; max-width: 900px; }
-    .round-head { width: 100%; align-self: flex-start; }
-    .q-zone { flex: 1 1 55%; }
-    .keypad-host { margin: auto 0; flex: 1 1 38%; max-width: 340px; }
-}
+/* All form factors use the same centred column (question above keypad) —
+   a side-by-side landscape variant proved messy on desktop windows. */
 
 /* ---- Parent dashboard ---- */
 .dash { max-width: 860px; align-items: stretch; }
