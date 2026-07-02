@@ -2,155 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reward Math</title>
-    <link rel="stylesheet" href="css/main.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0e1420">
+    <title>RewardMaths</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="css/v5.css">
 </head>
 <body>
-    <!-- Login Screen -->
-    <div id="loginScreen" class="screen">
-        <h1>Reward Math</h1>
-        <p class="login-prompt">Who's playing?</p>
-        <div class="user-buttons">
-            <button class="user-btn" data-user="Tom">🦖 Tom</button>
-            <button class="user-btn" data-user="Patrick">🙂 Patrick</button>
-            <button class="user-btn" data-user="Eliza">🌸 Eliza</button>
-        </div>
-        <div id="passwordSection" class="password-section" style="display: none;">
-            <p id="passwordPrompt" class="password-prompt">Password for <span id="selectedUser"></span>:</p>
-            <input type="password" id="passwordInput" placeholder="Enter password" autocomplete="off">
-            <div class="password-buttons">
-                <button id="loginButton" class="login-btn">Login</button>
-                <button id="cancelButton" class="cancel-btn">Cancel</button>
-            </div>
-        </div>
-        <p id="loginError" class="error"></p>
+    <div id="app" class="loading">
+        <div class="boot">RewardMaths…</div>
     </div>
-
-    <!-- Menu Screen -->
-    <div id="menuScreen" class="screen menu-screen" style="display: none;">
-        <div class="menu-header">
-            <span id="menuUserInfo"></span>
-            <button id="switchPlayerBtn" class="small-btn">Switch</button>
-        </div>
-
-        <div class="game-grid">
-            <!-- Addition Row -->
-            <button class="game-tile green" data-category="add_easy">
-                <span class="tile-icon">➕</span>
-                <span class="tile-label">Easy</span>
-            </button>
-            <button class="game-tile green" data-category="add_medium">
-                <span class="tile-icon">➕</span>
-                <span class="tile-label">Medium</span>
-            </button>
-            <button class="game-tile green" data-category="add_hard">
-                <span class="tile-icon">➕</span>
-                <span class="tile-label">Hard</span>
-            </button>
-
-            <!-- Subtraction Row -->
-            <button class="game-tile orange" data-category="sub_easy">
-                <span class="tile-icon">➖</span>
-                <span class="tile-label">Easy</span>
-            </button>
-            <button class="game-tile orange" data-category="sub_medium">
-                <span class="tile-icon">➖</span>
-                <span class="tile-label">Medium</span>
-            </button>
-            <button class="game-tile orange" data-category="sub_hard">
-                <span class="tile-icon">➖</span>
-                <span class="tile-label">Hard</span>
-            </button>
-
-            <!-- Times Tables Row 1 -->
-            <button class="game-tile purple" data-category="multiply_2">
-                <span class="tile-number">2×</span>
-            </button>
-            <button class="game-tile purple" data-category="multiply_3">
-                <span class="tile-number">3×</span>
-            </button>
-            <button class="game-tile purple" data-category="multiply_4">
-                <span class="tile-number">4×</span>
-            </button>
-            <button class="game-tile purple" data-category="multiply_5">
-                <span class="tile-number">5×</span>
-            </button>
-            <button class="game-tile purple" data-category="multiply_6">
-                <span class="tile-number">6×</span>
-            </button>
-            <button class="game-tile purple" data-category="multiply_7">
-                <span class="tile-number">7×</span>
-            </button>
-
-            <!-- Times Tables Row 2 -->
-            <button class="game-tile purple" data-category="multiply_8">
-                <span class="tile-number">8×</span>
-            </button>
-            <button class="game-tile purple" data-category="multiply_9">
-                <span class="tile-number">9×</span>
-            </button>
-            <button class="game-tile purple" data-category="multiply_10">
-                <span class="tile-number">10×</span>
-            </button>
-            <button class="game-tile purple" data-category="multiply_11">
-                <span class="tile-number">11×</span>
-            </button>
-            <button class="game-tile purple" data-category="multiply_12">
-                <span class="tile-number">12×</span>
-            </button>
-        </div>
-    </div>
-
-    <!-- Game Screen -->
-    <div id="gameScreen" class="screen game-screen" style="display: none;">
-        <div class="game-layout">
-            <div class="game-main">
-                <div class="game-header">
-                    <button id="backButton" class="small-btn">← Back</button>
-                    <div class="player-banner" id="playerBanner">
-                        <span id="userInfo"></span>
-                    </div>
-                    <div id="categoryDisplay" class="category-display"></div>
-                </div>
-
-                <div class="timer-display" id="timerDisplay">0:00</div>
-
-                <div class="progress-bar-wrapper">
-                    <div id="progressCircles" class="progress-circles"></div>
-                </div>
-
-                <div id="question" class="question"></div>
-                <input type="number" id="answer" placeholder="" autocomplete="off" spellcheck="false" pattern="[0-9]*" inputmode="numeric">
-                <button id="submitButton">Submit</button>
-                <p id="feedback" class="feedback"></p>
-
-                <div class="game-actions">
-                    <button id="restartButton" class="action-btn">🔄 Restart</button>
-                    <button id="exitButton" class="action-btn">🚪 Exit</button>
-                </div>
-            </div>
-
-            <div class="leaderboard" id="leaderboard">
-                <h3>🏆 Top 10</h3>
-                <ol id="leaderboardList" class="leaderboard-list">
-                    <li class="empty">No scores yet</li>
-                </ol>
-            </div>
-        </div>
-    </div>
-
-    <!-- Popup Modal -->
-    <div id="popupModal" class="popup-modal" style="display: none;">
-        <div class="popup-content">
-            <div id="popupMessage" class="popup-message"></div>
-            <div class="popup-buttons">
-                <button id="popupPlayAgainButton" class="popup-btn play-again">🔄 Play Again</button>
-                <button id="popupExitButton" class="popup-btn exit">🚪 Exit</button>
-            </div>
-        </div>
-    </div>
-
-    <script type="module" src="js/app.js"></script>
+    <script type="module" src="js/game/main.js"></script>
 </body>
 </html>

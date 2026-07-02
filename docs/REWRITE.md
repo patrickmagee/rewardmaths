@@ -114,6 +114,14 @@ Work happens on a **`v5` branch** (push-to-deploy only fires on `master`; the
 live v4 site stays up until cutover). Local dev: `python -m http.server` for UI,
 `npx wrangler pages dev` for KV paths, `node tests/run.js` for the engine.
 
+**Progress (2026-07-02)**: Steps 1–2 done (engine + data layer, 108 tests +
+simulation green). Step 3 code-complete (screens/keypad/session/PWA — screens
+consolidated into `js/game/screens.js` rather than `screens/*.js`); browser
+smoke-test pending. Step 4 partially inside 3 (streaks/medals/goal-reveal/easy
+days/break/lock shipped; victory-lap + sprint-improvement lines pending).
+Default PINs: tom 1111 · eliza 2222 · parent PIN-pad entry uses password
+'laura' hash. Steps 5–7 not started.
+
 | Step | Deliverable | Done when |
 |---|---|---|
 | **1. Engine core** | `config`, `facts`, `classify`, `states`, `adapt`, `scheduler`, `flags`, `metrics` as pure modules + unit tests | Tests pass; **simulation harness** runs 60 synthetic days for modeled children (steady 85%-er, bad-day-prone, slow-typer, masher) and shows: ladder promotes sanely, one bad day never demotes, masher earns nothing, flags fire only when they should |

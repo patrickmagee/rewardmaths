@@ -7,6 +7,7 @@ const suites = [
     './flags.test.js',
     './metrics.test.js',
     './derive.test.js',
+    './game.test.js',
 ];
 
 let pass = 0, fail = 0;

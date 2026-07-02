@@ -1,0 +1,13 @@
+{
+  "name": "RewardMaths",
+  "short_name": "RewardMaths",
+  "description": "Daily mental-arithmetic practice",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0e1420",
+  "theme_color": "#0e1420",
+  "icons": [
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

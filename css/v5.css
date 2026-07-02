@@ -1,0 +1,196 @@
+/* RewardMaths v5 — sports-watch, not CBeebies. Tablet-first, dark-friendly,
+   zero decoration during answering (docs/REWRITE.md §6). */
+
+:root {
+    --bg: #0e1420;
+    --panel: #17202f;
+    --panel-2: #1d2938;
+    --text: #e8eef7;
+    --dim: #8d9bb0;
+    --good: #3ddc84;
+    --fix: #ffb454;
+    --accent: #35c4f0;   /* accent "a" (Tom default) */
+    --radius: 18px;
+    --pad-btn: min(19vw, 96px);
+}
+[data-accent="b"] { --accent: #b48cf2; } /* Eliza default */
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+    margin: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    overscroll-behavior: none;
+}
+#app { height: 100%; display: flex; flex-direction: column; }
+.boot { margin: auto; color: var(--dim); font-size: 1.2rem; }
+
+.screen {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    padding: max(3vh, 16px) 20px calc(16px + env(safe-area-inset-bottom));
+    max-width: 640px; margin: 0 auto; width: 100%;
+}
+
+h1 { font-size: 1.9rem; font-weight: 700; margin: 8vh 0 5vh; }
+h2 { font-size: 1.4rem; font-weight: 650; margin: 12px 0; }
+h3 { font-size: 0.95rem; color: var(--dim); text-transform: uppercase;
+     letter-spacing: 0.08em; margin: 6px 0; }
+
+button { font: inherit; color: inherit; border: 0; cursor: pointer; }
+.link { background: none; color: var(--dim); font-size: 0.95rem; padding: 12px; }
+.link:active { color: var(--text); }
+.primary {
+    background: var(--accent); color: #08131c; font-weight: 700;
+    font-size: 1.15rem; padding: 16px 44px; border-radius: var(--radius);
+    margin-top: auto; min-height: 56px;
+}
+.primary:active { filter: brightness(1.15); }
+
+/* ---- Who's playing ---- */
+.who-grid { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; }
+.who-card {
+    background: var(--panel); border-radius: var(--radius);
+    padding: 28px 36px; display: flex; flex-direction: column; gap: 10px;
+    align-items: center; min-width: 150px; min-height: 150px;
+}
+.who-card:active { background: var(--panel-2); transform: scale(0.98); }
+.who-avatar { font-size: 3.4rem; }
+.who-name { font-size: 1.2rem; font-weight: 650; }
+.parent-link { margin-top: auto; }
+
+/* ---- PIN ---- */
+.pin-avatar { font-size: 3rem; margin-top: 2vh; }
+.pin-dots { min-height: 2rem; font-size: 1.6rem; letter-spacing: 0.4em;
+            color: var(--accent); }
+.pin-msg { min-height: 1.4rem; color: var(--fix); }
+.back { align-self: flex-start; }
+
+/* ---- Keypad ---- */
+.keypad-host { margin-top: auto; width: 100%; max-width: 420px; }
+.kp-display {
+    text-align: center; font-size: 2.4rem; font-weight: 700;
+    min-height: 3rem; letter-spacing: 0.06em;
+}
+.kp-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+    width: 100%;
+}
+.kp-btn {
+    background: var(--panel); border-radius: 14px;
+    font-size: 1.7rem; font-weight: 650;
+    height: var(--pad-btn); max-height: 76px; min-height: 56px;
+    transition: background 0.08s;
+    touch-action: manipulation; user-select: none;
+}
+.kp-btn.kp-active, .kp-btn:active { background: var(--panel-2); }
+.kp-go { background: var(--accent); color: #08131c; }
+.kp-back { color: var(--dim); }
+
+/* ---- Today ---- */
+.today-head {
+    width: 100%; display: flex; align-items: baseline; gap: 14px;
+}
+.streak { font-size: 1.25rem; font-weight: 700; }
+.best { color: var(--dim); font-size: 0.9rem; flex: 1; }
+.note { color: var(--dim); margin: 10px 0 0; text-align: center; }
+
+.goal-card {
+    width: 100%; background: var(--panel); border-radius: var(--radius);
+    padding: 20px 24px; margin-top: 22px;
+    border-left: 4px solid var(--accent);
+}
+.goal-main { font-size: 1.3rem; font-weight: 700; }
+.goal-why, .goal-proof { color: var(--dim); margin-top: 6px; font-size: 0.95rem; }
+
+.medal-ladder {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    margin: 18px 0 6px; padding: 0 4px;
+}
+.medal { font-size: 1.6rem; filter: grayscale(1) opacity(0.35); }
+.medal.earned { filter: none; }
+.medal-note { color: var(--dim); font-size: 0.9rem; margin-left: 8px; }
+
+.rounds { width: 100%; display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.round-card {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--panel); border-radius: var(--radius);
+    padding: 20px 24px; font-size: 1.15rem; font-weight: 650;
+    min-height: 64px;
+}
+.round-card:not(.done):active { background: var(--panel-2); }
+.round-card.done { opacity: 0.45; }
+.rc-state { color: var(--accent); font-size: 1.2rem; }
+.free-play { margin-top: 10px; }
+
+.lock-card {
+    width: 100%; background: var(--panel); border-radius: var(--radius);
+    padding: 26px; margin-top: 18px; text-align: center;
+    font-size: 1.1rem; line-height: 1.5;
+}
+.lock-preview { color: var(--dim); margin-top: 10px; opacity: 0.7; }
+
+/* ---- Round ---- */
+.round-head {
+    width: 100%; display: flex; gap: 14px; color: var(--dim);
+    font-size: 0.95rem;
+}
+.round-name { font-weight: 650; color: var(--text); }
+.round-progress { flex: 1; text-align: center; }
+.q-zone {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; width: 100%;
+}
+.q-fact {
+    font-size: clamp(2.6rem, 11vw, 4.2rem); font-weight: 750;
+    font-variant-numeric: tabular-nums; text-align: center;
+}
+.q-answer-slot { color: var(--accent); }
+.q-feedback {
+    min-height: 3.2rem; margin-top: 14px; text-align: center;
+    font-size: 1.5rem; display: flex; flex-direction: column; gap: 4px;
+    transition: opacity 0.15s;
+}
+.q-feedback.good { color: var(--good); font-size: 2.2rem; }
+.q-feedback.fix .correction { color: var(--fix); font-weight: 700; }
+.q-feedback .cue { color: var(--dim); font-size: 1.05rem; }
+
+/* ---- End of round ---- */
+.end-score { font-size: 3.2rem; font-weight: 750; margin-top: 8vh; }
+.end-note, .end-improve { color: var(--dim); text-align: center; margin-top: 12px;
+    max-width: 46ch; line-height: 1.5; }
+.end-improve { color: var(--good); }
+.end-medal { margin-top: 18px; font-size: 1.05rem; }
+.recap { width: 100%; max-width: 420px; margin-top: 22px; }
+.recap-item {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--panel); border-radius: 12px; padding: 12px 16px;
+    margin-top: 8px; font-size: 1.15rem; font-weight: 650;
+}
+.recap-try { background: none; color: var(--accent); font-size: 0.95rem; }
+.recap-shown { color: var(--good); font-size: 0.95rem; }
+
+/* ---- Break / typing / free ---- */
+.break-msg {
+    margin: auto 0; font-size: 1.25rem; text-align: center;
+    line-height: 1.6; max-width: 40ch;
+}
+.typing-target { color: var(--accent); }
+.typing-clock { color: var(--dim); font-size: 1.1rem; }
+.free-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    width: 100%; max-width: 420px; margin-top: 12px;
+}
+.free-btn {
+    background: var(--panel); border-radius: 12px; height: 64px;
+    font-size: 1.25rem; font-weight: 650;
+}
+.free-btn:active { background: var(--panel-2); }
+
+/* Landscape tablets: keypad right of the question. */
+@media (orientation: landscape) and (min-width: 700px) {
+    .screen.round, .screen.typing { flex-direction: row; flex-wrap: wrap;
+        align-items: stretch; gap: 12px; max-width: 900px; }
+    .round-head { width: 100%; }
+    .q-zone { flex: 1 1 55%; }
+    .keypad-host { margin: auto 0; flex: 1 1 40%; max-width: 380px; }
+}
