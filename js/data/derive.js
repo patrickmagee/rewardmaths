@@ -22,16 +22,21 @@ import { tagError } from '../engine/flags.js';
  *   days: {[day]: {rounds, voidRounds, byType}} · classified: log + cls tags
  */
 export function deriveState(answers, opts = {}) {
+    // Canonicalise FIRST: everything downstream (including the typing-baseline
+    // estimate) must consume the same deduped, ts-sorted stream, or two
+    // devices with the same merged log can derive different states.
+    const clean = dedupe(answers).sort((a, b) => a.ts - b.ts || cmp(a.id, b.id));
+
     // Typing baseline is estimated passively from real play: median typing_ms
     // across correct answers (per input method), so a slow typer's speed
     // cutoffs self-normalise without any explicit calibration game.
-    const baselines = opts.typingBaselines || estimateTypingBaselines(answers);
+    const baselines = opts.typingBaselines || estimateTypingBaselines(clean);
     const state = newChildState(opts);
     const audit = [];
     const days = {};
     const classified = [];
 
-    const byDay = groupBy(dedupe(answers), a => a.day);
+    const byDay = groupBy(clean, a => a.day);
     const dayKeys = Object.keys(byDay).sort();
 
     for (const day of dayKeys) {
@@ -55,8 +60,10 @@ export function deriveState(answers, opts = {}) {
             }
             const isVoid = roundIsVoid(cls);
             dayInfo.rounds++;
-            dayInfo.byType[roundType] = (dayInfo.byType[roundType] || 0) + 1;
             if (isVoid) dayInfo.voidRounds++;
+            else dayInfo.byType[roundType] = (dayInfo.byType[roundType] || 0) + 1;
+            // byType counts VALID rounds only — the UI's round-card ticks and
+            // the medal note must agree (a voided round earns neither).
 
             roundAnswers.forEach((a, i) => {
                 const c = cls[i];
@@ -124,7 +131,8 @@ function typingOf(baselines) {
 }
 
 /** Passive typing baseline: median typing_ms of recent correct answers, per
- *  input method. Needs a handful of answers; undefined until then. */
+ *  input method. Needs a handful of answers; undefined until then.
+ *  MUST be fed deduped, ts-sorted answers (slice(-200) is order-sensitive). */
 export function estimateTypingBaselines(answers) {
     const byInput = {};
     for (const a of answers) {

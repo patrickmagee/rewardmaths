@@ -283,12 +283,23 @@ function wireSettings() {
             const pin = card.querySelector('.new-pin').value.trim();
             if (/^\d{4}$/.test(pin)) kid.pinHash = await sha256(pin);
             kid.updated = Date.now();
-            await fetch('/api/profiles', {
-                method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(kid),
-            });
-            card.querySelector('.save').textContent = 'saved ✓';
-            setTimeout(() => card.querySelector('.save').textContent = 'save', 1500);
+            const btn = card.querySelector('.save');
+            try {
+                const res = await fetch('/api/profiles', {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(kid),
+                });
+                const body = await res.json();
+                if (!res.ok || body.kept === 'existing') {
+                    btn.textContent = 'not saved — retry';
+                    return;
+                }
+                btn.textContent = 'saved ✓';
+            } catch {
+                btn.textContent = 'offline — not saved';
+                return;
+            }
+            setTimeout(() => btn.textContent = 'save', 1500);
         });
         card.querySelector('.csv').addEventListener('click', async () => {
             const res = await fetch(`/api/answers?user=${encodeURIComponent(user)}`);

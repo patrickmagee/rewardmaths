@@ -5,7 +5,7 @@
 import { COPY } from './copy.js';
 import { Keypad } from './keypad.js';
 import { RoundSession } from './session.js';
-import { parseFact } from '../engine/facts.js';
+import { parseFact, factCue } from '../engine/facts.js';
 import { DAY } from '../config.js';
 
 const app = () => document.getElementById('app');
@@ -157,6 +157,7 @@ export function renderRound(plan, opts) {
         user: opts.user, day: opts.day, factAccuracy: opts.factAccuracy,
         hooks: {
             showModel: (factId, line) => new Promise(res => {
+                pad.setEnabled(false); // no input during the reveal
                 factEl.textContent = line;
                 fbEl.textContent = 'now you…';
                 setTimeout(() => { fbEl.textContent = ''; res(); }, 2200);
@@ -218,21 +219,26 @@ export function renderEnd(result, ctx) {
             <button class="primary next">Done</button>
         </div>`;
 
-    // One tap-to-answer retry per recap fact (UI reinforcement, not logged).
+    // A real retrieval moment: the fact shows WITHOUT its answer; the tap
+    // reveals it (plus the strategy cue). Not logged — UI reinforcement only.
     app().querySelectorAll('.recap-try').forEach(btn => {
         btn.addEventListener('click', () => {
-            const f = parseFact(btn.dataset.fact);
-            btn.outerHTML = `<span class="recap-shown">${COPY.correction(btn.dataset.fact)}</span>`;
+            const cue = factCue(btn.dataset.fact);
+            btn.closest('.recap-item').innerHTML =
+                `<span class="recap-shown">${COPY.correction(btn.dataset.fact)}</span>` +
+                (cue ? `<span class="cue">${cue}</span>` : '');
         }, { once: true });
     });
     app().querySelector('.next').addEventListener('click', ctx.onNext);
 }
 
 function recapItem(factId) {
+    const { a, op, b } = parseFact(factId);
+    const sym = { mul: '×', add: '+', sub: '−' }[op];
     return `
         <div class="recap-item">
-            <span>${COPY.correction(factId)}</span>
-            <button class="recap-try" data-fact="${factId}">say it →</button>
+            <span>${a} ${sym} ${b} = ?</span>
+            <button class="recap-try" data-fact="${factId}">answer →</button>
         </div>`;
 }
 

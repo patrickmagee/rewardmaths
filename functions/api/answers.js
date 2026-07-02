@@ -20,8 +20,14 @@ const json = (data, status = 200) =>
 
 const keyFor = (user, day) => `answers:${user}:${day}`;
 
-const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 const USER_RE = /^[\w.-]{1,40}$/;
+
+/** Real calendar date, not just the right shape (rejects 2026-99-99). */
+function validDay(day) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;
+    const d = new Date(day + 'T00:00:00Z');
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === day;
+}
 
 export async function onRequestGet({ request, env }) {
     const url = new URL(request.url);
@@ -30,7 +36,7 @@ export async function onRequestGet({ request, env }) {
     if (!user || !USER_RE.test(user)) return json({ error: 'bad user' }, 400);
 
     if (day) {
-        if (!DAY_RE.test(day)) return json({ error: 'bad day' }, 400);
+        if (!validDay(day)) return json({ error: 'bad day' }, 400);
         const answers = await readDay(env, user, day);
         return json({ day, answers });
     }
@@ -62,7 +68,7 @@ export async function onRequestPost({ request, env }) {
     }
     const { user, day, answers } = body || {};
     if (!user || !USER_RE.test(user)) return json({ error: 'bad user' }, 400);
-    if (!day || !DAY_RE.test(day)) return json({ error: 'bad day' }, 400);
+    if (!day || !validDay(day)) return json({ error: 'bad day' }, 400);
     if (!Array.isArray(answers)) return json({ error: 'answers must be an array' }, 400);
 
     const existing = await readDay(env, user, day);

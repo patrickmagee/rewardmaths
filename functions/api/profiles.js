@@ -46,8 +46,14 @@ export async function onRequestPut({ request, env }) {
 
     const key = `profile:${p.user}`;
     const existing = await env.SCORES.get(key, 'json').catch(() => null);
+    // Clamp client timestamps to server time (+small skew) — one device with
+    // a future clock must never wedge a profile against all later edits.
+    const maxUpdated = Date.now() + 60000;
+    p.updated = Math.min(Number(p.updated) || Date.now(), maxUpdated);
+    const existingUpdated = existing
+        ? Math.min(Number(existing.updated) || 0, maxUpdated) : 0;
     // Last-write-wins on the `updated` stamp; never regress.
-    if (existing && Number(existing.updated) > Number(p.updated || 0)) {
+    if (existing && existingUpdated > p.updated) {
         return json({ profile: existing, kept: 'existing' });
     }
     await env.SCORES.put(key, JSON.stringify(p));

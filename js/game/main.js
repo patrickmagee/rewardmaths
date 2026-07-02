@@ -73,7 +73,13 @@ function showWho() {
 
 async function enter() {
     document.body.dataset.accent = S.profile.settings?.accent || 'a';
-    syncAll(S.user).then(refreshDerived); // background catch-up
+    // Background catch-up sync; if it brought news while we're still on the
+    // Today screen, re-render so rounds/medals reflect play from other devices.
+    syncAll(S.user).then(async (ok) => {
+        if (!ok) return;
+        await refreshDerived();
+        if (document.querySelector('.screen.today')) showToday();
+    });
     await refreshDerived();
     showToday();
 }

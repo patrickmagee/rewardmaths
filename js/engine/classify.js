@@ -48,7 +48,7 @@ function res(acc, rt, retrieval, reason, correctOverride) {
     return {
         counts_for_accuracy: acc,
         counts_for_rt: rt,
-        counts_as_retrieval: retrieval, // consumes the fact's daily budget only on correct retrievals
+        counts_as_retrieval: !!retrieval, // consumes the fact's daily budget only on correct retrievals
         exclusion_reason: reason,
         forced_wrong: correctOverride === false || undefined,
     };

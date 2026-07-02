@@ -127,4 +127,19 @@ export async function run({ eq, ok }) {
     // --- Server rejects garbage.
     const bad = await post(env, { user: '../etc', day: '2026-07-01', answers: [] });
     ok(bad.error, 'bad user rejected');
+    const badDay = await post(env, { user, day: '2026-99-99', answers: [] });
+    ok(badDay.error, 'impossible calendar date rejected');
+
+    // --- Regression (test-swarm critical): typing-baseline estimation must be
+    // order- and duplicate-independent, even past the 200-sample window.
+    const big = [];
+    for (let d = 0; d < 30; d++) {
+        big.push(...makeRounds(user, `2026-08-${String(d + 1).padStart(2, '0')}`,
+            T0 + (40 + d) * 86400000, 100 + d, 2));
+    }
+    ok(big.length > 400, 'enough samples to exceed the baseline window');
+    const shuffledBig = [...big].sort(() => 0.5 - ((big.length % 7) / 7)); // deterministic scramble
+    shuffledBig.reverse();
+    eq(stateHash(big), stateHash(shuffledBig), 'baseline window immune to log order');
+    eq(stateHash(mergeAnswers(big, big)), stateHash(big), 'baseline window immune to duplicates');
 }

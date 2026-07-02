@@ -68,6 +68,9 @@ export class RoundSession {
 
     /** Called by the round screen when the keypad submits. */
     async submit(entry) {
+        // Guard against input landing before a question is on screen
+        // (e.g. during a model reveal) — never record NaN timings.
+        if (this.renderAt === undefined || !this.current) return;
         clearTimeout(this.deadlineTimer);
         const item = this.current;
         const fact = parseFact(item.fact_id);
