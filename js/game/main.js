@@ -118,22 +118,17 @@ async function showToday() {
 
     S.todayPlan = buildDailyRounds(S.derived.state, ctx, S.rng);
 
-    // Only the REMAINING rounds are shown (done ones vanish — the medal note
-    // carries the day's tally). Once the daily set is finished, a single
-    // "Play" card serves extra rounds toward silver/gold.
+    // One big Play button, zero options: it serves the next round in the
+    // day's sequence (review → focus → mixed, then extras toward gold).
+    // The kid sees the round's name once they're in it.
     const playedTypes = { ...(days[day]?.byType || {}) };
-    const roundCards = S.todayPlan.map((r, idx) => {
+    const nextRound = S.todayPlan.findIndex((r, idx) => {
         const doneCount = playedTypes[r.round_type] || 0;
         const priorSame = S.todayPlan.slice(0, idx).filter(x => x.round_type === r.round_type).length;
-        return {
-            idx,
-            name: COPY.roundNames[r.round_type] || 'Round',
-            done: doneCount > priorSame,
-        };
-    }).filter(c => !c.done);
-    if (!roundCards.length && !medal.goldDone) {
-        roundCards.push({ idx: 2, name: 'Play', done: false, big: true });
-    }
+        return doneCount <= priorSame;
+    });
+    const roundCards = medal.goldDone ? [] :
+        [{ idx: nextRound === -1 ? 2 : nextRound, name: 'Play', done: false, big: true }];
 
     const wt = workingTable(S.derived.state);
     const whyLine = ctx.placementActive
