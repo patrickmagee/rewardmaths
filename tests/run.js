@@ -6,6 +6,7 @@ const suites = [
     './adapt.test.js',
     './flags.test.js',
     './metrics.test.js',
+    './derive.test.js',
 ];
 
 let pass = 0, fail = 0;
