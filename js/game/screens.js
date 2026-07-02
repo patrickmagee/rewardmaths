@@ -234,11 +234,15 @@ export function renderRound(plan, opts) {
 /** Round-end: score + medal progress. (No revision recap — kids don't
  *  engage with it; the learning moment is the in-round 2nd chance.) */
 export function renderEnd(result, ctx) {
-    const { score, total, hardTheme } = result;
+    const { score, total, hardTheme, retriesFixed } = result;
     const bad = score / total <= 0.5;
+    const head = COPY.endHeadline(score, total);
     app().innerHTML = `
         <div class="screen end">
+            ${head.emoji ? `<div class="end-emoji">${head.emoji}</div>` : ''}
+            ${head.line ? `<div class="end-headline">${head.line}</div>` : ''}
             <div class="end-score">${COPY.goodRound(score, total)}</div>
+            ${retriesFixed ? `<div class="end-fixed">${COPY.secondChanceFixed(retriesFixed)}</div>` : ''}
             ${bad && hardTheme ? `<div class="end-note">${COPY.badRound(hardTheme)}</div>` : ''}
             ${ctx.improvementLine ? `<div class="end-improve">${ctx.improvementLine}</div>` : ''}
             <div class="end-medal">${COPY.medalProgress(ctx.medal.rounds, ctx.medal.next)}</div>

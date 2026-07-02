@@ -237,8 +237,20 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
 
 /* ---- End of round ---- */
 .end { justify-content: center; gap: 6px; }
+.end-emoji {
+    font-size: 4.4rem; line-height: 1;
+    animation: pop 0.55s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+.end-headline {
+    font-size: 1.5rem; font-weight: 800; margin-top: 4px;
+    animation: rise 0.4s ease-out;
+}
+.end-fixed { color: var(--good); font-weight: 700; margin-top: 6px; }
+@keyframes pop { from { transform: scale(0); } }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
 .end-score {
     font-size: 3.6rem; font-weight: 800; font-variant-numeric: tabular-nums;
+    animation: rise 0.4s ease-out;
 }
 .end-note, .end-improve { color: var(--dim); text-align: center; margin-top: 8px;
     max-width: 44ch; line-height: 1.55; }

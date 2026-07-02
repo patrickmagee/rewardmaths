@@ -142,6 +142,7 @@ export class RoundSession {
             elapsedMs: Date.now() - this.startedAt,
             factsToWatch: missed.slice(0, 2),
             hardTheme: missed.length ? familyOrTable(missed[0]) : null,
+            retriesFixed: this.answers.filter(a => a.requeued && a.correct).length,
         });
     }
 }

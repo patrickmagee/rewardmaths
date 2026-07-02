@@ -11,7 +11,7 @@ export const COPY = {
     pinWrong: 'Not quite — try again',
 
     todayTitle: 'Today',
-    goalReveal: n => `Bronze today = ${n} round${n === 1 ? '' : 's'}`,
+    goalReveal: n => `🥉 Bronze today = ${n} round${n === 1 ? '' : 's'}`,
     goalWhy: {
         focusTable: t => `Today has ${t}s practice — they're next on your list`,
         focusFamily: f => `Today: cracking ${f}`,
@@ -32,10 +32,20 @@ export const COPY = {
     },
     requeueNote: "it'll come round again in a minute",
 
-    // End of round — score line is plain; enthusiasm only for verified improvement.
+    // End of round — celebration scales HONESTLY with the result (a perfect
+    // round earns fanfare; a rough one gets straight talk, never confetti).
+    endHeadline: (score, total) => {
+        const r = score / total;
+        if (r === 1) return { emoji: '🎯', line: 'Perfect round!' };
+        if (r >= 0.8) return { emoji: '💪', line: 'Strong round' };
+        if (r >= 0.6) return { emoji: '👍', line: 'Good going' };
+        return { emoji: '', line: '' }; // badRound copy carries the honest version
+    },
+    secondChanceFixed: n =>
+        `${n === 1 ? '1 fixed' : n + ' fixed'} on the 2nd chance ✅`,
     medalProgress: (rounds, next) => next
-        ? `${rounds} round${rounds === 1 ? '' : 's'} today — ${next.roundsLeft} more for ${next.medal}`
-        : `Gold — every medal earned today`,
+        ? `${rounds} round${rounds === 1 ? '' : 's'} today — ${next.roundsLeft} more for ${{ bronze: '🥉', silver: '🥈', gold: '🥇' }[next.medal]}`
+        : `🥇🥈🥉 every medal earned today`,
     personalBest: (theme, delta) => `New personal best on the ${theme} — ${delta} faster than last week`,
     badRound: (hardThing) =>
         `That was a tough set — ${hardThing} are the hard ones, and you stuck with the whole round. They'll show up again tomorrow.`,
