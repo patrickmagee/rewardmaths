@@ -78,6 +78,8 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
 
 /* ---- PIN ---- */
 .pin { justify-content: flex-start; }
+/* PIN pad sits centred in the leftover space, not glued to the bottom. */
+.pin .keypad-host { margin: auto 0; }
 .pin-avatar {
     font-size: 2.6rem; width: 88px; height: 88px; display: grid; place-items: center;
     background: var(--panel); border: 2px solid var(--accent); border-radius: 50%;
