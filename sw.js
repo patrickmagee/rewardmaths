@@ -1,15 +1,13 @@
 /**
- * Service worker: cache-first for the static shell (offline play),
- * network-only for /api (sync must never serve stale data — the app already
- * degrades gracefully offline via IndexedDB).
+ * Service worker: network-first for everything (a deploy is visible on the
+ * very next load), falling back to cache only when offline. /api is
+ * network-only — sync must never serve stale data (the app already degrades
+ * gracefully offline via IndexedDB).
  */
-const CACHE = 'rewardmaths-v5-1';
-const SHELL = [
-    './', './index.html', './manifest.json', './favicon.svg', './css/v5.css',
-];
+const CACHE = 'rewardmaths-v5-2';
 
 self.addEventListener('install', (e) => {
-    e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+    e.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', (e) => {
@@ -23,17 +21,17 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
     const url = new URL(e.request.url);
     if (url.pathname.startsWith('/api/')) return; // network-only
-    if (e.request.method !== 'GET') return;
+    if (e.request.method !== 'GET' || url.origin !== location.origin) return;
     e.respondWith(
-        caches.match(e.request).then(hit => {
-            const fetched = fetch(e.request).then(res => {
-                if (res.ok && url.origin === location.origin) {
-                    const copy = res.clone();
-                    caches.open(CACHE).then(c => c.put(e.request, copy));
-                }
-                return res;
-            }).catch(() => hit);
-            return hit || fetched;
-        })
+        fetch(e.request).then(res => {
+            if (res.ok) {
+                const copy = res.clone();
+                caches.open(CACHE).then(c => c.put(e.request, copy));
+            }
+            return res;
+        }).catch(() =>
+            caches.match(e.request).then(hit => hit ||
+                caches.match('./index.html')) // offline navigation fallback
+        )
     );
 });
