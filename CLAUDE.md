@@ -244,6 +244,19 @@ id = "dd938e9f5745405b91a8e6e1dd01b3cf"
 
 ---
 
+## v5 Redesign (planned — evidence-locked)
+
+A major redesign is specified in **`docs/DESIGN.md`**: system-picked daily rounds
+(review/focus/mixed), per-fact accuracy+latency engine, streaks with shields/repair,
+effort medals (bronze/silver/gold), goal reveal, random easy days, volume caps with
+lock-framed stop states, parent-only fluency index (Westwood-normed SS band) + growth
+slope + struggle flags + daily email, and an occasional parent-set big-goal campaign.
+Every design decision is sourced to adversarially fact-checked research in
+`docs/research/01–04`. Read `docs/DESIGN.md` before changing game mechanics; build
+order is in its §6 (per-item logging is the blocking prerequisite).
+
+---
+
 ## Known Limitations / Follow-ups
 
 Tracked as GitHub issues — check the tracker before "fixing" these afresh:
