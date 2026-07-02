@@ -181,7 +181,7 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
     background: var(--stroke);
 }
 .round-progress .dot.ok { background: var(--good); }
-.round-progress .dot.miss { background: #e05561; }
+.round-progress .dot.miss { background: var(--fix); }
 .round-clock { text-align: right; font-variant-numeric: tabular-nums; }
 .q-zone {
     flex: 1; display: flex; flex-direction: column;
