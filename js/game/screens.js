@@ -109,14 +109,11 @@ export function renderToday(ctx) {
                             <span class="rc-state">${c.done ? '✓' : '▶'}</span>
                         </button>`).join('')}
                 </section>`}
-            ${ctx.freePlayOpen && !ctx.goldLocked ? `
-                <button class="link free-play">${COPY.freePlayUnlock}</button>` : ''}
         </div>`;
 
     app().querySelectorAll('.round-card:not(.done)').forEach(b =>
         b.addEventListener('click', () => ctx.onRound(Number(b.dataset.idx))));
     app().querySelector('.logout').addEventListener('click', ctx.onLogout);
-    app().querySelector('.free-play')?.addEventListener('click', ctx.onFree);
 }
 
 /** Round screen: question, keypad, feedback states, clock. */
@@ -267,20 +264,3 @@ export function renderBreak({ onDone }) {
     app().querySelector('.primary').addEventListener('click', onDone);
 }
 
-/** Free play picker: anything goes, counts toward nothing. */
-export function renderFree({ onPick, onBack }) {
-    const tables = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-    app().innerHTML = `
-        <div class="screen free">
-            <button class="icon-btn back" aria-label="back">${BACK_ICON}</button>
-            <h2>Free play</h2>
-            <div class="free-grid">
-                ${tables.map(t => `<button class="free-btn" data-pick="mul:${t}">${t}×</button>`).join('')}
-                <button class="free-btn" data-pick="add">+</button>
-                <button class="free-btn" data-pick="sub">−</button>
-            </div>
-        </div>`;
-    app().querySelectorAll('.free-btn').forEach(b =>
-        b.addEventListener('click', () => onPick(b.dataset.pick)));
-    app().querySelector('.back').addEventListener('click', onBack);
-}

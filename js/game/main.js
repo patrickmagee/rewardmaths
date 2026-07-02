@@ -3,9 +3,8 @@
  * State derives from the local answer log (docs/REWRITE.md §2); sync is
  * best-effort in the background.
  */
-import { SCHEDULER, DAY } from '../config.js';
+import { DAY } from '../config.js';
 import { buildDailyRounds, blockedRound, workingTable } from '../engine/scheduler.js';
-import { tableFacts, familyFacts, sampleFamily } from '../engine/facts.js';
 import { deriveState } from '../data/derive.js';
 import * as db from '../data/db.js';
 import { syncAll, syncDay, syncProfiles, pushProfile } from '../data/sync.js';
@@ -119,7 +118,9 @@ async function showToday() {
 
     S.todayPlan = buildDailyRounds(S.derived.state, ctx, S.rng);
 
-    // Which of today's planned round types are already done?
+    // Only the REMAINING rounds are shown (done ones vanish — the medal note
+    // carries the day's tally). Once the daily set is finished, a single
+    // "Play" card serves extra rounds toward silver/gold.
     const playedTypes = { ...(days[day]?.byType || {}) };
     const roundCards = S.todayPlan.map((r, idx) => {
         const doneCount = playedTypes[r.round_type] || 0;
@@ -129,10 +130,9 @@ async function showToday() {
             name: COPY.roundNames[r.round_type] || 'Round',
             done: doneCount > priorSame,
         };
-    });
-    // Extra rounds beyond the daily set (toward silver/gold): offer a mix card.
-    if (roundCards.every(c => c.done) && !medal.goldDone) {
-        roundCards.push({ idx: 2, name: 'Extra round', done: false });
+    }).filter(c => !c.done);
+    if (!roundCards.length && !medal.goldDone) {
+        roundCards.push({ idx: 2, name: 'Play', done: false });
     }
 
     const wt = workingTable(S.derived.state);
@@ -146,9 +146,7 @@ async function showToday() {
         playedTypes,
         goldLocked: medal.goldDone,
         tomorrowHint: wt ? `${wt}s and a mix` : 'a fresh mix',
-        freePlayOpen: medal.rounds >= reveal.bronzeTarget,
         onRound: (idx) => startRound(S.todayPlan[Math.min(idx, S.todayPlan.length - 1)]),
-        onFree: () => showFree(),
         onLogout: () => showWho(),
     });
 }
@@ -200,32 +198,6 @@ function afterRound(result) {
     });
 }
 
-function showFree() {
-    ui.renderFree({
-        onBack: showToday,
-        onPick: (pick) => {
-            let items;
-            if (pick.startsWith('mul:')) {
-                const t = Number(pick.split(':')[1]);
-                items = shuffle(tableFacts(t), S.rng).slice(0, SCHEDULER.QUESTIONS_PER_ROUND);
-            } else {
-                const fams = S.derived.state.unlockedFamilies.filter(f =>
-                    pick === 'add' ? !f.startsWith('sub') : f.startsWith('sub'));
-                items = Array.from({ length: SCHEDULER.QUESTIONS_PER_ROUND }, () => {
-                    const fam = fams[Math.floor(S.rng() * fams.length)] || 'add-0-1';
-                    const members = familyFacts(fam);
-                    return members ? members[Math.floor(S.rng() * members.length)] : sampleFamily(fam, S.rng);
-                });
-            }
-            const plan = {
-                round_type: 'free', untimed: false,
-                items: items.map(f => ({ fact_id: f, model: false })),
-            };
-            startRound(plan);
-        },
-    });
-}
-
 // ---------- utils ----------
 
 async function sha256(text) {
@@ -235,15 +207,6 @@ async function sha256(text) {
 
 function daysApart(a, b) {
     return Math.round((new Date(b) - new Date(a)) / 86400000);
-}
-
-function shuffle(xs, rng) {
-    const a = [...xs];
-    for (let i = a.length - 1; i > 0; i--) {
-        const j = Math.floor(rng() * (i + 1));
-        [a[i], a[j]] = [a[j], a[i]];
-    }
-    return a;
 }
 
 function mulberry(seed) {

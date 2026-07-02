@@ -166,7 +166,6 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
     border: 1.5px solid var(--stroke); border-radius: 50%;
 }
 .round-card.done .rc-state { color: var(--good); border-color: transparent; }
-.free-play { margin-top: 8px; }
 
 .lock-card {
     width: 100%; background: var(--panel); border: 1px solid var(--stroke);
@@ -235,15 +234,6 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
 .break-msg { font-size: 1.25rem; text-align: center; line-height: 1.6;
     max-width: 38ch; margin-bottom: 4vh; }
 .break .primary { margin-top: 0; }
-.free-grid {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
-    width: 100%; max-width: 400px; margin-top: 12px;
-}
-.free-btn {
-    background: var(--panel); border: 1px solid var(--stroke);
-    border-radius: 14px; height: 64px; font-size: 1.25rem; font-weight: 700;
-}
-.free-btn:active { background: var(--panel-2); }
 
 /* All form factors use the same centred column (question above keypad) —
    a side-by-side landscape variant proved messy on desktop windows. */

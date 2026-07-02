@@ -39,8 +39,11 @@ Extra rounds (toward silver/gold) widen review and mixed — **never** re-drill 
 already cleared today (see scheduler caps).
 
 **No standalone easy round. No child choice of table — ever.** (Learner control:
-g = 0.05; kids reliably re-practice what they know.) Free play is allowed after the
-daily rounds; it counts toward nothing and never feeds the parent metric.
+g = 0.05; kids reliably re-practice what they know.) *Free play was removed
+entirely (parent decision 2026-07-02):* after the daily set, a single "Play"
+button serves extra system-picked rounds toward silver/gold; the gold lock
+still caps the day. (`round_type: "free"` remains in the log schema for
+compatibility but nothing writes it.)
 
 **The Easy/Medium/Hard picker is REMOVED entirely** (decision 2026-07-02). The
 child-facing category/difficulty UI goes away — kids only ever see "today's

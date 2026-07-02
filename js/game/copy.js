@@ -52,5 +52,4 @@ export const COPY = {
     easyBronzeDone: next =>
         `Bronze done early — ${next.medal} is only ${next.roundsLeft} more round${next.roundsLeft === 1 ? '' : 's'}`,
 
-    freePlayUnlock: 'Free play ▸',
 };
