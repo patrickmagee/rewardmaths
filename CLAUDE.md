@@ -2,7 +2,8 @@
 
 **Last Updated**: 2026-07-02
 **Version**: 5.0 (evidence-locked adaptive engine)
-**Status**: Live at https://rewardmaths.pages.dev
+**Status**: Live at https://rewardmaths.com (custom domain) and
+https://rewardmaths.pages.dev — same Cloudflare Pages project.
 
 ---
 
