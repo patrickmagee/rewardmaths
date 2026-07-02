@@ -1,8 +1,8 @@
 # Assembles the dist/ folder for Cloudflare Pages deployment.
 #
 # dist/ is a clean copy of the deployable site assets:
-#   - static:    index.html, admin-new.html, favicon.svg, css/, js/
-#   - functions: functions/  ->  dist/functions/  (Pages Functions, e.g. /api/scores)
+#   - static:    index.html, admin.html, favicon.svg, manifest.json, sw.js, css/, js/
+#   - functions: functions/  ->  dist/functions/  (Pages Functions: /api/answers, /api/profiles)
 #
 # Deploy after running this:
 #   $env:CLOUDFLARE_API_TOKEN  = ...   # from .cloudflare.env
@@ -19,9 +19,11 @@ if (Test-Path $dist) { Remove-Item $dist -Recurse -Force }
 New-Item -ItemType Directory -Path $dist | Out-Null
 
 # Static files
-Copy-Item (Join-Path $root 'index.html')     $dist
-Copy-Item (Join-Path $root 'admin-new.html')  $dist
-Copy-Item (Join-Path $root 'favicon.svg')     $dist
+Copy-Item (Join-Path $root 'index.html')    $dist
+Copy-Item (Join-Path $root 'admin.html')    $dist
+Copy-Item (Join-Path $root 'favicon.svg')   $dist
+Copy-Item (Join-Path $root 'manifest.json') $dist
+Copy-Item (Join-Path $root 'sw.js')         $dist
 Copy-Item (Join-Path $root 'css') $dist -Recurse
 Copy-Item (Join-Path $root 'js')  $dist -Recurse
 
