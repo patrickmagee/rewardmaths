@@ -180,7 +180,8 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
     width: 8px; height: 8px; border-radius: 50%;
     background: var(--stroke);
 }
-.round-progress .dot.on { background: var(--accent); }
+.round-progress .dot.ok { background: var(--good); }
+.round-progress .dot.miss { background: #e05561; }
 .round-clock { text-align: right; font-variant-numeric: tabular-nums; }
 .q-zone {
     flex: 1; display: flex; flex-direction: column;

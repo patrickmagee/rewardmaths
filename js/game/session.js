@@ -84,13 +84,14 @@ export class RoundSession {
         });
 
         if (correct) {
-            await this.hooks.showCorrect(item.fact_id);
+            await this.hooks.showCorrect(item.fact_id, { requeued: !!item.requeued });
         } else {
             // Immediate neutral correction; ≤8-word cue only for facts still
             // below the untimed accuracy gate; requeue once.
             const cue = this.factAccuracy(item.fact_id) < SCHEDULER.UNTIMED_UNTIL_ACCURACY
                 ? factCue(item.fact_id) : null;
-            await this.hooks.showWrong(item.fact_id, COPY.correction(item.fact_id), cue);
+            await this.hooks.showWrong(item.fact_id, COPY.correction(item.fact_id), cue,
+                { requeued: !!item.requeued });
             this.requeue(item);
         }
         await this.next();
@@ -103,7 +104,8 @@ export class RoundSession {
             initiation_ms: RT.HARD_CEILING_MS, typing_ms: 0,
             input: 'none', timeout: true,
         });
-        await this.hooks.showWrong(item.fact_id, COPY.correction(item.fact_id), null);
+        await this.hooks.showWrong(item.fact_id, COPY.correction(item.fact_id), null,
+            { requeued: !!item.requeued });
         this.requeue(item);
         await this.next();
     }

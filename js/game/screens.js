@@ -153,6 +153,14 @@ export function renderRound(plan, opts) {
         factEl.innerHTML = `${a} ${sym} ${b} = <span class="q-answer-slot">?</span>`;
     };
 
+    // One dot per first-attempt question: green = right, red = missed.
+    const results = [];
+    const renderDots = () => {
+        if (plan.round_type === 'sprint') { progEl.innerHTML = ''; return; }
+        progEl.innerHTML = Array.from({ length: plan.items.length }, (_, i) =>
+            `<span class="dot ${results[i] === true ? 'ok' : results[i] === false ? 'miss' : ''}"></span>`).join('');
+    };
+
     const session = new RoundSession(plan, {
         user: opts.user, day: opts.day, factAccuracy: opts.factAccuracy,
         hooks: {
@@ -165,20 +173,20 @@ export function renderRound(plan, opts) {
             showQuestion: (factId, fact, meta) => {
                 showFact(factId);
                 fbEl.textContent = '';
-                progEl.innerHTML = plan.round_type === 'sprint' ? '' :
-                    Array.from({ length: meta.total }, (_, i) =>
-                        `<span class="dot ${i < Math.min(meta.index, meta.total) ? 'on' : ''}"></span>`).join('');
+                renderDots();
                 pad.reset();
                 pad.setEnabled(true);
             },
-            showCorrect: () => new Promise(res => {
+            showCorrect: (factId, meta = {}) => new Promise(res => {
                 pad.setEnabled(false);
+                if (!meta.requeued) { results.push(true); renderDots(); }
                 fbEl.textContent = '✓';
                 fbEl.className = 'q-feedback good';
                 setTimeout(() => { fbEl.className = 'q-feedback'; res(); }, 350);
             }),
-            showWrong: (factId, correction, cue) => new Promise(res => {
+            showWrong: (factId, correction, cue, meta = {}) => new Promise(res => {
                 pad.setEnabled(false);
+                if (!meta.requeued) { results.push(false); renderDots(); }
                 fbEl.innerHTML = `<span class="correction">${correction}</span>` +
                     (cue ? `<span class="cue">${cue}</span>` : '');
                 fbEl.className = 'q-feedback fix';
