@@ -162,17 +162,21 @@ export function renderRound(plan, opts) {
     };
 
     // One dot per question: green = right, amber = missed. A miss schedules a
-    // retry at the end of the round, which appears as a NEW pending dot — so
-    // the row always shows exactly how many questions remain.
+    // retry at the end of the round, shown as a small pending dot DIRECTLY
+    // BENEATH its amber dot — the pairing is visible at a glance.
+    // Retries happen in miss order, so the k-th retry outcome belongs to the
+    // k-th missed column.
     const results = [];        // first-attempt outcomes
-    const retryResults = [];   // requeued-attempt outcomes (come after)
-    let retriesScheduled = 0;
+    const retryResults = [];   // requeued-attempt outcomes, in miss order
+    const dotClass = v => v === true ? 'ok' : v === false ? 'miss' : '';
     const renderDots = () => {
         if (plan.round_type === 'sprint') { progEl.innerHTML = ''; return; }
-        const filled = [...results, ...retryResults];
-        const total = plan.items.length + retriesScheduled;
-        progEl.innerHTML = Array.from({ length: total }, (_, i) =>
-            `<span class="dot ${filled[i] === true ? 'ok' : filled[i] === false ? 'miss' : ''}"></span>`).join('');
+        let missIdx = 0;
+        progEl.innerHTML = Array.from({ length: plan.items.length }, (_, i) => {
+            const sub = results[i] === false
+                ? `<span class="dot sub ${dotClass(retryResults[missIdx++])}"></span>` : '';
+            return `<span class="dotcol"><span class="dot ${dotClass(results[i])}"></span>${sub}</span>`;
+        }).join('');
     };
 
     const session = new RoundSession(plan, {
@@ -201,12 +205,7 @@ export function renderRound(plan, opts) {
             }),
             showWrong: (factId, correction, cue, meta = {}) => new Promise(res => {
                 pad.setEnabled(false);
-                if (meta.requeued) {
-                    retryResults.push(false); // second miss: no further retries
-                } else {
-                    results.push(false);
-                    if (plan.round_type !== 'sprint') retriesScheduled++;
-                }
+                (meta.requeued ? retryResults : results).push(false);
                 renderDots();
                 fbEl.innerHTML = `<span class="correction">${correction}</span>` +
                     (cue ? `<span class="cue">${cue}</span>` : '');

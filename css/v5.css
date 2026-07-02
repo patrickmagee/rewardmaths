@@ -199,11 +199,15 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
     align-items: center; color: var(--dim); font-size: 0.9rem;
 }
 .round-name { font-weight: 700; color: var(--text); }
-.round-progress { display: flex; gap: 8px; justify-content: center; }
+.round-progress { display: flex; gap: 8px; justify-content: center; align-items: flex-start; }
+.round-progress .dotcol {
+    display: flex; flex-direction: column; gap: 4px; align-items: center;
+}
 .round-progress .dot {
     width: 13px; height: 13px; border-radius: 50%;
     background: var(--stroke);
 }
+.round-progress .dot.sub { width: 9px; height: 9px; }
 .round-progress .dot.ok { background: var(--good); }
 .round-progress .dot.miss { background: var(--fix); }
 .round-clock { text-align: right; font-variant-numeric: tabular-nums; }
