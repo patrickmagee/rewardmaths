@@ -22,7 +22,10 @@ import { tagError } from '../engine/flags.js';
  *   days: {[day]: {rounds, voidRounds, byType}} · classified: log + cls tags
  */
 export function deriveState(answers, opts = {}) {
-    const baselines = opts.typingBaselines || {};
+    // Typing baseline is estimated passively from real play: median typing_ms
+    // across correct answers (per input method), so a slow typer's speed
+    // cutoffs self-normalise without any explicit calibration game.
+    const baselines = opts.typingBaselines || estimateTypingBaselines(answers);
     const state = newChildState(opts);
     const audit = [];
     const days = {};
@@ -118,6 +121,22 @@ function dedupe(answers) {
 function typingOf(baselines) {
     const xs = Object.values(baselines).filter(Number.isFinite);
     return xs.length ? median(xs) : undefined;
+}
+
+/** Passive typing baseline: median typing_ms of recent correct answers, per
+ *  input method. Needs a handful of answers; undefined until then. */
+export function estimateTypingBaselines(answers) {
+    const byInput = {};
+    for (const a of answers) {
+        if (a.correct && Number.isFinite(a.typing_ms) && a.typing_ms > 0 && !a.timeout) {
+            (byInput[a.input || 'tap'] ||= []).push(a.typing_ms);
+        }
+    }
+    const out = {};
+    for (const [input, xs] of Object.entries(byInput)) {
+        if (xs.length >= 8) out[input] = median(xs.slice(-200));
+    }
+    return out;
 }
 
 function groupBy(xs, keyFn) {

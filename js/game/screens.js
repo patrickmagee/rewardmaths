@@ -164,7 +164,9 @@ export function renderRound(plan, opts) {
             showQuestion: (factId, fact, meta) => {
                 showFact(factId);
                 fbEl.textContent = '';
-                progEl.textContent = plan.round_type === 'sprint' ? '' : `${Math.min(meta.index + 1, meta.total)}/${meta.total}`;
+                progEl.innerHTML = plan.round_type === 'sprint' ? '' :
+                    Array.from({ length: meta.total }, (_, i) =>
+                        `<span class="dot ${i < Math.min(meta.index, meta.total) ? 'on' : ''}"></span>`).join('');
                 pad.reset();
                 pad.setEnabled(true);
             },
@@ -241,47 +243,6 @@ export function renderBreak({ onDone }) {
             <button class="primary">OK</button>
         </div>`;
     app().querySelector('.primary').addEventListener('click', onDone);
-}
-
-/** 30s typing-baseline game, framed as a finger warm-up. */
-export function renderTyping({ onDone }) {
-    app().innerHTML = `
-        <div class="screen typing">
-            <h2>${COPY.typingWarmup}</h2>
-            <div class="q-zone"><div class="q-fact typing-target"></div></div>
-            <div class="typing-clock"></div>
-            <div class="keypad-host"></div>
-        </div>`;
-    const target = app().querySelector('.typing-target');
-    const clock = app().querySelector('.typing-clock');
-    const samples = [];
-    let currentNum, shownAt;
-    const show = () => {
-        currentNum = String(10 + Math.floor(Math.random() * 89));
-        target.textContent = currentNum;
-        shownAt = performance.now();
-    };
-    const end = Date.now() + 30000;
-    const timer = setInterval(() => {
-        const s = Math.max(0, Math.ceil((end - Date.now()) / 1000));
-        clock.textContent = `${s}s`;
-        if (s === 0) {
-            clearInterval(timer);
-            pad.destroy();
-            samples.sort((a, b) => a - b);
-            const med = samples.length ? samples[samples.length >> 1] : 900;
-            onDone({ typing_ms: Math.round(med), samples: samples.length });
-        }
-    }, 250);
-    const pad = new Keypad(app().querySelector('.keypad-host'), {
-        onSubmit: (entry) => {
-            if (entry.value === currentNum) {
-                samples.push(entry.submitAt - entry.firstInputAt);
-            }
-            show();
-        },
-    });
-    show();
 }
 
 /** Free play picker: anything goes, counts toward nothing. */

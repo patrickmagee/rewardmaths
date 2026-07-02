@@ -53,6 +53,7 @@ async function boot() {
 
 function showWho() {
     S.user = null;
+    delete document.body.dataset.accent;
     ui.renderWho(S.profiles, {
         onPick: (user) => {
             S.profile = S.profiles.find(p => p.user === user);
@@ -70,26 +71,16 @@ function showWho() {
 }
 
 async function enter() {
+    document.body.dataset.accent = S.profile.settings?.accent || 'a';
     syncAll(S.user).then(refreshDerived); // background catch-up
     await refreshDerived();
-    // Typing baseline: run the warm-up if we've never measured this child.
-    const baselines = await db.getMeta(`typing:${S.user}`, null);
-    if (!baselines) {
-        ui.renderTyping({
-            onDone: async ({ typing_ms }) => {
-                await db.putMeta(`typing:${S.user}`, { tap: typing_ms, measured: Date.now() });
-                showToday();
-            },
-        });
-        return;
-    }
     showToday();
 }
 
 async function refreshDerived() {
     const answers = await db.getAnswers(S.user);
-    const baselines = await db.getMeta(`typing:${S.user}`, {});
-    S.derived = deriveState(answers, { typingBaselines: baselines });
+    // Typing baseline is estimated inside deriveState from real play.
+    S.derived = deriveState(answers, {});
     return S.derived;
 }
 

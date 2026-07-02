@@ -52,7 +52,5 @@ export const COPY = {
     easyBronzeDone: next =>
         `Bronze done early — ${next.medal} is only ${next.roundsLeft} more round${next.roundsLeft === 1 ? '' : 's'}`,
 
-    typingWarmup: 'Quick finger warm-up: type the numbers you see',
-
     freePlayUnlock: 'Free play unlocked — pick anything you like',
 };
