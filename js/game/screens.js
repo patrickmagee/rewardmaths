@@ -161,12 +161,18 @@ export function renderRound(plan, opts) {
         factEl.innerHTML = `${a} ${sym} ${b} = <span class="q-answer-slot">?</span>`;
     };
 
-    // One dot per first-attempt question: green = right, red = missed.
-    const results = [];
+    // One dot per question: green = right, amber = missed. A miss schedules a
+    // retry at the end of the round, which appears as a NEW pending dot — so
+    // the row always shows exactly how many questions remain.
+    const results = [];        // first-attempt outcomes
+    const retryResults = [];   // requeued-attempt outcomes (come after)
+    let retriesScheduled = 0;
     const renderDots = () => {
         if (plan.round_type === 'sprint') { progEl.innerHTML = ''; return; }
-        progEl.innerHTML = Array.from({ length: plan.items.length }, (_, i) =>
-            `<span class="dot ${results[i] === true ? 'ok' : results[i] === false ? 'miss' : ''}"></span>`).join('');
+        const filled = [...results, ...retryResults];
+        const total = plan.items.length + retriesScheduled;
+        progEl.innerHTML = Array.from({ length: total }, (_, i) =>
+            `<span class="dot ${filled[i] === true ? 'ok' : filled[i] === false ? 'miss' : ''}"></span>`).join('');
     };
 
     const session = new RoundSession(plan, {
@@ -187,14 +193,21 @@ export function renderRound(plan, opts) {
             },
             showCorrect: (factId, meta = {}) => new Promise(res => {
                 pad.setEnabled(false);
-                if (!meta.requeued) { results.push(true); renderDots(); }
+                (meta.requeued ? retryResults : results).push(true);
+                renderDots();
                 fbEl.textContent = '✓';
                 fbEl.className = 'q-feedback good';
                 setTimeout(() => { fbEl.className = 'q-feedback'; res(); }, 350);
             }),
             showWrong: (factId, correction, cue, meta = {}) => new Promise(res => {
                 pad.setEnabled(false);
-                if (!meta.requeued) { results.push(false); renderDots(); }
+                if (meta.requeued) {
+                    retryResults.push(false); // second miss: no further retries
+                } else {
+                    results.push(false);
+                    if (plan.round_type !== 'sprint') retriesScheduled++;
+                }
+                renderDots();
                 fbEl.innerHTML = `<span class="correction">${correction}</span>` +
                     (cue ? `<span class="cue">${cue}</span>` : '');
                 fbEl.className = 'q-feedback fix';
