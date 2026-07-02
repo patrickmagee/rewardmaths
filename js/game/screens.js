@@ -12,20 +12,28 @@ const app = () => document.getElementById('app');
 
 const AVATARS = ['🦖', '🎨', '🚀', '⚽', '🐙', '🎸', '🦊', '🛹'];
 
+const BACK_ICON = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+    stroke="currentColor" stroke-width="2.5" stroke-linecap="round"
+    stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>`;
+
 export function renderWho(profiles, { onPick, onParent }) {
+    // The kids get big avatar cards; the test account is a quiet corner link.
+    const kids = profiles.filter(p => p.role !== 'admin' && p.user !== 'test');
+    const test = profiles.find(p => p.user === 'test');
     app().innerHTML = `
         <div class="screen who">
             <h1>${COPY.whosPlaying}</h1>
             <div class="who-grid">
-                ${profiles.filter(p => p.role !== 'admin').map(p => `
+                ${kids.map(p => `
                     <button class="who-card" data-user="${p.user}">
                         <span class="who-avatar">${p.avatar || AVATARS[0]}</span>
                         <span class="who-name">${p.name}</span>
                     </button>`).join('')}
             </div>
+            ${test ? `<button class="link test-link" data-user="test">test 🧪</button>` : ''}
             <button class="link parent-link">parent area 🔒</button>
         </div>`;
-    app().querySelectorAll('.who-card').forEach(b =>
+    app().querySelectorAll('.who-card, .test-link').forEach(b =>
         b.addEventListener('click', () => onPick(b.dataset.user)));
     app().querySelector('.parent-link').addEventListener('click', onParent);
 }
@@ -33,7 +41,7 @@ export function renderWho(profiles, { onPick, onParent }) {
 export function renderPin(profile, { onOk, onBack }) {
     app().innerHTML = `
         <div class="screen pin">
-            <button class="link back">‹ back</button>
+            <button class="icon-btn back" aria-label="back">${BACK_ICON}</button>
             <div class="pin-avatar">${profile.avatar}</div>
             <h2>${COPY.pinPrompt(profile.name)}</h2>
             <div class="pin-dots"></div>
@@ -264,7 +272,7 @@ export function renderFree({ onPick, onBack }) {
     const tables = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
     app().innerHTML = `
         <div class="screen free">
-            <button class="link back">‹ back</button>
+            <button class="icon-btn back" aria-label="back">${BACK_ICON}</button>
             <h2>Free play</h2>
             <div class="free-grid">
                 ${tables.map(t => `<button class="free-btn" data-pick="mul:${t}">${t}×</button>`).join('')}

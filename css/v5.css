@@ -74,6 +74,7 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
 .who-card:active .who-avatar { transform: scale(0.95); border-color: var(--accent); }
 .who-name { font-size: 1.2rem; font-weight: 700; }
 .parent-link { position: absolute; bottom: 14px; right: 14px; opacity: 0.6; }
+.test-link { position: absolute; bottom: 58px; right: 14px; opacity: 0.6; }
 
 /* ---- PIN ---- */
 .pin { justify-content: flex-start; }
@@ -86,6 +87,13 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
 .pin-dots { min-height: 2rem; font-size: 1.5rem; letter-spacing: 0.45em;
             color: var(--accent); }
 .pin-msg { min-height: 1.4rem; color: var(--fix); }
+.icon-btn {
+    width: 46px; height: 46px; border-radius: 50%;
+    background: var(--panel); border: 1.5px solid var(--stroke);
+    color: var(--dim); display: grid; place-items: center;
+    transition: transform 0.08s, border-color 0.08s, color 0.08s;
+}
+.icon-btn:active { transform: scale(0.92); border-color: var(--accent); color: var(--text); }
 .back { align-self: flex-start; }
 
 /* ---- Keypad (phone-dial: circular, symmetric) ---- */
