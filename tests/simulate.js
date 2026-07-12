@@ -122,6 +122,7 @@ function simulate(persona, days = 60, seedState) {
         }
 
         // Apply attempts → fact records + states (as the app does per round).
+        const factsBefore = structuredClone(state.facts); // off-day rollback (DESIGN §2)
         const cutoffCache = {};
         for (const a of dayAnswers) {
             if (a.void) continue;
@@ -144,6 +145,7 @@ function simulate(persona, days = 60, seedState) {
 
         // Daily adaptation.
         const res = processDay(day, dayAnswers, state);
+        if (res.audit.some(a => a.type === 'off_day')) res.state.facts = factsBefore;
         Object.assign(state, res.state);
         audit.push(...res.audit);
         answerLog.push(...dayAnswers);
@@ -168,6 +170,10 @@ function check(cond, msg) {
     if (!cond) failures++;
 }
 
+// Families every child starts with (age-appropriate ladder start) — ladder
+// "progress" means unlocking beyond this set.
+const START_FAMILIES = newChildState().unlockedFamilies.length;
+
 // ---------------- personas ----------------
 
 console.log('\n== steady (85-90%, 2-4 rounds/day, 60 days) ==');
@@ -179,7 +185,7 @@ console.log('\n== steady (85-90%, 2-4 rounds/day, 60 days) ==');
     const unlocked = state.unlockedFamilies.length;
     console.log(`  facts: ${JSON.stringify(c)}; families unlocked: ${unlocked}; voided: ${voidedRounds}`);
     check(c.FLUENT > 30, `builds a fluent base (${c.FLUENT})`);
-    check(unlocked >= 4, `ladder progresses (${unlocked} families)`);
+    check(unlocked > START_FAMILIES, `ladder progresses beyond the start (${unlocked} families)`);
     check(voidedRounds === 0, 'no voided rounds for an honest player');
     check(!audit.some(a => a.type === 'family_demoted'), 'no spurious demotions');
 }
@@ -194,7 +200,12 @@ console.log('\n== bad-day-prone (catastrophic day every 8th) ==');
     console.log(`  off-days detected: ${offDays}; demotions: ${demotions}; families: ${state.unlockedFamilies.length}`);
     check(offDays >= 3, `off-day guard catches bad days (${offDays})`);
     check(demotions === 0, 'bad days never demote');
-    check(state.unlockedFamilies.length >= 3, 'ladder still progresses despite bad days');
+    // The frontier may legitimately hold for a marginal child (mastery gate);
+    // what bad days must NOT do is derail the ladder vs a steady twin.
+    const control = new Persona('badday-control', { baseSkill: 0.62, roundsPerDay: () => 3 }, seededRng(2));
+    const simC = simulate(control, 60);
+    check(state.unlockedFamilies.length >= simC.state.unlockedFamilies.length - 2,
+        `bad days don't derail the ladder (${state.unlockedFamilies.length} vs steady twin ${simC.state.unlockedFamilies.length})`);
 }
 
 console.log('\n== masher (mashes 1 day in 5) ==');

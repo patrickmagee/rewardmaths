@@ -101,4 +101,15 @@ export async function run({ eq, ok }) {
 
     // --- Frontier helper.
     eq(currentFrontier(newChildState({ unlockedFamilies: ['add-0-1', 'add-2'] })), 'add-2', 'frontier = last unlocked add family');
+
+    // --- Age-appropriate ladder start (SCHEDULER.ADD_START_FAMILY).
+    const s5 = newChildState();
+    eq(currentFrontier(s5), 'bridge-10', 'default start frontier is bridge-10');
+    eq(s5.warmupFamilies[0], 'bridge-10', 'start frontier begins in warm-up');
+    ok(s5.unlockedFamilies.includes('make-10') && s5.unlockedFamilies.includes('doubles-big'),
+        'families below the start are pre-unlocked');
+    ok(s5.unlockedFamilies.includes('sub-make-10') && s5.unlockedFamilies.includes('sub-0-1'),
+        'sub partners of pre-unlocked families unlocked too');
+    ok(!s5.unlockedFamilies.includes('add-rest') && !s5.unlockedFamilies.includes('sub-bridge-10'),
+        'families above the start (and the frontier\'s own sub partner) stay locked');
 }

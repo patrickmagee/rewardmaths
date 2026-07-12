@@ -22,9 +22,12 @@ export function buildDailyRounds(state, ctx, rng) {
     }
     // A family in warm-up gets a blocked round in the focus slot until it
     // clears the accuracy gate (interleaving hurts novices). Multiple pending
-    // warm-up families rotate by day.
+    // warm-up families rotate by day. The slot is shared day-about with the
+    // true focus round: the ladder frontier lives in warm-up for weeks, and
+    // letting it monopolise the slot starves times-table weak-fact work.
     const wu = state.warmupFamilies || [];
-    const warmup = wu.length ? wu[new Date(ctx.day).getDate() % wu.length] : null;
+    const dom = new Date(ctx.day).getDate();
+    const warmup = wu.length && dom % 2 === 0 ? wu[dom % wu.length] : null;
     const second = warmup ? blockedRound(state, warmup, rng) : focusRound(state, ctx, rng);
     const rounds = [reviewRound(state, ctx, rng), second, mixedRound(state, ctx, rng)];
     if (ctx.sprintDue) rounds[2] = sprintRound(state, ctx, rng);

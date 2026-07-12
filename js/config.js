@@ -115,6 +115,11 @@ export const SCHEDULER = {
     SLOW_WEIGHT: 2.5,
     /** Times-table introduction order (convention, config-tunable). */
     TABLE_ORDER: [2, 10, 5, 3, 4, 6, 8, 7, 9, 11, 12],
+    /** Add/sub ladder starting frontier (changed 2026-07-12, parent decision —
+     *  see DESIGN §2): families below this start pre-unlocked (with their sub
+     *  partners) as assumed prior knowledge for ages 10-11; placement + per-fact
+     *  states catch any gaps below, warm-up/demotion handles struggle. */
+    ADD_START_FAMILY: 'bridge-10',
     /** Placement sweep: exposures per fact needed before trusting the prior. */
     PLACEMENT_EXPOSURES: 2,
 };

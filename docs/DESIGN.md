@@ -205,6 +205,10 @@ only answers the §2 RT rules marked valid — fast-wrongs and lapses never move
 - Mixed round: samples all met categories, weighted toward SLOW facts.
 - Blocked (single-table) rounds only briefly when introducing a new weak table,
   until 80–90% accuracy — then it joins mixed (interleaving hurts novices).
+- Warm-up blocked rounds share the focus slot **day-about** with the true focus
+  round (2026-07-12): the ladder frontier lives in warm-up for weeks at a time,
+  and letting it monopolise the slot starves times-table weak-fact work —
+  simulation showed the weak-7s struggle flag never firing without this.
 - All thresholds in `js/config.js` — this is an n=2 experiment; keep tuning cheap.
 
 ### Add/sub fact-family ladder (replaces Easy/Medium/Hard)
@@ -235,6 +239,14 @@ no carry → 13. with carry/borrow.
   each child starts at their first non-fluent family (expect the bridge-10 /
   minuends-11–18 zone; Eliza's frontier likely below Tom's). Don't spend the
   daily retrieval budget on ceiling-level facts.
+- **Starting frontier (changed 2026-07-12, parent decision)**: children begin
+  with families 1–6 pre-unlocked (plus those families' subtraction partners)
+  and **family 7 (bridge-10) as the warm-up frontier** —
+  `SCHEDULER.ADD_START_FAMILY`. Starting every child at +0/+1 was far too easy
+  for ages 10–11 and, worse, gated the placement sweep to the one unlocked
+  family. Going *down* still works without re-locking: pre-unlocked families
+  are probed by placement, weak facts surface as UNKNOWN → focus-round
+  targets, and sustained failure demotes a family back to warm-up.
 
 ### Adaptation metric (bad-day-tolerant, all silent)
 Nightly pure function per child over the answer log; constants in `js/config.js`.
@@ -243,7 +255,10 @@ Nightly pure function per child over the answer log; constants in `js/config.js`
   facts >1.5× their trailing 14-day median, or FLUENT accuracy <70%, or the
   session-void rule fired → session flagged; mix eases live, **nothing is
   written** to states or averages. (A bad day depresses everything at once;
-  real forgetting is fact-specific.)
+  real forgetting is fact-specific.) Implementation note 2026-07-12: "nothing"
+  now includes per-fact records — the derive fold rolls back a flagged day's
+  fact updates (previously bad-day attempts leaked into fact windows, knocking
+  facts out of FLUENT and stalling family promotion for weeks after).
 - **Per family, per day (≥6 items)**: `P_day = correct/presented` (classified
   answers only), smoothed `M ← 0.75·M + 0.25·P_day` — once per day, not per
   round, so a marathon bad evening can't compound. Half-life ~2–3 days.

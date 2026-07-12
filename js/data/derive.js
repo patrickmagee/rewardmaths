@@ -44,6 +44,11 @@ export function deriveState(answers, opts = {}) {
         const rounds = groupBy(dayAnswers, a => a.round_id);
         const dayInfo = { rounds: 0, voidRounds: 0, byType: {} };
         const processed = [];
+        // Off-day rollback point: the verdict only exists after the day is
+        // folded, but DESIGN §2 says an off-day writes NOTHING — including
+        // per-fact records (a globally bad day would otherwise knock facts
+        // out of FLUENT and stall family promotion for weeks).
+        const factsBefore = structuredClone(state.facts);
 
         for (const roundAnswers of Object.values(rounds)) {
             const roundType = roundAnswers[0].round_type;
@@ -89,6 +94,7 @@ export function deriveState(answers, opts = {}) {
 
         // Daily adaptation (EMA, off-day guard, promote/demote).
         const res = processDay(day, processed, state);
+        if (res.audit.some(a => a.type === 'off_day')) res.state.facts = factsBefore;
         Object.assign(state, res.state);
         audit.push(...res.audit);
         days[day] = dayInfo;

@@ -158,16 +158,30 @@ export function nextLadderFamily(state) {
     return ADD_FAMILIES.find(f => !state.unlockedFamilies.includes(f)) || null;
 }
 
+/**
+ * Ladder starting set (SCHEDULER.ADD_START_FAMILY): every family below the
+ * start is assumed prior knowledge — unlocked along with its subtraction
+ * partner so the placement sweep probes them and weak facts surface as
+ * UNKNOWN. The start family itself is the warm-up frontier.
+ */
+export function startingFamilies() {
+    const idx = Math.max(0, ADD_FAMILIES.indexOf(SCHEDULER.ADD_START_FAMILY));
+    const adds = ADD_FAMILIES.slice(0, idx + 1);
+    const subs = adds.slice(0, -1).map(f => SUB_PARTNER[f]).filter(Boolean);
+    return [...adds, ...subs];
+}
+
 export function newChildState(opts = {}) {
-    const unlocked = opts.unlockedFamilies || [ADD_FAMILIES[0]];
+    const unlocked = opts.unlockedFamilies || startingFamilies();
+    const addFrontier = ADD_FAMILIES.filter(f => unlocked.includes(f)).pop();
     return {
         facts: {},
         familyEMA: {},
         familyHighWater: {},
         unlockedFamilies: unlocked,
-        // The newest unlocked family starts in warm-up so the scheduler serves
-        // it blocked rounds until it clears the accuracy gate.
-        warmupFamilies: [unlocked[unlocked.length - 1]],
+        // The frontier family starts in warm-up so the scheduler serves it
+        // blocked rounds until it clears the accuracy gate.
+        warmupFamilies: addFrontier ? [addFrontier] : [],
         demotionEvidence: {},
         promotionEvidence: {},
         fluentRtByDay: [],
