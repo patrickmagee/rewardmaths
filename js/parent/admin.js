@@ -55,7 +55,8 @@ function renderLogin() {
 
 async function render() {
     app().innerHTML = `<div class="screen dash"><h1>Loading…</h1></div>`;
-    const kids = KIDS();
+    // Real kids first, the test account last.
+    const kids = KIDS().sort((a, b) => (a.user === 'test') - (b.user === 'test'));
     if (!kids.length) {
         app().innerHTML = `<div class="screen dash">
             <h1>Parent dashboard</h1>
@@ -71,11 +72,25 @@ async function render() {
                 <h1>Parent dashboard</h1>
                 <a class="link" href="index.html">game ›</a>
             </header>
+            <nav class="kid-tabs">
+                ${kids.map(k => `
+                    <button class="kid-tab" data-user="${k.user}">${k.avatar || ''} ${k.name}</button>`).join('')}
+            </nav>
             <div class="note dash-warning">Heads-up: mixed/interleaved practice makes
             scores dip in the first weeks — that is the method working, not failing.
             Judge trends at weeks 4–10 (30+ sessions). Habit formation ≈ 2 months.</div>
             ${sections.join('')}
         </div>`;
+    // One child at a time; last-viewed child remembered across visits.
+    const stored = localStorage.getItem('dash-kid');
+    const select = (user) => {
+        localStorage.setItem('dash-kid', user);
+        document.querySelectorAll('.kid-tab').forEach(t => t.classList.toggle('active', t.dataset.user === user));
+        document.querySelectorAll('.kid-card').forEach(c => c.classList.toggle('hidden', c.dataset.user !== user));
+    };
+    document.querySelectorAll('.kid-tab').forEach(t =>
+        t.addEventListener('click', () => select(t.dataset.user)));
+    select(kids.some(k => k.user === stored) ? stored : kids[0].user);
     wireSettings();
 }
 
