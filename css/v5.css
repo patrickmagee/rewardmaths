@@ -316,10 +316,31 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
 .panel { background: var(--panel-2); border-radius: 12px; padding: 12px 16px;
     margin-top: 12px; flex: 1; min-width: 260px; }
 .panel summary { cursor: pointer; color: var(--dim); font-size: 0.95rem; }
-.bars { display: flex; align-items: flex-end; gap: 4px; height: 88px; }
-.bar { width: 16px; background: var(--accent); border-radius: 3px 3px 0 0;
-    min-height: 4px; opacity: 0.85; }
-.bar.easy { outline: 2px solid var(--fix); outline-offset: -2px; }
+/* Activity strip: one hoverable column per day (bar + weekday + date). */
+.activity { display: flex; gap: 4px; margin-top: 8px; }
+.acol { flex: 1; min-width: 0; display: flex; flex-direction: column;
+    align-items: center; padding: 4px 1px 6px; border-radius: 8px; }
+.acol:hover, .acol:focus-visible { background: rgba(255, 255, 255, 0.05); outline: none; }
+.acol.today { background: rgba(56, 200, 245, 0.08); }
+.acol-plot { height: 96px; width: 100%; display: flex; flex-direction: column;
+    justify-content: flex-end; align-items: center; gap: 2px;
+    border-bottom: 1px solid var(--stroke); }
+.acol-bar { width: min(64%, 22px); background: var(--accent);
+    border-radius: 4px 4px 0 0; }
+.acol:hover .acol-bar { filter: brightness(1.18); }
+.acol-medal { font-size: 0.78rem; line-height: 1; }
+.acol-dow { font-size: 0.66rem; font-weight: 700; color: var(--dim); margin-top: 4px; }
+.acol-date { font-size: 0.66rem; color: var(--dim); }
+.acol.today .acol-dow, .acol.today .acol-date { color: var(--accent); font-weight: 700; }
+.acol-date.easy { color: var(--fix); font-weight: 700; }
+
+.viz-tip { position: fixed; z-index: 50; display: none; pointer-events: none;
+    background: var(--panel-2); border: 1px solid var(--stroke);
+    border-radius: 10px; padding: 10px 14px; font-size: 0.85rem;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5); max-width: 260px; }
+.viz-tip .tip-head { font-weight: 800; margin-bottom: 4px; }
+.viz-tip .tip-row { color: var(--dim); line-height: 1.5; }
+.viz-tip .tip-row b { color: var(--text); font-weight: 700; }
 .fi-band { font-size: 1.8rem; font-weight: 800; }
 .slope { margin-top: 8px; font-size: 0.95rem; }
 .slope.green { color: var(--good); } .slope.amber { color: var(--fix); }

@@ -91,7 +91,58 @@ async function render() {
     document.querySelectorAll('.kid-tab').forEach(t =>
         t.addEventListener('click', () => select(t.dataset.user)));
     select(kids.some(k => k.user === stored) ? stored : kids[0].user);
+    wireActivity();
     wireSettings();
+}
+
+// ---------- activity tooltip ----------
+
+let tipEl = null;
+
+function tip() {
+    if (!tipEl) {
+        tipEl = document.createElement('div');
+        tipEl.className = 'viz-tip';
+        document.body.appendChild(tipEl);
+    }
+    return tipEl;
+}
+
+function wireActivity() {
+    document.querySelectorAll('.acol').forEach(col => {
+        const show = () => {
+            const data = JSON.parse(col.dataset.tip);
+            const t = tip();
+            t.replaceChildren();
+            const head = document.createElement('div');
+            head.className = 'tip-head';
+            head.textContent = data.head;
+            t.appendChild(head);
+            for (const row of data.rows) {
+                const div = document.createElement('div');
+                div.className = 'tip-row';
+                if (row.b) {
+                    const b = document.createElement('b');
+                    b.textContent = row.b;
+                    div.appendChild(b);
+                }
+                if (row.t) div.appendChild(document.createTextNode(row.t));
+                t.appendChild(div);
+            }
+            t.style.display = 'block';
+            const r = col.getBoundingClientRect();
+            const tr = t.getBoundingClientRect();
+            const x = Math.max(8, Math.min(r.left + r.width / 2 - tr.width / 2, innerWidth - tr.width - 8));
+            const y = r.top - tr.height - 8;
+            t.style.left = `${x}px`;
+            t.style.top = `${y < 8 ? r.bottom + 8 : y}px`;
+        };
+        const hide = () => { if (tipEl) tipEl.style.display = 'none'; };
+        col.addEventListener('pointerenter', show);
+        col.addEventListener('pointerleave', hide);
+        col.addEventListener('focus', show);
+        col.addEventListener('blur', hide);
+    });
 }
 
 async function kidSection(kid) {
@@ -106,13 +157,43 @@ async function kidSection(kid) {
     const today = todayStr();
     const streak = deriveStreak(days, today);
 
-    // Week overview.
+    // Activity strip: one labelled, hoverable column per day.
     const last14 = lastNDays(today, 14);
-    const weekBars = last14.map(d => {
+    const yesterday = lastNDays(today, 2)[0];
+    const activity = last14.map(d => {
         const v = validRounds(days[d]);
+        const voided = days[d]?.voidRounds || 0;
         const easy = isEasyDay(kid.user, d, kid.settings || {});
-        return `<div class="bar${easy ? ' easy' : ''}" style="height:${Math.min(v, 8) * 10 + 4}px"
-                     title="${d}: ${v} rounds${easy ? ' (easy day)' : ''}"></div>`;
+        const m = dayMedal(days[d], { easy }).medal;
+        const dayAns = classified.filter(a => a.day === d && !a.void && a.cls.counts_for_accuracy);
+        const correct = dayAns.filter(a => a.correct).length;
+        const dt = new Date(d + 'T12:00:00');
+        const nice = dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+        const rel = d === today ? 'Today' : d === yesterday ? 'Yesterday' : null;
+
+        const rows = [];
+        if (v > 0) {
+            rows.push({ b: `${v} round${v === 1 ? '' : 's'}`, t: m ? ` · ${{ bronze: '🥉 bronze', silver: '🥈 silver', gold: '🥇 gold' }[m]}` : '' });
+            if (dayAns.length) rows.push({ t: `${correct}/${dayAns.length} answers correct` });
+        } else {
+            rows.push({ b: 'No play', t: '' });
+        }
+        if (voided) rows.push({ t: `${voided} round${voided === 1 ? '' : 's'} discarded (rapid guessing)` });
+        if (easy) rows.push({ t: 'Easy day — bronze needs just 1 round' });
+        const tip = { head: rel ? `${rel} — ${nice}` : nice, rows };
+        const aria = `${tip.head}: ` + rows.map(r => `${r.b || ''}${r.t}`.trim()).join('; ');
+
+        return `
+            <div class="acol${d === today ? ' today' : ''}" tabindex="0" role="img"
+                 aria-label="${aria.replace(/"/g, '&quot;')}"
+                 data-tip='${JSON.stringify(tip).replace(/'/g, '&#39;')}'>
+                <div class="acol-plot">
+                    ${m ? `<span class="acol-medal">${{ bronze: '🥉', silver: '🥈', gold: '🥇' }[m]}</span>` : ''}
+                    ${v ? `<div class="acol-bar" style="height:${6 + Math.min(v, 8) / 8 * 66}px"></div>` : ''}
+                </div>
+                <span class="acol-dow">${'SMTWTFS'[dt.getDay()]}</span>
+                <span class="acol-date${easy ? ' easy' : ''}">${d === today ? 'now' : dt.getDate()}</span>
+            </div>`;
     }).join('');
     const medal = dayMedal(days[today], { easy: isEasyDay(kid.user, today, kid.settings || {}) });
 
@@ -146,8 +227,8 @@ async function kidSection(kid) {
             <div class="dash-row">
                 <div class="panel">
                     <h3>Last 14 days</h3>
-                    <div class="bars">${weekBars}</div>
-                    <div class="dim small">bars = valid rounds/day · outlined = easy day</div>
+                    <div class="activity">${activity}</div>
+                    <div class="dim small">bar height = rounds that day · 🥉🥈🥇 medal earned · amber date = easy day · hover a day for detail</div>
                 </div>
                 <div class="panel">
                     <h3>Fluency index</h3>
