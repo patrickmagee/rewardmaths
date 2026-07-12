@@ -8,6 +8,7 @@ import { parseFact } from '../engine/facts.js';
 export const COPY = {
     whosPlaying: "Who's playing?",
     pinPrompt: name => `Hi ${name} — your PIN`,
+    pwPrompt: name => `Hi ${name} — your password`,
     pinWrong: 'Not quite — try again',
 
     todayTitle: 'Today',
@@ -57,6 +58,12 @@ export const COPY = {
     victoryLap: 'One quick favourite-round before you go?',
 
     streakDay: n => `Day ${n}`,
+    // Last-7-days strip. Unplayed days stay neutral (never "missed"/failure);
+    // a shield is framed externally — the app protected the streak.
+    dayLetters: ['S', 'M', 'T', 'W', 'T', 'F', 'S'], // indexed by Date.getDay()
+    weekPlayed: 'played',
+    weekShielded: 'shield kept your streak safe',
+    weekToday: 'today',
     streakMilestone: n => `${n} days — that's a real habit`,
     streakSafe: 'The app paused your streak — it\'s safe, play today to keep it going',
 

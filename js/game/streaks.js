@@ -25,6 +25,7 @@ export function dayQualifies(dayInfo) {
 export function deriveStreak(days, today) {
     const qualifies = d => dayQualifies(days[d]);
     const shieldsUsed = {}; // isoWeek -> count
+    const shieldedDays = []; // misses inside the current streak a shield covered
 
     // Walk backward from today (today itself only counts if played).
     let current = 0;
@@ -41,6 +42,7 @@ export function deriveStreak(days, today) {
             shieldsUsed[wk] = (shieldsUsed[wk] || 0);
             if (shieldsUsed[wk] < DAY.SHIELDS_PER_WEEK && anyPlayBefore(days, cursor)) {
                 shieldsUsed[wk]++; // shield silently covers the miss
+                shieldedDays.push(cursor);
             } else {
                 break;
             }
@@ -66,8 +68,29 @@ export function deriveStreak(days, today) {
 
     return {
         current, best, todayDone, bounceBack, repairAvailable, milestoneToday,
+        shieldedDays,
         shieldsUsedThisWeek: shieldsUsed[isoWeek(today)] || 0,
     };
+}
+
+/**
+ * Last-7-days view for the Today screen, oldest first, ending today.
+ * Unplayed days are just "not played" — never failure (DESIGN §1: breaks are
+ * framed externally); shield-covered misses are marked so the child can see
+ * the app kept the streak safe.
+ */
+export function weekView(days, today, shieldedDays = []) {
+    const shielded = new Set(shieldedDays);
+    return Array.from({ length: 7 }, (_, i) => {
+        const day = addDays(today, i - 6);
+        return {
+            day,
+            dow: new Date(day + 'T12:00:00').getDay(),
+            played: dayQualifies(days[day]),
+            shielded: shielded.has(day),
+            isToday: day === today,
+        };
+    });
 }
 
 function bestEver(days) {

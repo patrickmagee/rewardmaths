@@ -8,7 +8,7 @@ import { buildDailyRounds, blockedRound, workingTable } from '../engine/schedule
 import { deriveState } from '../data/derive.js';
 import * as db from '../data/db.js';
 import { syncAll, syncDay, syncProfiles, pushProfile } from '../data/sync.js';
-import { deriveStreak } from './streaks.js';
+import { deriveStreak, weekView } from './streaks.js';
 import { dayMedal, goalReveal, isEasyDay } from './medals.js';
 import { COPY } from './copy.js';
 import * as ui from './screens.js';
@@ -26,7 +26,7 @@ const S = {
 const DEFAULT_PROFILES = [
     { user: 'tom', name: 'Tom', avatar: '🦖', role: 'player', pin: '1111', settings: { accent: 'a' } },
     { user: 'eliza', name: 'Eliza', avatar: '🎨', role: 'player', pin: '2222', settings: { accent: 'b' } },
-    { user: 'test', name: 'Test', avatar: '🧪', role: 'player', pin: '0000', settings: { accent: 'a' } },
+    { user: 'test', name: 'Test', avatar: '🧪', role: 'player', pin: 'Laura', settings: { accent: 'a' } },
     { user: 'patrick', name: 'Patrick', avatar: '🔧', role: 'admin', pin: 'laura', settings: {} },
 ];
 
@@ -137,6 +137,7 @@ async function showToday() {
 
     ui.renderToday({
         profile: S.profile, streak, medal, reveal, whyLine,
+        week: weekView(days, day, streak.shieldedDays),
         roundCards,
         playedTypes,
         goldLocked: medal.goldDone,

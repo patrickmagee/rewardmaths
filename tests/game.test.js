@@ -1,4 +1,4 @@
-import { deriveStreak, addDays, isoWeek } from '../js/game/streaks.js';
+import { deriveStreak, weekView, addDays, isoWeek } from '../js/game/streaks.js';
 import { isEasyDay, dayMedal, goalReveal } from '../js/game/medals.js';
 
 function daysFrom(spec, endDay) {
@@ -89,6 +89,33 @@ export async function run({ eq, ok }) {
     const expected2 = isEasyDay('tom', today) ? 1 : 2;
     eq(reveal2.bronzeTarget, expected2, 'consistent child sees normal bronze');
     ok(reveal2.bestRecent >= 3, 'micro-proof from own data');
+
+    // --- Last-7-days view (shielded misses surfaced, unplayed stays neutral).
+    days = daysFrom([2, 2, 2, 0, 2, 2, 2], today);
+    s = deriveStreak(days, today);
+    eq(s.shieldedDays.length, 1, 'shielded miss surfaced');
+    eq(s.shieldedDays[0], addDays(today, -3), 'right day marked shielded');
+
+    let wk = weekView(days, today, s.shieldedDays);
+    eq(wk.length, 7, 'week view has 7 days');
+    eq(wk[6].day, today, 'ends today');
+    eq(wk[6].isToday, true, 'today flagged');
+    eq(wk[3].played, false, 'shielded day not played');
+    eq(wk[3].shielded, true, 'shielded day marked');
+    eq(wk.filter(w => w.played).length, 6, 'six played days');
+
+    // A miss beyond a broken streak is neither played nor shielded — neutral.
+    days = daysFrom([2, 0, 0, 0, 2, 2, 2], today);
+    s = deriveStreak(days, today);
+    wk = weekView(days, today, s.shieldedDays);
+    ok(wk.some(w => !w.played && !w.shielded), 'unshielded miss stays neutral');
+
+    // Today unplayed: pending, not a miss.
+    days = daysFrom([2, 2, 2, 2, 2, 2, 0], today);
+    s = deriveStreak(days, today);
+    wk = weekView(days, today, s.shieldedDays);
+    eq(wk[6].played, false, 'unplayed today pending');
+    eq(wk[6].shielded, false, 'unplayed today never shows a shield');
 
     // isoWeek sanity.
     eq(isoWeek('2026-01-01'), isoWeek('2026-01-01'), 'isoWeek stable');

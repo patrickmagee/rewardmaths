@@ -89,6 +89,11 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
 .pin-dots { min-height: 2rem; font-size: 1.5rem; letter-spacing: 0.45em;
             color: var(--accent); }
 .pin-msg { min-height: 1.4rem; color: var(--fix); }
+/* Test-account password entry (text, not keypad). */
+.pin-pw { background: var(--panel); border: 1px solid var(--stroke);
+    border-radius: 12px; color: var(--text); font-size: 1.1rem;
+    padding: 14px 18px; width: 260px; text-align: center; margin-top: 3vh; }
+.pin-go { margin-top: 18px; }
 .icon-btn {
     width: 46px; height: 46px; border-radius: 50%;
     background: var(--panel); border: 1.5px solid var(--stroke);
@@ -134,6 +139,22 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
 .streak { font-size: 1.2rem; font-weight: 800; }
 .best { color: var(--dim); font-size: 0.85rem; flex: 1; }
 .note { color: var(--dim); margin: 10px 0 0; text-align: center; font-size: 0.95rem; }
+
+/* Last-7-days strip: 🔥 played · 🛡 shield-covered · hollow dot = not played
+   (neutral, never a failure mark). Today's letter glows in the accent. */
+.week-strip {
+    display: flex; justify-content: center; gap: clamp(8px, 2.4vw, 16px);
+    margin-top: 14px;
+}
+.wk-day { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 30px; }
+.wk-letter { font-size: 0.7rem; font-weight: 700; color: var(--dim); }
+.wk-day.today .wk-letter { color: var(--accent); }
+.wk-mark { font-size: 1rem; line-height: 1; height: 16px; display: grid; place-items: center; }
+.wk-mark.empty {
+    width: 11px; height: 11px; border-radius: 50%;
+    border: 2px solid var(--stroke);
+}
+.wk-day.today .wk-mark.empty { border-color: var(--accent); }
 
 .goal-card {
     width: 100%; text-align: center;

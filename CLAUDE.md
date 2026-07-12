@@ -60,8 +60,9 @@ real engine) must pass before any engine change ships.
 
 ### Accounts
 Avatar + PIN login (hashes in KV profiles). Seeded: **tom 1111 · eliza 2222 ·
-parent password `laura`** (dashboard can change PINs). Kids' streaks/medals/
-bars are private per child — never surface one child's data to the other.
+test `Laura` (typed password, not keypad) · parent password `laura`**
+(dashboard can change PINs). Kids' streaks/medals/bars are private per
+child — never surface one child's data to the other.
 
 ### Parent dashboard (admin.html)
 Runs the same derive fold on each child's log: 14-day activity (easy days

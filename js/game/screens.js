@@ -39,6 +39,8 @@ export function renderWho(profiles, { onPick, onParent }) {
 }
 
 export function renderPin(profile, { onOk, onBack }) {
+    // The test account signs in with a typed password, not a keypad PIN.
+    if (profile.user === 'test') return renderPassword(profile, { onOk, onBack });
     app().innerHTML = `
         <div class="screen pin">
             <button class="icon-btn back" aria-label="back">${BACK_ICON}</button>
@@ -66,6 +68,28 @@ export function renderPin(profile, { onOk, onBack }) {
     return pad;
 }
 
+function renderPassword(profile, { onOk, onBack }) {
+    app().innerHTML = `
+        <div class="screen pin">
+            <button class="icon-btn back" aria-label="back">${BACK_ICON}</button>
+            <div class="pin-avatar">${profile.avatar}</div>
+            <h2>${COPY.pwPrompt(profile.name)}</h2>
+            <input type="password" class="pin-pw" placeholder="password" autocomplete="current-password">
+            <button class="primary pin-go">OK</button>
+            <div class="pin-msg"></div>
+        </div>`;
+    const input = app().querySelector('.pin-pw');
+    const msg = app().querySelector('.pin-msg');
+    const submit = async () => {
+        const ok = await onOk(input.value);
+        if (!ok) { msg.textContent = COPY.pinWrong; input.value = ''; input.focus(); }
+    };
+    app().querySelector('.pin-go').addEventListener('click', submit);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') submit(); });
+    app().querySelector('.back').addEventListener('click', onBack);
+    input.focus();
+}
+
 /**
  * Today screen: streak, goal reveal, round cards, medal ladder, free play.
  * ctx: { profile, streak, medal, reveal, roundsPlan, playedTypes, whyLine,
@@ -84,6 +108,17 @@ export function renderToday(ctx) {
                 <span class="best">best ${streak.best}</span>
                 <button class="link logout">switch</button>
             </header>
+            ${ctx.week ? `
+                <section class="week-strip" aria-label="last 7 days">
+                    ${ctx.week.map(w => `
+                        <span class="wk-day ${w.isToday ? 'today' : ''}"
+                              title="${w.played ? COPY.weekPlayed : w.shielded ? COPY.weekShielded : w.isToday ? COPY.weekToday : ''}">
+                            <span class="wk-letter">${COPY.dayLetters[w.dow]}</span>
+                            <span class="wk-mark ${w.played ? 'played' : w.shielded ? 'shielded' : 'empty'}">
+                                ${w.played ? '🔥' : w.shielded ? '🛡️' : ''}
+                            </span>
+                        </span>`).join('')}
+                </section>` : ''}
             ${streak.bounceBack ? `<div class="note">${COPY.bounceBack}</div>` : ''}
             <section class="goal-card">
                 <div class="goal-main">${COPY.goalReveal(reveal.bronzeTarget)}</div>
