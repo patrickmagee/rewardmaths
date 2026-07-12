@@ -119,8 +119,8 @@ simulation green). Step 3 code-complete (screens/keypad/session/PWA — screens
 consolidated into `js/game/screens.js` rather than `screens/*.js`); browser
 smoke-test pending. Step 4 partially inside 3 (streaks/medals/goal-reveal/easy
 days/break/lock shipped; victory-lap + sprint-improvement lines pending).
-Default PINs: tom 1111 · eliza 2222 · parent PIN-pad entry uses password
-'laura' hash. Steps 5–7 not started.
+Default PINs: tom 1111 · eliza 2222 · test password 'Laura' (text entry) ·
+parent PIN-pad entry uses password 'laura' hash. Steps 5–7 not started.
 
 | Step | Deliverable | Done when |
 |---|---|---|
