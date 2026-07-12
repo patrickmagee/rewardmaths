@@ -1,0 +1,6 @@
+# Cloudflare Pages headers. Default asset caching is max-age=14400 (4h),
+# which makes deploys invisible until browser caches expire — the app's
+# contract is "a deploy is visible on the very next load" (see sw.js).
+# max-age=0 + ETag revalidation keeps loads cheap (304s) but always current.
+/*
+  Cache-Control: public, max-age=0, must-revalidate

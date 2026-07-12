@@ -23,7 +23,7 @@ jobs:
       - name: Assemble dist/
         run: |
           rm -rf dist && mkdir dist
-          cp index.html admin.html favicon.svg manifest.json sw.js dist/
+          cp index.html admin.html favicon.svg manifest.json sw.js _headers dist/
           cp -r css js functions dist/
 
       - name: Deploy to Cloudflare Pages

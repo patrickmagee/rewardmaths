@@ -24,6 +24,7 @@ Copy-Item (Join-Path $root 'admin.html')    $dist
 Copy-Item (Join-Path $root 'favicon.svg')   $dist
 Copy-Item (Join-Path $root 'manifest.json') $dist
 Copy-Item (Join-Path $root 'sw.js')         $dist
+Copy-Item (Join-Path $root '_headers')      $dist
 Copy-Item (Join-Path $root 'css') $dist -Recurse
 Copy-Item (Join-Path $root 'js')  $dist -Recurse
 
