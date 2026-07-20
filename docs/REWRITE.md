@@ -11,7 +11,7 @@ retired (old KV `scores:*` keys deleted at cutover — user decision: no archive
 
 | Decision | Choice |
 |---|---|
-| Input | **Custom on-screen keypad always rendered + physical keyboard always accepted** (0–9, Backspace, Enter light up the pad). Answer box is not a text field → tablet OS keyboard never appears. Every answer tagged `input: "tap"\|"key"`; typing baselines kept **per input method per child**. |
+| Input | **Custom on-screen keypad always rendered + physical keyboard always accepted** (0–9, Backspace, Enter light up the pad). Answer box is not a text field → tablet OS keyboard never appears. Every answer tagged `input: "tap"\|"key"`; typing baselines kept **per input method per child** — since 2026-07-20 these are **diagnostics only**, not an input to any speed threshold. |
 | Login | **Tap avatar + 4-digit PIN** on the shared keypad. Parent area keeps a password. PINs/password stored hashed (SHA-256; home-app threat model). |
 | Old data | **Nuked.** v5 launches clean; placement sweep rebuilds each child's profile from play. |
 | Email | **Deferred.** Parent layer ships dashboard-only; the daily digest + cron Worker come later. Consequence: daily adaptation runs lazily client-side (below), no Worker needed yet. |
@@ -23,23 +23,35 @@ retired (old KV `scores:*` keys deleted at cutover — user decision: no archive
 ## 2. Architecture principle: the answer log is the truth
 
 Every per-answer record (`docs/DESIGN.md` §2) is append-only and synced
-local-first (IndexedDB ↔ KV, union-merge by timestamp — same pattern as v4
+local-first (IndexedDB ↔ KV, union-merge by answer **id** — same pattern as v4
 scores). **All other state — fact states, family EMAs, streaks, medals, flags —
-is derived and recomputable from the log.** The stored state object is a cache:
+is derived and recomputable from the log.**
 
-- **Daily adaptation runs lazily**: on first app-open of a new day (per child),
-  a pure, idempotent function processes any unprocessed complete days
-  (off-day guard → P_day → EMA → promote/demote → audit entries) and writes the
-  state cache. Same inputs → same outputs on any device; a sync conflict is
-  resolved by recomputing from the merged log.
-- Corollary: rule changes or bug fixes can re-derive everything from history.
+**As built, derived state is not stored at all.** The plan below anticipated a
+`state:<user>` cache; it was never needed and never shipped. `deriveState()`
+(`js/data/derive.js`) replays the whole log on every app load
+(`js/game/main.js` refreshDerived, `js/parent/admin.js`), so:
+
+- **Daily adaptation runs inside the fold**: a pure, idempotent function
+  processes each complete day in order (off-day guard → P_day → EMA →
+  promote/demote → audit entries). Same inputs → same outputs on any device; a
+  sync conflict is resolved by recomputing from the merged log, so there is no
+  cache to invalidate and no derived-state migration to write.
+- Corollary: rule changes or bug fixes re-derive everything from history — as
+  the 2026-07-20 initiation-time change did, with no data migration.
+
+Speed classification uses **initiation only** (question shown → first keypress).
+Typing time is logged and reported to parents but is not an input to any
+threshold — see §4 `engine/states.js` and `docs/DESIGN.md`.
 
 ### KV schema (replaces `scores:*`)
 | Key | Value | Writes |
 |---|---|---|
 | `answers:<user>:<yyyy-mm-dd>` | array of answer records, appended per round | ~5–10/day/child |
-| `state:<user>` | derived cache: fact states, family EMAs, streak/shields, medals, big-goal, baselines, `lastProcessedDay`, audit log | ~few/day |
-| `profile:<user>` | name, avatar, PIN hash, DOB, per-child settings (easy-day toggle, anxiety-buffer opener) | rare |
+| `profile:<user>` | name, avatar, PIN hash, DOB, per-child settings (easy-day toggle, question timeout) | rare |
+
+~~`state:<user>`~~ was planned as a derived cache and **never built** — see §2.
+The only KV namespaces in use are `answers:*` and `profile:*`.
 
 Profiles move to KV (v4 kept them device-local — that limitation dies here; the
 kids can log in from any device). Free-tier KV limits (1k writes/day) are ~50×
@@ -79,11 +91,14 @@ index.html  admin.html  manifest.json  sw.js
 css/                     design system (tablet-first, pointer-size aware)
 js/
   config.js              ALL tunable constants (thresholds, ladder, copy timing)
-  data/db.js             IndexedDB: answers, state, profiles
-  data/sync.js           KV sync — append answers, merge, state cache push/pull
+  data/db.js             IndexedDB: answers, profiles, meta (sync cursors only)
+  data/sync.js           KV sync — append answers, union-merge by id (state is
+                         never synced; it re-derives identically per device)
   engine/facts.js        fact universe, features (crosses_10…), families, ladder
-  engine/classify.js     RT-cleaning pure fn → {counts_for_accuracy, counts_for_rt, reason}
-  engine/states.js       per-fact state machine (FLUENT/SLOW/UNKNOWN/STUCK)
+  engine/classify.js     RT-cleaning pure fn → {counts_for_accuracy, counts_for_rt,
+                         counts_as_retrieval, exclusion_reason}
+  engine/states.js       per-fact state machine (FLUENT/SLOW/UNSETTLED/UNKNOWN/
+                         STUCK); speed judged on INITIATION ms only
   engine/adapt.js        lazy daily fn: off-day guard, EMA, promote/demote, audit
   engine/scheduler.js    round builder: focus/review/mixed/sprint/placement + daily caps
   engine/flags.js        theme aggregation, error tagging, flag state machine
@@ -96,7 +111,8 @@ js/
   game/copy.js           every child-facing string
   parent/*.js            dashboard views
 functions/api/
-  answers.js  state.js  profiles.js     (KV-backed, replace scores.js)
+  answers.js  profiles.js               (KV-backed, replace scores.js;
+                                         state.js never built — see §2)
 tests/
   run.js  classify.test.js  states.test.js  adapt.test.js  scheduler.test.js
   simulate.js             synthetic-child simulation (see §5)

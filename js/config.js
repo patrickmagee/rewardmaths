@@ -26,8 +26,10 @@ export const RT = {
     LAPSE_MEDIAN_MULT: 3,
     /** Valid-band ceiling = min(HARD_CEILING_MS, this × fact median). */
     VALID_MEDIAN_MULT: 4,
-    /** Minimum valid attempts on a fact before median-relative bands apply. */
-    MIN_ATTEMPTS_FOR_BANDS: 3,
+    /** Minimum valid attempts on a fact before median-relative bands apply.
+     *  5 (2026-07-20): a per-fact median on 3 attempts is close to noise given
+     *  the right-skew of single-trial RT (Geary 2012: M=2789ms, SD=1892). */
+    MIN_ATTEMPTS_FOR_BANDS: 5,
     /** First-ever correct faster than this (net of typing) needs a second
      *  fast-correct before crediting fluency. */
     SUSPICIOUS_FAST_NET_MS: 700,
@@ -42,16 +44,75 @@ export const RT = {
 export const STATES = {
     /** FLUENT: this many of the last 10 valid attempts correct… */
     FLUENT_CORRECT_OF_10: 9,
-    /** …AND median RT under personal cutoff = this × child's fluent-median. */
+    /**
+     * …AND median INITIATION time under a personal cutoff = this × the child's
+     * own fluent-median (floored at FLUENT_CUTOFF_FLOOR_NET_MS).
+     *
+     * 1.5, and it must stay 1.5, because it is the SAME multiplier the floor
+     * is derived with: DESIGN §2 sets the floor at published fluent medians
+     * (Van Beek 1707ms, Dickson 1438ms) × ~1.5. The floor is therefore
+     * "1.5 × a typical fluent median" and the personal term is "1.5 × THIS
+     * child's fluent median". One multiplier, one meaning — a cutoff is 1.5×
+     * a fluent median, and only the median changes.
+     *
+     * 2.0 was tried on 2026-07-20 and reverted the same day. Because the
+     * cutoff is self-referential (the fluent set is defined by the cutoff),
+     * its fixed point is ≈MULT × the child's own median, so the multiplier
+     * decides how much of a child's own distribution passes. Measured on the
+     * fixed point:
+     *
+     *   child median init | 2.0 → cutoff (% passing) | 1.5 → cutoff (% passing)
+     *   1100ms            | 2500ms (96%)             | 2500ms (96%)
+     *   1800ms            | 3433ms (92%)             | 2500ms (77%)
+     *   2900ms            | 5531ms (92%)             | 3316ms (61%)
+     *   4200ms            | 8011ms (92%)             | 4803ms (61%)
+     *
+     * At 2.0 the pass rate is ~92% for EVERY child however slow — the
+     * criterion stops discriminating and simply ratifies whatever the child
+     * already does. At 1.5 it degrades with slowness, which is the point of
+     * having it. 2.0 also pushed the effective cutoff for a mid-range child
+     * past Wu et al. 2008's 3662ms ROC optimum, which DESIGN §2 explicitly
+     * argues we must stay BELOW (Wu's sample was age 8.05 and timed by
+     * experimenter keypress) — an internal contradiction, not a trade-off.
+     */
     FLUENT_CUTOFF_MULT: 1.5,
-    /** Personal cutoff floor = this net thinking time + the child's measured
-     *  typing baseline (per input method) — a slow typer isn't blocked. */
-    FLUENT_CUTOFF_FLOOR_NET_MS: 2000,
-    /** Assumed typing baseline before one is measured. */
+    /**
+     * Personal cutoff floor, applied to initiation_ms ONLY (question shown →
+     * first keypress). Typing is excluded from classification entirely: we are
+     * not measuring keyboard speed, and typing time scales with answer digit
+     * count (measured on Tom's log: 1-digit 130ms, 2-digit 652ms, 3-digit
+     * 1113ms), which is confounded with problem size — a total-RT threshold
+     * penalises hard facts twice and paints the top-right of every grid amber.
+     *
+     * 2500ms (2026-07-20, was 2000ms net + typing baseline ≈ 2750ms total):
+     * anchored on the upper fluent latency for this age measured with minimal
+     * motor output — Van Beek et al. (2014, voice key, mean age 11.9) large
+     * additions 1707ms (±415); Dickson et al. (2022, gamepad, grades 3-5)
+     * large multiplications 1438ms (SE 62) — times 1.5. Lands inside the
+     * age-matched commercial band (Prodigy Grade 6+ 3s, TTRS Rock Star 3s)
+     * and below Wu et al. (2008) ROC optimum 3662.5ms, correctly, since Wu's
+     * sample was mean age 8.05 and timed by experimenter keypress.
+     * Measuring on first-press is what the one age-matched tablet study does
+     * (npj Science of Learning 2025, n=824). See docs/DESIGN.md §2.
+     */
+    FLUENT_CUTOFF_FLOOR_NET_MS: 2500,
+    /** Problem-size allowance added to the cutoff where both operands ≥ 6.
+     *  Large facts are genuinely slower even when retrieved (Dickson et al.
+     *  2022 measured a 317ms problem-size effect in grades 3-5). */
+    LARGE_FACT_ALLOWANCE_MS: 300,
+    /** Both operands ≥ this counts as a large fact. */
+    LARGE_FACT_MIN_OPERAND: 6,
+    /** Assumed typing baseline before one is measured. Dashboard/diagnostics
+     *  only — it no longer feeds the classifier. */
     DEFAULT_TYPING_MS: 750,
-    /** FLUENT→SLOW demotion needs ≥ this many of last 5 valid over cutoff. */
-    DEMOTE_SLOW_OF_5: 2,
-    /** UNKNOWN: recent accuracy below this (rolling last 5 valid). */
+    /** FLUENT→SLOW demotion needs ≥ this many of last 5 valid over cutoff.
+     *  3 (2026-07-20): promotion tests a median of 10, so demoting on 2 raw
+     *  attempts out of 5 was a much weaker standard than promotion — on a
+     *  right-skewed RT distribution a genuinely fluent fact tripped it on
+     *  roughly a coin flip per window. */
+    DEMOTE_SLOW_OF_5: 3,
+    /** UNKNOWN: recent accuracy below this (rolling last 5 valid).
+     *  At or above it, a fact with too little history is UNSETTLED, not SLOW. */
     UNKNOWN_ACCURACY: 0.80,
     /** STUCK: ≥ this many attempts without 3-in-a-row correct… */
     STUCK_MIN_ATTEMPTS: 10,
@@ -119,8 +180,20 @@ export const SCHEDULER = {
     FACT_STALE_DAYS: 24,
     /** Break > this long → short disguised re-triage before resuming. */
     RETRIAGE_AFTER_BREAK_DAYS: 14,
-    /** Mixed-round weighting boost for SLOW facts. */
-    SLOW_WEIGHT: 2.5,
+    /**
+     * Mixed-round weighting boost for facts unseen for FACT_STALE_DAYS.
+     * Was SLOW_WEIGHT, and also boosted facts the child answered correctly but
+     * slowly. Speed no longer influences what a child is served at all (parent
+     * decision 2026-07-20 — "it's training, not a test"): a fact answered
+     * correctly is known, whether recalled or worked out, and being slow must
+     * not earn a child extra drilling. SLOW is still derived and still shown on
+     * the parent's fact map; it just has no say in scheduling.
+     */
+    STALE_WEIGHT: 2.5,
+    /** Mixed-round weight for UNSETTLED facts. NOT a speed judgement — these
+     *  facts simply need more attempts before any verdict is possible, and this
+     *  is the nudge that gets them there. */
+    UNSETTLED_WEIGHT: 1.5,
     /** Times-table introduction order (convention, config-tunable). */
     TABLE_ORDER: [2, 10, 5, 3, 4, 6, 8, 7, 9, 11, 12],
     /** Add/sub ladder starting frontier (changed 2026-07-12, parent decision —
@@ -162,8 +235,62 @@ export const DAY = {
 };
 
 export const FLAGS = {
-    /** Theme flag needs ≥ this many logged attempts. */
-    MIN_ATTEMPTS: 24,
+    /**
+     * Minimum window sample for a theme to be judged at all: below this a
+     * 'watching' note is the most the dashboard will say, and no flag can
+     * escalate. A deficit still has to be measured on something.
+     *
+     * There is deliberately no HIGH attempt bar any more (MIN_ATTEMPTS = 24 was
+     * removed 2026-07-20, see DESIGN §3). Recent exposure is chosen by the
+     * scheduler, and the scheduler serves weak themes LESS (UNKNOWN facts are
+     * excluded from mixed rounds and rationed to FOCUS_WEAK_FACTS per focus
+     * round), so ANY volume gate — windowed or cumulative — is anti-correlated
+     * with the weakness it gates on. Measured: a weak theme's facts carry 4.1
+     * attempts each against a healthy theme's 10.0. Escalation is decided by
+     * the per-fact state DISTRIBUTION instead, gated on calendar time.
+     */
+    MIN_ATTEMPTS_WATCHING: 5,
+    /**
+     * A fact counts as DURABLY weak only if the child has failed it on ≥ MIN_DAYS
+     * distinct days spanning ≥ this many calendar days. Calendar span, never
+     * attempt count: span is the one field the scheduler cannot allocate.
+     *
+     * 7 is inherited, not chosen — it is MIN_FLAG_DAYS, the minimum life of a
+     * flag. A fact has to have been failing for at least as long as the flag it
+     * would raise is required to last. This is the gate that separates "failing
+     * for weeks" from "introduced on Tuesday": measured span for a genuinely
+     * weak fact is 18-20 days, for a newly-introduced one 2-5.
+     */
+    DURABLE_MIN_SPAN_DAYS: 7,
+    /** A theme needs at least this many durably-weak facts. Inherited from
+     *  MIN_DAYS: the window criterion demands three independent days before it
+     *  believes a deficit, so the structural criterion demands three independent
+     *  FACTS. One or two failing facts is a fact problem, not a theme problem. */
+    MIN_DURABLE_WEAK_FACTS: 3,
+    /**
+     * Escalation needs at least this share of the theme's facts durably weak.
+     *
+     * 0.80 = ADAPT.PROMOTE_FACTS_OK, the mastery gate, read backwards: the
+     * ladder calls a family learned when ≥80% of its circulating facts are
+     * accurate, so a theme is failing when ≥80% of its facts are durably not.
+     * One criterion, one number, pointing in two directions.
+     *
+     * A simple majority (the 0.5 this replaced on 2026-07-20) does NOT work
+     * here, and the reason is structural rather than empirical: every learner
+     * has a frontier, and a not-yet-taught table is by definition mostly
+     * unlearned. "More weak than not" therefore describes the curriculum edge
+     * as accurately as it describes a broken theme. Only near-total failure
+     * separates them.
+     */
+    WEAK_FACT_SHARE: 0.80,
+    /** …AND that share must exceed the child's OWN durable-weak share across
+     *  comparable themes (tables vs tables, ladder families vs families) by this
+     *  margin. Without the relative term the structural test is an absolute
+     *  difficulty threshold and flags every frontier table — "not taught yet"
+     *  read as "failing". The margin is inherited from ACCURACY_DEFICIT: it is
+     *  the same "this far below the child's own baseline" construct, applied to
+     *  the fact-state distribution instead of to a fortnight's accuracy. */
+    WEAK_SHARE_DEFICIT: 0.15,
     /** …AND theme accuracy this far below the child's same-week overall… */
     ACCURACY_DEFICIT: 0.15,
     /** …or theme median RT ≥ this × child's overall median. */

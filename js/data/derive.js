@@ -9,7 +9,7 @@
  *     initiation_ms, typing_ms, input, timeout }
  */
 import { classifyAnswer, roundIsVoid } from '../engine/classify.js';
-import { newFactRecord, appendAttempt, factState, childCutoff, median } from '../engine/states.js';
+import { newFactRecord, appendAttempt, factState, childCutoff, factCutoff, median } from '../engine/states.js';
 import { processDay, newChildState } from '../engine/adapt.js';
 import { tagError } from '../engine/flags.js';
 
@@ -27,10 +27,10 @@ export function deriveState(answers, opts = {}) {
     // devices with the same merged log can derive different states.
     const clean = dedupe(answers).sort((a, b) => a.ts - b.ts || cmp(a.id, b.id));
 
-    // Typing baseline is estimated passively from real play: median typing_ms
-    // across correct answers (per input method), so a slow typer's speed
-    // cutoffs self-normalise without any explicit calibration game.
-    const baselines = opts.typingBaselines || estimateTypingBaselines(clean);
+    // Typing baseline is estimated passively from real play, per input method,
+    // and reported for diagnostics. It does not affect classification: speed
+    // is judged on initiation only, so a slow typer is never penalised.
+    const typingBaselines = opts.typingBaselines || estimateTypingBaselines(clean);
     const state = newChildState(opts);
     const audit = [];
     const days = {};
@@ -90,7 +90,7 @@ export function deriveState(answers, opts = {}) {
         }
 
         // Recompute per-fact states with per-operation personal cutoffs.
-        recomputeStates(state, baselines);
+        recomputeStates(state);
 
         // Daily adaptation (EMA, off-day guard, promote/demote).
         const res = processDay(day, processed, state);
@@ -99,22 +99,25 @@ export function deriveState(answers, opts = {}) {
         audit.push(...res.audit);
         days[day] = dayInfo;
     }
-    return { state, audit, days, classified };
+    return { state, audit, days, classified, typingBaselines };
 }
 
-/** Recompute all fact states (exported for round-end live updates). */
-export function recomputeStates(state, baselines = {}) {
-    const typing = typingOf(baselines);
+/**
+ * Recompute all fact states (exported for round-end live updates).
+ * Cutoffs are in initiation ms; the typing baseline is deliberately not an
+ * input here (see states.js childCutoff).
+ */
+export function recomputeStates(state) {
     const cutoffs = {};
     for (const [op, sym] of [['mul', 'x'], ['add', '+'], ['sub', '-']]) {
         const meds = Object.entries(state.facts)
             .filter(([id, r]) => r.state === 'FLUENT' && id.includes(sym))
-            .map(([, r]) => r.medianRt).filter(Boolean);
-        cutoffs[op] = childCutoff(meds, typing);
+            .map(([, r]) => r.medianInit).filter(Boolean);
+        cutoffs[op] = childCutoff(meds);
     }
     for (const [id, rec] of Object.entries(state.facts)) {
         const op = id.includes('x') ? 'mul' : id.includes('+') ? 'add' : 'sub';
-        rec.state = factState(rec, cutoffs[op]);
+        rec.state = factState(rec, factCutoff(id, cutoffs[op]));
     }
     return cutoffs;
 }
@@ -130,14 +133,13 @@ function dedupe(answers) {
     return [...seen.values()];
 }
 
-/** Median typing baseline across input methods (fallback default handled downstream). */
-function typingOf(baselines) {
-    const xs = Object.values(baselines).filter(Number.isFinite);
-    return xs.length ? median(xs) : undefined;
-}
-
 /** Passive typing baseline: median typing_ms of recent correct answers, per
- *  input method. Needs a handful of answers; undefined until then.
+ *  input method. Reported to parents and used for diagnostics only — it is NOT
+ *  an input to the classifier (see states.js childCutoff). The old typingOf()
+ *  helper that fed it there took a median ACROSS input methods, blending a
+ *  child's physical-keyboard and on-screen-keypad speeds into one number;
+ *  removing the coupling removes the bug with it.
+ *  Needs a handful of answers; undefined until then.
  *  MUST be fed deduped, ts-sorted answers (slice(-200) is order-sensitive). */
 export function estimateTypingBaselines(answers) {
     const byInput = {};

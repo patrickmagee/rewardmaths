@@ -351,11 +351,24 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
     padding: 2px 4px; }
 .fact-grid td { width: 22px; height: 22px; border-radius: 4px;
     border: 2px solid var(--panel-2); }
+/* Fact-map swatches. UNSETTLED is the MODAL state on a real grid, so it has to
+ * be discriminable from UNKNOWN and UNSEEN at 22px. The first pass used three
+ * stops on one blue-grey lightness ramp (all hue 215-217deg, 1.43:1 between
+ * unsettled and unknown) — measured in-browser, the two states a parent most
+ * wants to spot were camouflaged inside the dominant colour. UNSETTLED now
+ * separates by HUE toward the brand blue, not just lightness (2.50:1 vs
+ * unknown, 4.68:1 vs unseen), and UNSEEN sits on the panel background so an
+ * unplayed cell reads as an empty outline rather than a sixth data colour. */
 .fs-fluent { background: var(--good); }
 .fs-slow { background: var(--fix); }
-.fs-unknown { background: #3a4a60; }
+.fs-unsettled { background: #4b8fc4; }
+.fs-unknown { background: #3d4c63; }
 .fs-stuck { background: #e05561; }
-.fs-unseen { background: #232f42; }
+.fs-unseen { background: #18202f; }
+/* Inline legend chips: the words "blue"/"grey"/"dark blank" are unusable
+ * without the colour beside them. */
+.fs-key { display: inline-block; width: 0.85em; height: 0.85em; border-radius: 3px;
+    vertical-align: -0.08em; margin-right: 0.25em; border: 1px solid var(--panel-2); }
 .ladder { display: flex; flex-wrap: wrap; gap: 6px; }
 .lad { background: #232f42; color: var(--dim); border-radius: 8px;
     padding: 5px 10px; font-size: 0.85rem; }

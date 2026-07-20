@@ -5,6 +5,7 @@
  * non-evidence, slow-correct is accuracy-only, slow-wrong counts fully.
  */
 import { RT } from '../config.js';
+import { ACCURATE_STATES } from './states.js';
 
 /**
  * The auto-advance ceiling for a child, in ms. Defaults to the a-priori
@@ -26,7 +27,10 @@ export function ceilingMs(settings = {}) {
 /**
  * @param {object} ans   { correct, initiation_ms, typing_ms, timeout?, ceiling_ms? }
  * @param {object} fact  { medianRt, validAttempts, state } — medianRt of prior
- *                       VALID attempts (total ms); state FLUENT/SLOW/UNKNOWN/STUCK
+ *                       VALID attempts (total ms; the lapse/valid bands are
+ *                       deliberately total-time, unlike the state machine's
+ *                       speed cutoff which is initiation-only);
+ *                       state FLUENT/SLOW/UNSETTLED/UNKNOWN/STUCK
  * @returns {{ counts_for_accuracy: boolean, counts_for_rt: boolean,
  *             counts_as_retrieval: boolean, exclusion_reason: string|null }}
  */
@@ -40,8 +44,14 @@ export function classifyAnswer(ans, fact) {
     // timeouts (and with them fact states, void rounds, medals). Records
     // written before ceiling_ms existed fall back to the default.
     if (ans.timeout || total >= (ans.ceiling_ms || RT.HARD_CEILING_MS)) {
-        const settled = fact.state === 'FLUENT' || fact.state === 'SLOW';
-        return settled
+        // A timeout on a fact the child gets RIGHT is a lapse, not ignorance.
+        // UNSETTLED belongs with FLUENT/SLOW here: it means several correct
+        // answers but not yet enough history for a speed verdict, and before
+        // UNSETTLED existed those facts were labelled SLOW and took this same
+        // branch. Excluding it would force the answer wrong and knock the fact
+        // to SLOW — reintroducing exactly the spurious amber this change
+        // removed, and on the youngest facts, where it does the most damage.
+        return ACCURATE_STATES.has(fact.state)
             ? res(false, false, false, 'timeout')      // lapse on a known fact
             : res(true, false, false, 'timeout', false); // real negative evidence
     }

@@ -138,13 +138,14 @@ adaptation rule: §2 below and `docs/research/05-adaptive-engine.md`.
 Extend score records + `/api/scores` payload with per-item data:
 ```
 { fact_id: "7x8", op: "mul", correct: true,
-  initiation_ms: 1840,   // question render → first keypress (diagnostic)
-  typing_ms: 950,        // first keypress → submit (motor, subtracted)
+  initiation_ms: 1840,   // question render → first keypress (THE measure)
+  typing_ms: 950,        // first keypress → submit (motor; diagnostics only)
   round_type: "focus" | "review" | "mixed" | "sprint" | "placement" | "mtc" | "free",
   ts: <ISO> }
 ```
 Only initiation latency is diagnostic. Median per fact, never mean. Commuted pairs
-(7×8 / 8×7) stored separately, **pooled for flagging**.
+(7×8 / 8×7) stored separately, **pooled for flagging**. Since 2026-07-20 `typing_ms`
+is recorded but plays **no part in classification** — see "Speed cutoff" below.
 
 ### RT cleaning (pure function at write time; classifies, never mutates raw data)
 Every answer gets `{counts_for_accuracy, counts_for_rt, exclusion_reason}`.
@@ -152,12 +153,22 @@ Constants fixed a priori in `js/config.js` — never re-tuned after seeing a chi
 data. Ordered rules, first match wins:
 
 1. **Auto-advance at 40s** (question times out — prevention beats cleaning).
-   On UNKNOWN/STUCK fact: counts as wrong. On FLUENT/SLOW fact: attention lapse —
+   On a fact in `ACCURATE_STATES` (FLUENT/SLOW/**UNSETTLED**): attention lapse —
    excluded from both accuracy and RT (kids are on-task far less than adults; a
-   60s answer on a normally-2s fact is distraction, not forgetting).
+   60s answer on a normally-2s fact is distraction, not forgetting). On an
+   UNKNOWN/STUCK fact: counts as wrong (real negative evidence).
+   **UNSETTLED sits with FLUENT/SLOW here, updated 2026-07-20**: the child has
+   answered the fact correctly several times and only the *speed* verdict is
+   pending, so a single timeout is far more plausibly a lapse than forgetting.
+   Treating it as negative evidence would force the answer wrong and knock the
+   fact down to SLOW — reintroducing exactly the spurious amber this change set
+   out to remove, and doing it on the youngest facts, where the evidence base is
+   thinnest and the damage is worst. (Before UNSETTLED existed these facts were
+   labelled SLOW and already took the lapse branch, so this also keeps the rule's
+   behaviour unchanged rather than silently tightening it.)
    Untimed rounds are exempt — nothing auto-advances while the clock is off.
-   **Parent-tunable per child** (dashboard → Settings → question timeout), 6–30s,
-   default 12s. This is an *accessibility* dial for a child who needs longer to
+   **Parent-tunable per child** (dashboard → Settings → question timeout), 6–60s,
+   default 40s. This is an *accessibility* dial for a child who needs longer to
    answer, not a knob for tuning the engine to a child's data — the bands in
    rules 2–6 are unchanged by it. The ceiling in force is stamped on every
    answer (`ceiling_ms`), and rule 1 reads it back per-answer, so changing the
@@ -169,8 +180,21 @@ data. Ordered rules, first match wins:
    counter, not knowledge). Mashing can never drive a fact into STUCK.
 4. **Lapse-suspect**: correct but >3× that fact's median (once ≥3 valid attempts)
    → counts for accuracy, excluded from RT. A single slow-correct never demotes
-   FLUENT; only ≥2 of last 5 valid attempts over the speed cutoff → FLUENT→SLOW.
-5. **Valid band** (floor…min(ceiling, 4× fact median)) → full evidence, raw ms.
+   FLUENT; only **≥3** of last 5 valid attempts over the speed cutoff →
+   FLUENT→SLOW (`STATES.DEMOTE_SLOW_OF_5`, was 2, changed 2026-07-20). 3-of-5
+   is not a loosening so much as a symmetry fix: "≥3 of 5 over cutoff" IS
+   "the median of the last 5 is over cutoff" — the same statistic promotion
+   uses (median of last 10 under cutoff), on a shorter window. At 2-of-5,
+   demotion ran on a strictly weaker standard than promotion, so a fact could
+   satisfy both at once and oscillate; on a right-skewed RT distribution a
+   genuinely fluent fact tripped it on roughly a coin flip per window.
+5. **Valid band** — anything reaching this rule → full evidence, raw ms. The band
+   is bounded below by rule 2's floor and above by rule 1's ceiling; for *correct*
+   answers rule 4 also caps it at 3× the fact's median. `RT.VALID_MEDIAN_MULT`
+   (4×) is defined in config but **not read by any code** — the originally
+   specified 4×-median upper bound was never implemented, so a slow *wrong*
+   answer under the ceiling is full evidence however far past the median it sits
+   (which is rule 6's intent anyway).
 6. **Wrong-and-slow** → full negative evidence (effortful error = real signal).
 
 Asymmetry is deliberate: fast-wrong ignored, slow-correct accuracy-only,
@@ -178,27 +202,139 @@ slow-wrong counted. Session voided for state updates if ≥3 **disengagement**
 exclusions in a round or >20% in a session (feeds the off-day guard).
 **Disengagement means anticipations and rapid guesses only** — a child who is
 merely slow must never have their work discarded. Timeouts are *evidence*
-(rule 1: on an unsettled fact a timeout is what drives it to UNKNOWN) and
+(rule 1: on an UNKNOWN/STUCK fact a timeout is what keeps it there) and
 lapse-suspects are evidence too, so neither counts toward voiding. Voiding on
 timeouts silently deleted a real session (Eliza, 2026-07-19: 5 rounds, 42
 answers, zero fast answers) and reported it to the parent as "rapid guessing".
 Excluded trials stay in the log
 with reasons (auditable, re-runnable). Admin alarm if a child's weekly exclusion
-rate exceeds ~10–15%. Floors apply to initiation; typing baseline is subtracted
-only from total-time comparisons.
+rate exceeds ~10–15%. Floors and bands apply to **initiation**.
 
 ### Typing baseline
-30-second "type the number you see" mini-game per child, re-run quarterly. All
-latency bands are net of this — Eliza's typing speed must never read as a maths
-deficit.
+30-second "type the number you see" mini-game per child, re-run quarterly.
+**Changed 2026-07-20**: the baseline is now a *diagnostic* only (dashboard,
+`STATES.DEFAULT_TYPING_MS` as the pre-measurement placeholder). It is no longer
+subtracted from anything, because nothing classified is a total time any more.
+Its original purpose — stopping Eliza's typing speed reading as a maths deficit —
+is served more completely by not measuring typing at all. (The old `typingOf()`
+helper in `derive.js` was also *wrong*: it took a median across input methods,
+blending on-screen keypad taps with physical-keyboard presses.)
+
+### Speed cutoff (changed 2026-07-20 — initiation only)
+Speed is judged on **`initiation_ms` alone** (question shown → first keypress).
+Typing time is excluded from classification entirely.
+
+**Why.** Typing time scales with the number of digits in the answer, and digit
+count is confounded with problem size. Measured on Tom's real 471-answer log:
+median total RT on times tables 2444ms, median initiation 1756ms, and typing by
+answer length 1-digit 130ms · 2-digit 652ms · 3-digit 1113ms. A threshold on
+*total* time therefore penalises large facts twice — once for being genuinely
+harder to retrieve, once for having a longer answer to type — and paints the
+top-right of the multiplication grid amber regardless of the child.
+
+**The 2500ms floor** (`STATES.FLUENT_CUTOFF_FLOOR_NET_MS`, was 2000ms net + a
+typing baseline ≈ 2750ms total). Anchored on measured fluent latency for this
+age with minimal motor output:
+
+| Source | Method / sample | Finding |
+|---|---|---|
+| Van Beek, Ghesquière, Lagae & De Smedt 2014 | voice key, mean age 11.9 | large additions 1707ms (±415) |
+| Dickson, Grenier, Obinyan & Wicha 2022 | gamepad, grades 3–5 | large multiplications 1438ms (SE 62); **problem-size effect 317ms** |
+| Iancu et al., CogSci 2024 | tablet, typed | fluent typed *total* 2.238s |
+| npj Science of Learning 2025, n=824 | tablet | defines RT as time to **first button press**, not submit — the one age-matched tablet study, and the precedent we follow |
+| Wu et al. 2008 | experimenter manual keypress, mean age 8.05 | ROC optimum 3662.5ms — inflated by both method and younger sample |
+| Commercial anchors | — | Prodigy Grade 6+ 3s · TTRS Rock Star 3s · DfE MTC 6s (Year 4, pass/fail) |
+
+1707 and 1438 × ~1.5 lands at ~2.2–2.6s; 2500ms sits inside the age-matched
+commercial band and below Wu's inflated optimum. Fixed a priori, not fitted.
+
+**Problem-size allowance**: facts with both operands ≥6
+(`STATES.LARGE_FACT_MIN_OPERAND`) get **+300ms** on their cutoff
+(`STATES.LARGE_FACT_ALLOWANCE_MS`), from Dickson et al.'s measured 317ms
+problem-size effect. Large facts are slower *even when retrieved*; this
+formalises the §3 problem-size guard at the fact-state level instead of leaving
+it to the parent-flag layer.
+
+**Personal multiplier stays at 1.5** (`STATES.FLUENT_CUTOFF_MULT`). The floor
+above is derived as *published fluent median × ~1.5*; the personal term is
+*this child's fluent median × 1.5*. One multiplier, one meaning — a cutoff is
+always "1.5 × a fluent median", and only the median changes.
+
+A raise to 2.0 shipped and was reverted the same day (2026-07-20). The cutoff
+is **self-referential** — the fluent set is defined by the cutoff — so its fixed
+point is ≈MULT × the child's own median, and the multiplier decides what
+fraction of a child's own distribution passes. At the fixed point:
+
+| child median initiation | MULT 2.0 → cutoff (% passing) | MULT 1.5 → cutoff (% passing) |
+|---|---|---|
+| 1100ms | 2500ms (96%) | 2500ms (96%) |
+| 1800ms | 3433ms (92%) | 2500ms (77%) |
+| 2900ms | 5531ms (92%) | 3316ms (61%) |
+| 4200ms | 8011ms (92%) | 4803ms (61%) |
+
+At 2.0 the pass rate is ~92% for **every** child however slow: the criterion
+stops discriminating and merely ratifies whatever the child already does, which
+is not a fluency threshold at all. At 1.5 it degrades with slowness, which is
+the entire purpose of having one. 2.0 also carried Tom's own large-fact cutoff
+to 3812ms — past Wu et al. 2008's 3662.5ms ROC optimum that this section
+explicitly argues we must stay below — so it contradicted its own sourcing
+rather than trading against it. Guarded by literal assertions in
+`tests/states.test.js`.
+
+**Direction of risk — stated, not hidden.** The remaining 2026-07-20 changes
+loosen the criterion (floor 2000→2500ms, demotion 2-of-5→3-of-5, plus
+the large-fact allowance and the removal of typing time). Wu et al. 2008 at its
+ROC optimum achieved only **78.7% sensitivity / 72.1% specificity**, i.e.
+over-crediting fluency was already the larger failure mode of any RT criterion
+of this kind. So these changes move *with* the pre-existing bias, not against
+it. Accepted deliberately: the failure they fix (a near-all-amber fact map that
+tells the parent nothing and drags genuinely-fine facts into focus rounds) was
+concrete and observed, whereas the cost — a fact credited FLUENT slightly early
+— is self-correcting, since review rounds keep resampling it and ≥3 of 5 over
+cutoff demotes it. Revisit at 4–6 weeks against each child's own distribution.
+
+**Caveat — fluency criterion, not strategy classifier.** For **addition** a fast
+answer is not proof of retrieval: Thevenot, Barrouillet, Uittenhove & Castel
+(2016) found 10-year-olds solve even 2+3 procedurally, by fast automated
+counting. The add/sub cutoff should therefore be read as "fast enough to not be
+a bottleneck", never as "retrieved from memory". For **multiplication** the
+retrieval framing is safe — tables are retrieval-dominant from Grade 3
+(Koshmider & Ashcraft 1991).
 
 ### Fact states (rolling last 5 valid attempts across ≥2 days; last-10 for fluency)
 | State | Rule |
 |---|---|
-| FLUENT | 9 of last 10 correct AND median under the personal speed cutoff = 1.5× that child's own median RT on fluent facts (floor ~2.5–3s total incl. typing); demotes to SLOW only on ≥2 of last 5 over the cutoff |
-| SLOW | ≥80% correct in window but over the cutoff — counting/deriving; focus-round target |
+| FLUENT | 9 of last 10 correct AND **median initiation** under the personal speed cutoff = max(2500ms, 1.5× that child's own median initiation on fluent facts) + 300ms if a large fact; demotes to SLOW only on ≥3 of last 5 over the cutoff |
+| SLOW | ≥80% correct in window, enough history to judge, but median initiation over the cutoff — counting/deriving. **Diagnostic only: shown to the parent, never scheduled on** (see Scheduler, 2026-07-20) |
+| UNSETTLED | ≥80% correct, but **not yet enough history to judge speed** — <5 valid attempts, or attempts spanning <2 distinct days. Answering it right; verdict pending |
 | UNKNOWN | <80% recent accuracy, timeout-dominated, or never seen |
 | STUCK | ≥10 attempts without 3-in-a-row correct, or <60% over last 10 → feeds parent flag |
+
+**UNSETTLED added 2026-07-20.** Previously the insufficient-evidence branch fell
+through to SLOW, which was simply wrong: SLOW asserts a speed verdict the data
+could not support. It was also the dominant cause of the near-all-amber fact map
+the parent dashboard was showing. On Tom's log, 79 facts were SLOW under the old
+rules — **76 of them the insufficient-evidence branch, only 3 genuinely
+median-over-cutoff**. Under the new rules the same log gives 18 FLUENT · 0 SLOW ·
+85 UNSETTLED · 23 UNKNOWN. Related: `RT.MIN_ATTEMPTS_FOR_BANDS` 3→5, since a
+per-fact median over 3 attempts is close to noise given the right skew of
+single-trial RT (Geary 2012: M=2789ms, SD=1892).
+
+`ACCURATE_STATES` = {FLUENT, SLOW, UNSETTLED} — the set that counts as "the
+child is getting this right", used by the family mastery gate. UNSETTLED is
+**not** a weakness: `weakTargets` deliberately excludes it (an unjudged fact is
+not evidence of a problem), while the mixed round *does* include it at
+`SCHEDULER.UNSETTLED_WEIGHT` 1.5, because the way an unsettled fact settles is
+by being seen again.
+
+**Parent decision, 2026-07-20 — speed is a *reading*, not an instruction.**
+None of the three accurate states buys a fact extra repetitions any more. SLOW
+and FLUENT are scheduled identically; only UNKNOWN/STUCK (the child is getting
+it *wrong*) drive remediation. Rationale, verbatim: *"it's training, not a
+test"* — a child must never be drilled harder for thinking slowly. This is why
+the whole of §3's flag layer keys on the weak states rather than on latency, and
+why the only remaining speed term anywhere in scheduling is `UNSETTLED_WEIGHT`,
+which is a request for more data, not a verdict on the child.
 
 Cutoffs are per operation (subtraction legitimately slower than addition) and use
 only answers the §2 RT rules marked valid — fast-wrongs and lapses never move a state.
@@ -214,10 +350,33 @@ only answers the §2 RT rules marked valid — fast-wrongs and lapses never move
 - Seed Eliza's placement rounds with a higher share of likely-known facts.
 
 ### Scheduler
-- Focus round: 2–3 UNKNOWN/SLOW facts with highest error-weighted staleness, each
+
+**Speed does not influence what a child is served (parent decision, 2026-07-20).**
+In the parent's words: *"it's training, not a test."* A fact the child answers
+correctly is a fact the child knows, whether they recalled it or worked it out,
+and being slow must never earn extra drilling. Concretely:
+
+- `weakTargets()` (focus rounds) means **the child is getting it wrong** —
+  UNKNOWN or STUCK only. SLOW is gone from it, and UNSETTLED was never eligible.
+- `mixedRound()` weights SLOW at 1×, identical to FLUENT. The old 2.5× boost was
+  `SCHEDULER.SLOW_WEIGHT`; it is now `SCHEDULER.STALE_WEIGHT` and applies **only**
+  to facts unseen for `FACT_STALE_DAYS`. Staleness is still a reason to
+  resurface a fact; slowness is not.
+- SLOW is still derived, still on the parent's fact map, and still feeds the
+  struggle-flag playbook (`flagType` → "slow"). It simply has no vote in
+  scheduling. Diagnosis and remediation are separated on purpose: a parent may
+  want to know a child is counting rather than recalling; the child must not be
+  punished with repetitions for it.
+
+Round shapes:
+- Focus round: 2–3 UNKNOWN/STUCK facts with highest error-weighted staleness, each
   repeated 2–3× within the round at increasing spacing, embedded ~80/20 in knowns.
 - Review round: mastered table with oldest `last_seen`.
-- Mixed round: samples all met categories, weighted toward SLOW facts.
+- Mixed round: samples all met categories at 1×, plus UNSETTLED facts at
+  `SCHEDULER.UNSETTLED_WEIGHT` 1.5 (since 2026-07-20) and stale facts at
+  `SCHEDULER.STALE_WEIGHT` 2.5. The UNSETTLED boost is **not** a speed judgement —
+  extra exposure is exactly what resolves an unsettled fact into a verdict.
+  Focus-round `weakTargets` excludes UNSETTLED: unjudged ≠ weak.
 - Blocked (single-table) rounds only briefly when introducing a new weak table,
   until 80–90% accuracy — then it joins mixed (interleaving hurts novices).
 - Warm-up blocked rounds share the focus slot **day-about** with the true focus
@@ -244,7 +403,9 @@ no carry → 13. with carry/borrow.
 - Tag `crosses_10`/`crosses_decade` as fact features so the expected RT step at
   the bridge isn't misread as STUCK.
 - **Mastery gate to admit the next family**: family EMA ≥0.85 AND ≥80% of its
-  circulating facts FLUENT/SLOW AND sustained ≥2 sessions on ≥2 days. (Direct
+  circulating facts in `ACCURATE_STATES` (FLUENT/SLOW/UNSETTLED — updated
+  2026-07-20; the gate has always been about accuracy, and UNSETTLED facts are
+  accurate) AND sustained ≥2 sessions on ≥2 days. (Direct
   child RCT: *higher* preset success rates → more volume AND bigger gains — don't
   force errors if a kid cruises at 92%.)
 - Only the current frontier family feeds the 3–6 unknown slots; newly unlocked
@@ -334,11 +495,178 @@ from the §2 ladder.
 | State | Trigger | Visibility |
 |---|---|---|
 | Watching | early weak signal (first 3–5 attempts poor) | dashboard only |
-| Flagged | ≥20–30 attempts AND deficit vs child's own same-week baseline (theme−overall accuracy; theme÷overall median RT — differencing cancels global bad days) AND persists ≥3 sessions on ≥3 days | daily email |
+| Flagged | **structural**: ≥3 of the theme's facts durably weak, ≥80% of the theme durably weak, and that share ≥0.15 above the child's own baseline — **corroborated** by a live window deficit vs the child's same-week baseline (theme−overall accuracy; theme÷overall **median initiation** — differencing cancels global bad days) over ≥`MIN_ATTEMPTS_WATCHING` attempts on ≥3 days | daily email |
 | Resolved | ≥60–70% of theme facts fluent, or not re-confirmed in 2 weeks | email notes clearance |
 
+#### Escalation is structural, not volumetric (changed 2026-07-20)
+
+Earlier the same day, `FLAGS.MIN_ATTEMPTS` (24 attempts of evidence) was
+softened from window-only to window-**or**-cumulative. That was the right
+diagnosis and an insufficient fix. The defect is not *which window* the
+attempts are counted over — it is that **any** count of attempts is chosen by
+the scheduler, and the scheduler serves weak themes less:
+
+- UNKNOWN facts are excluded from mixed rounds entirely and rationed to
+  `FOCUS_WEAK_FACTS` per focus round; review rounds draw only from mastered
+  material.
+- Measured over 45 simulated days: a weak theme's facts carry **4.1** attempts
+  each against a healthy theme's **10.0**. Only 23% of the weak child's table-7
+  facts cleared the 5-attempt "measured" bar, against 65% for the steady twin —
+  so the corroboration test typically ran on a denominator of one or two facts.
+- The cumulative path did not rescue it: cumulative weak attempts plateaued at a
+  median of 15 against a bar of 24, clearing in only ~15% of post-placement
+  evaluations. Sensitivity measured **64.8%** [59.9–69.4], n=392 paired seeds.
+
+This is the *same defect class* as the UNSETTLED bug, one layer up: a
+quantity-of-evidence threshold that is anti-correlated with the thing it gates
+on. The fix is to stop gating on quantity at all.
+
+**The escalation test is now inverted.** The per-fact state distribution decides
+whether a theme is weak; the trailing window only corroborates that the problem
+is live and currently visible.
+
+1. **Durably weak, per fact.** A fact votes only if it is UNKNOWN/STUCK **and**
+   the child has failed it on ≥`MIN_DAYS` (3) distinct days spanning
+   ≥`DURABLE_MIN_SPAN_DAYS` (7) **calendar** days. Calendar time is the one
+   field the scheduler cannot allocate — a fact cannot be made older by serving
+   it more. This is also the guard against the opposite error, flagging a table
+   the child met on Tuesday: measured span for a genuinely weak fact is 18–20
+   days, for a newly-introduced one 2–5. Both terms are load-bearing (days alone
+   passes a table drilled hard for three days; span alone passes a fact touched
+   once in placement and once a month later). `DURABLE_MIN_SPAN_DAYS` is
+   inherited from `MIN_FLAG_DAYS`: a fact must have been failing for at least as
+   long as the flag it would raise is required to last.
+2. **Near-total, per theme.** ≥`WEAK_FACT_SHARE` (**0.80**, raised from 0.50) of
+   the theme's facts durably weak, and ≥`MIN_DURABLE_WEAK_FACTS` (3) of them.
+   0.80 is `ADAPT.PROMOTE_FACTS_OK` read backwards — the ladder calls a family
+   learned at 80% accurate facts, so a theme is failing at 80% durably-weak
+   ones. A **simple majority does not work here**, and the reason is structural
+   rather than empirical: every learner has a frontier, and a not-yet-taught
+   table is by definition mostly unlearned, so "more weak than not" describes
+   the curriculum edge as well as it describes a broken theme. Measured
+   `durableShare`: weak table-7 p10 **0.82**, median 1.00; the steady twin's
+   worst untaught table p90 **0.70**, median 0.60. The bar sits in that gap by
+   derivation, and the measurement confirms it rather than choosing it. The
+   3-fact floor is `MIN_DAYS` applied to facts instead of days: three failing
+   facts, as the window demands three failing days. Two facts is a fact problem,
+   not a theme problem, and "work on your 5s" is the wrong instruction for it.
+3. **Relative to the child's own baseline.** The share must exceed the child's
+   durable-weak share across comparable themes (tables vs tables, ladder
+   families vs families) by ≥`WEAK_SHARE_DEFICIT` (0.15) — inherited from
+   `ACCURACY_DEFICIT`, the same "this far below the child's own baseline"
+   construct applied to the state distribution instead of to a fortnight's
+   accuracy. Without it a child who is behind on everything gets a dashboard of
+   solid amber, which tells a parent nothing.
+4. **Corroboration.** The window must still show a real deficit on
+   ≥`MIN_ATTEMPTS_WATCHING` attempts across ≥`MIN_DAYS` days. It no longer
+   decides *whether* there is a problem, only that it is still live.
+
+`FLAGS.MIN_ATTEMPTS` and `MIN_FACT_ATTEMPTS_FOR_EVIDENCE` are **deleted** —
+every volume gate is gone from escalation by design.
+
+Measured effect, 400 paired seeds (weak-7s persona vs identically-seeded steady
+twin, 45 days each):
+
+| | before (window+cumulative) | after (structural) |
+|---|---|---|
+| sensitivity (weak table-7 flagged) | 64.8% [59.9–69.4] | **88.0% [84.5–90.8]** |
+| false table-7 on the steady twin | 0.0% | 0.5% |
+| mean false flags / steady seed | 0.05 | 0.25 (bar 0.40) |
+| newly-introduced-table false positives | 3 of 6 scenarios at **100%** | **0%** |
+
+The specificity cost is real and is stated: 0.05 → 0.25 false flags per steady
+run. It buys +23pt of sensitivity and eliminates the new-table false positive
+the old implementation's own comment claimed to prevent and did not. Residual
+false flags are concentrated in small ladder families (4–5 facts), where the
+3-fact floor is a weak denominator guard; revisit if a real dashboard shows it.
+
+**Known limits, unchanged.** `FLAGS.MIN_DAYS` counts days the theme was
+*played*, not days the deficit *persisted*, and the temporal machinery
+(`prevFlags`, expiry, `MIN_FLAG_DAYS`) is still unreachable while both call
+sites pass `{}` — a real persistence test needs rolling evaluation and is not
+yet built. The structural criterion also makes the parent-facing alarm depend
+primarily on the derived fact-state *cache* rather than directly on the log, so
+a change to the state machine's thresholds now moves the flag layer too. That is
+an accepted coupling, not an oversight: the states are themselves a pure fold of
+the log, and no stored state was added (`spanDays` is computed from the existing
+capped `attempts` array).
+
+**Speed is judged on initiation here too**, matching §2. The flag layer was left
+on total RT when the state machine moved to initiation, so the fact map and the
+parent-facing flag disagreed about what "slow" means, and typing time — which
+scales with answer digit count — leaked into a theme-level comparison where
+large-answer themes (the 12s) systematically carry more of it.
+
+**How the flag checks are tested (changed 2026-07-20).** `tests/simulate.js`
+asserted a *single seed's* flag outcome. That is not a valid test of this
+system: `persona.rng` is shared between scheduler item-selection and answer
+generation, so any change touching the round-building path — **including a pure
+relabel that alters no semantics** — reshuffles every subsequent draw across 45
+simulated days. The old assertions sat on a knife edge (the weak persona's
+table-7 cleared `MIN_ATTEMPTS` by exactly zero margin), and a control that adds
+one wasted `rng()` call and changes nothing else flips them both. They were
+reading a coin flip, not the engine.
+
+They are now **seed-averaged over paired runs** — the same seed played once with
+a weak 7s table and once without, so the headline check is *discrimination*
+between the two rather than a base rate.
+
+**SEEDS 20 → 100 (2026-07-20). The 70% bar is unchanged, deliberately.** Seed
+averaging alone did not make the gate meaningful: at n=20 the 95% CI on a rate
+near 0.7 is roughly ±20pt, and measured over 392 seeds the engine that set the
+70% bar had a *true* sensitivity of 70.2% — so it failed its own gate about 39%
+of the time. Twenty-seed block rates ranged 50–85% on unchanged code. An
+assertion that fails two runs in five trains people to re-run it, and a bar
+lowered until it goes green guards nothing; the fix for an underpowered test is
+sample size. At n=100 with measured sensitivity **88.0% [84.5–90.8]** (n=400),
+the whole interval sits ~18pt clear of the bar and P(spurious failure) ≈ 1e-7.
+Cost: ~30s.
+
+Current margins: sensitivity 89% (bar 70%), false-positive rate 0% (bar 20%),
+discrimination gap 89pt (bar 50pt), ≤1 flag in 97% of steady seeds (bar 60%),
+false flags 0.24/seed (bar 0.40). Bars sit between measured regimes, not at
+observed values.
+
+The simulation also now logs `initiation_ms` on every synthetic answer. It did
+not, so `flags.js` silently fell back to total RT and the mandatory pre-ship
+gate was **not exercising** the initiation metric it was supposed to validate.
+
+**Mutation results (2026-07-20)** — every new assertion verified to fail when
+the behaviour it guards is reverted:
+
+| mutation | assertion that failed |
+|---|---|
+| span gate removed (`spanDays` → always true) | a table introduced this week is not flagged |
+| distinct-days gate removed | wide span but only two days does not flag |
+| `WEAK_FACT_SHARE` gate removed | a half-failing theme is mid-acquisition, not a weak theme |
+| `MIN_DURABLE_WEAK_FACTS` floor removed | a two-fact theme does not flag however weak |
+| baseline-relative term removed | theme level with the child's own baseline does not flag |
+| structural term dropped from escalation | window deficit on a fluent theme does not flag |
+| window volume gate reintroduced (old 24) | starved-but-failing theme still flags |
+| bare-state-map back-compat broken | bare state map still evaluates |
+| evidence reports baseline as its own share | share stands out from the child's own baseline |
+| `blockedRound` table branch reverted | scheduler test throws (the pre-existing crash) |
+| flag forced always-off (`DURABLE_MIN_SPAN_DAYS` 60) | sim sensitivity 0% + discrimination, both fail |
+| flag forced near-always-on (`WEAK_FACT_SHARE` 0.20) | sim false flags 1.02/seed, fails |
+
+Still standing from earlier the same day: flag speed metric reverted to total
+RT → typing-only unit test fails; `FLUENT_CUTOFF_MULT` restored to 2.0 → three
+`states.test.js` assertions fail.
+
+**Incidental fix, same day: a real crash.** `adapt.js` keys demotion evidence by
+`familyOf()`, which returns `table-N` for multiplication, so a mastered times
+table that collapses is pushed into `warmupFamilies` and reaches
+`blockedRound()`. Table ids are not `familyFacts()` members, so it fell through
+to the parametric sampler, which has no members for a table, and threw
+`Cannot read properties of null` — a hard crash of round building **in the child
+app**, hit by ~1 simulated run in 250 (4–6 of 400 on master). `blockedRound()`
+now resolves `table-N` via `tableFacts()`, which is the behaviour a demotion
+implies anyway: a broken table gets blocked warm-up rounds.
+
 - **Problem-size guard**: 6×7/7×8/8×9 are always slower than 2s/5s — judge against
-  the child's own comparable-fact baseline, never a global threshold.
+  the child's own comparable-fact baseline, never a global threshold. Since
+  2026-07-20 the fact-state layer also carries its own +300ms large-fact
+  allowance (§2), so this guard is a second line rather than the only one.
 - Slow-but-correct during learning is healthy — flag only "no RT improvement over
   2 weeks of regular play".
 - Absolute backstop: theme "on track" needs ~30–40 dcpm equivalent + ≥90% accuracy

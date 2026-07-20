@@ -90,17 +90,28 @@ export function focusRound(state, ctx, rng) {
     return { round_type: 'focus', items: items.slice(0, n), untimed };
 }
 
-/** Mixed: interleaved across all learned material, weighted toward SLOW. */
+/**
+ * Mixed: interleaved across all learned material.
+ *
+ * Selection is deliberately blind to SPEED (parent decision 2026-07-20).
+ * A fact the child gets right is a fact the child knows, whether they recalled
+ * it or worked it out — practice is allocated on accuracy and staleness only.
+ * SLOW is still computed and still shown on the parent's fact map, but it no
+ * longer buys a fact extra repetitions: this is training, not a test, and
+ * nobody gets drilled for thinking. UNSETTLED keeps a mild boost, which is not
+ * a speed judgement — it is simply the fact needing more attempts before any
+ * verdict is possible.
+ */
 export function mixedRound(state, ctx, rng) {
     const pool = [];
     for (const [id, rec] of Object.entries(state.facts)) {
-        if (rec.state === 'FLUENT') pool.push({ id, w: 1 });
-        else if (rec.state === 'SLOW') pool.push({ id, w: SCHEDULER.SLOW_WEIGHT });
+        if (rec.state === 'FLUENT' || rec.state === 'SLOW') pool.push({ id, w: 1 });
+        else if (rec.state === 'UNSETTLED') pool.push({ id, w: SCHEDULER.UNSETTLED_WEIGHT });
     }
-    // Stale-fact reinjection.
+    // Stale-fact reinjection — staleness IS still a reason to resurface a fact.
     for (const [id, rec] of Object.entries(state.facts)) {
         if (rec.lastSeenDay && daysBetween(rec.lastSeenDay, ctx.day) >= SCHEDULER.FACT_STALE_DAYS) {
-            pool.push({ id, w: SCHEDULER.SLOW_WEIGHT });
+            pool.push({ id, w: SCHEDULER.STALE_WEIGHT });
         }
     }
     // Parametric variety from unlocked two-digit families.
@@ -112,9 +123,19 @@ export function mixedRound(state, ctx, rng) {
     return { round_type: 'mixed', items, untimed: false };
 }
 
-/** Blocked warm-up round for a family/table still under the accuracy gate. */
+/**
+ * Blocked warm-up round for a family/table still under the accuracy gate.
+ *
+ * `family` may be a times table: adapt.js keys demotion evidence by familyOf(),
+ * which returns `table-N` for multiplication, so a mastered table that collapses
+ * is pushed into warmupFamilies and lands here. That is the right behaviour —
+ * a broken table should get blocked warm-up rounds — but table ids are not in
+ * familyFacts(), which returned null and sent the parametric sampler looking for
+ * members it does not have (crash: `members.length` of null, ~1 run in 250).
+ */
 export function blockedRound(state, family, rng) {
-    const pool = familyFacts(family) ||
+    const table = /^table-(\d+)$/.exec(family);
+    const pool = (table ? tableFacts(+table[1]) : familyFacts(family)) ||
         Array.from({ length: 20 }, () => sampleFamily(family, rng));
     const items = pick(pool, SCHEDULER.QUESTIONS_PER_ROUND, rng)
         .map((f, i) => ({ fact_id: f, model: i < 2 && !state.facts[f] }));
@@ -163,16 +184,27 @@ export function placementRound(state, ctx, rng) {
  * Facts already in circulation (seen, weak) come first; brand-NEW facts are
  * introduced only from the current working table (times-table ladder) and
  * only when circulation has room.
+ *
+ * "Weak" means the child is getting it WRONG — UNKNOWN or STUCK. Neither
+ * UNSETTLED nor SLOW qualifies (parent decision 2026-07-20):
+ *   - UNSETTLED is being answered correctly and has simply not been met often
+ *     enough for a verdict. Treating it as a struggle — which is what happened
+ *     while these facts were mislabelled SLOW — spent focus rounds re-teaching
+ *     facts the child already had.
+ *   - SLOW is also being answered correctly, just by working it out rather than
+ *     recalling it. That is worth showing a parent, but it is not a failure and
+ *     it does not earn remediation. Training, not a test.
+ * Accuracy and staleness are the only inputs left.
  */
 export function weakTargets(state, ctx) {
     const budgetLeft = id =>
         (ctx.retrievalsToday[id] || 0) < SCHEDULER.MAX_RETRIEVALS_PER_FACT_PER_DAY;
     const existing = Object.entries(state.facts)
-        .filter(([id, r]) => (r.state === 'UNKNOWN' || r.state === 'STUCK' || r.state === 'SLOW') && budgetLeft(id))
+        .filter(([id, r]) => (r.state === 'UNKNOWN' || r.state === 'STUCK') && budgetLeft(id))
         .map(([id, r]) => ({
             id,
             isNew: false,
-            score: (r.state === 'SLOW' ? 1 : 2) +
+            score: 2 +
                 stalenessDays(r, ctx.day) / 10 +
                 errorRate(r) * 2 -
                 difficultyScore(id) / 100, // prefer easier weak facts first
@@ -186,14 +218,13 @@ export function weakTargets(state, ctx) {
         .sort((a, b) => difficultyScore(a) - difficultyScore(b))
         .map(id => ({ id, isNew: true, score: 0 }));
 
+    // Every candidate is now UNKNOWN/STUCK/new, so all of them consume the
+    // circulation budget — the old `st !== 'SLOW'` exemption is gone with SLOW.
     const out = [];
     let unknowns = 0;
     for (const c of [...existing, ...fresh]) {
-        const st = c.isNew ? 'UNKNOWN' : state.facts[c.id].state;
-        if (st !== 'SLOW') {
-            if (unknowns >= Math.min(state.unknownCirculation, SCHEDULER.FOCUS_WEAK_FACTS)) continue;
-            unknowns++;
-        }
+        if (unknowns >= Math.min(state.unknownCirculation, SCHEDULER.FOCUS_WEAK_FACTS)) continue;
+        unknowns++;
         out.push(c);
         if (out.length >= SCHEDULER.FOCUS_WEAK_FACTS) break;
     }
@@ -213,7 +244,7 @@ export function workingTable(state) {
 function rankedKnowns(state) {
     return Object.entries(state.facts)
         .filter(([, r]) => r.state === 'FLUENT')
-        .sort(([, a], [, b]) => a.medianRt - b.medianRt)
+        .sort(([, a], [, b]) => a.medianInit - b.medianInit)
         .map(([id]) => id);
 }
 

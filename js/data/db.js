@@ -1,7 +1,13 @@
 /**
  * IndexedDB layer (browser-only; the pure logic lives in derive.js/sync.js).
- * Stores: answers (by user+day), profiles, meta (typing baselines, sync
- * cursors, cached derived state).
+ * Stores: answers (by user+day), profiles, meta.
+ *
+ * `meta` is a small key/value store for sync bookkeeping only — its sole
+ * writer is sync.js (`lastSync:<user>` timestamps). Derived state is NEVER
+ * persisted: fact states, family EMAs, streaks, medals and flags are rebuilt
+ * from the raw answer log by deriveState() on every load (js/game/main.js
+ * refreshDerived, js/parent/admin.js), so there is no derived-state cache
+ * here to go stale or to migrate.
  */
 const DB_NAME = 'RewardMathsV5';
 const DB_VERSION = 1;

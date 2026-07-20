@@ -12,7 +12,8 @@
  */
 import { buildDailyRounds } from '../js/engine/scheduler.js';
 import { classifyAnswer, roundIsVoid } from '../js/engine/classify.js';
-import { newFactRecord, appendAttempt, factState, childCutoff } from '../js/engine/states.js';
+import { newFactRecord, appendAttempt, FACT_STATES } from '../js/engine/states.js';
+import { recomputeStates } from '../js/data/derive.js';
 import { processDay, newChildState } from '../js/engine/adapt.js';
 import { evaluateFlags, tagError } from '../js/engine/flags.js';
 import { parseFact, familyOf, tableFacts } from '../js/engine/facts.js';
@@ -104,6 +105,11 @@ function simulate(persona, days = 60, seedState) {
                 }
                 dayAnswers.push({
                     fact_id: id, day, correct: ans.correct && !cls.forced_wrong,
+                    // initiation_ms must be logged: flags.js judges speed on
+                    // initiation and silently falls back to total rt without it,
+                    // so omitting it here left the pre-ship gate exercising the
+                    // OLD metric against the new thresholds.
+                    initiation_ms: ans.initiation_ms,
                     rt: ans.initiation_ms + ans.typing_ms, cls,
                     round_type: round.round_type, void: false,
                     given: ans.correct ? parseFact(id).answer : parseFact(id).answer + 1,
@@ -123,7 +129,6 @@ function simulate(persona, days = 60, seedState) {
 
         // Apply attempts → fact records + states (as the app does per round).
         const factsBefore = structuredClone(state.facts); // off-day rollback (DESIGN §2)
-        const cutoffCache = {};
         for (const a of dayAnswers) {
             if (a.void) continue;
             const rec = state.facts[a.fact_id] || newFactRecord();
@@ -131,17 +136,13 @@ function simulate(persona, days = 60, seedState) {
                 { correct: a.correct, initiation_ms: a.rt - persona.opts.typing, typing_ms: persona.opts.typing },
                 a.cls, day);
         }
-        for (const op of ['mul', 'add', 'sub']) {
-            const sym = { mul: 'x', add: '+', sub: '-' }[op];
-            const meds = Object.entries(state.facts)
-                .filter(([id, r]) => r.state === 'FLUENT' && id.includes(sym))
-                .map(([, r]) => r.medianRt).filter(Boolean);
-            cutoffCache[op] = childCutoff(meds, persona.opts.typing);
-        }
-        for (const [id, rec] of Object.entries(state.facts)) {
-            const op = id.includes('x') ? 'mul' : id.includes('+') ? 'add' : 'sub';
-            rec.state = factState(rec, cutoffCache[op]);
-        }
+        // Call the SHIPPED fold rather than re-implementing it. This block used
+        // to be a third copy of recomputeStates() and had silently drifted:
+        // after speed classification moved to initiation, it was still feeding
+        // medianRt to a childCutoff() that no longer took a typing argument and
+        // skipping the problem-size allowance — so the mandatory pre-ship gate
+        // was validating the old metric against the new thresholds.
+        recomputeStates(state);
 
         // Daily adaptation.
         const res = processDay(day, dayAnswers, state);
@@ -158,9 +159,15 @@ function dayStr(i) {
     return d.toISOString().slice(0, 10);
 }
 
+/** Tally by fact state. Derived from FACT_STATES so adding a state can never
+ *  silently NaN a bucket (a hardcoded list did exactly that when UNSETTLED
+ *  landed: c['UNSETTLED']++ on an absent key printed as null). */
 function counts(state) {
-    const c = { FLUENT: 0, SLOW: 0, UNKNOWN: 0, STUCK: 0 };
-    for (const r of Object.values(state.facts)) c[r.state]++;
+    const c = Object.fromEntries(FACT_STATES.map(s => [s, 0]));
+    for (const r of Object.values(state.facts)) {
+        if (!(r.state in c)) throw new Error(`unknown fact state: ${r.state}`);
+        c[r.state]++;
+    }
     return c;
 }
 
@@ -231,36 +238,95 @@ console.log('\n== slow typer (accurate, 2.5s typing) ==');
 }
 
 console.log('\n== weak-7s child (flags should fire while 7s are worked) vs steady ==');
+/*
+ * These checks are SEED-AVERAGED, deliberately (2026-07-20).
+ *
+ * They used to assert a single seed's outcome. That is not a valid test of this
+ * system: persona.rng is shared between scheduler item-selection and answer
+ * generation, so any change to the round-building code path — including a pure
+ * relabel that alters no semantics — reshuffles every subsequent draw over 45
+ * simulated days. A single seed therefore reports one draw from a chaotic
+ * process, and the old assertions happened to sit on a knife edge (the weak
+ * child's table-7 cleared the then-FLAGS.MIN_ATTEMPTS bar, since removed, by
+ * exactly zero margin). A control
+ * that adds one wasted rng() call and changes nothing else flips them both.
+ *
+ * A rate over many seeds measures what the checks claim to measure. But 20
+ * seeds does not: at n=20 the 95% CI on a rate near 0.7 is roughly ±20pt, so
+ * `hitRate >= 0.70` was a coin flip — measured over 392 seeds, the engine that
+ * set that bar had a true sensitivity of 70.2% and therefore failed its OWN
+ * gate about 39% of the time. An assertion that fails two runs in five on
+ * unchanged code guards nothing and trains people to re-run it.
+ *
+ * SEEDS = 100 (2026-07-20). The BAR IS UNCHANGED at 0.70 — deliberately; the
+ * fix for an underpowered test is sample size, never a friendlier threshold.
+ * What changed is that the estimate is now tight enough for the bar to mean
+ * something: measured over 400 paired seeds the structural criterion's
+ * sensitivity is 88.0% (95% Wilson CI 84.5-90.8), so at n=100 the whole
+ * interval sits ~18pt clear of the bar and P(spurious failure) is ~1e-7. The
+ * other bars are set between measured regimes, not at observed values — see
+ * the mutation table in DESIGN §3.
+ *
+ * Costs ~30s. That is the price of a gate whose verdict is reproducible.
+ */
 {
-    const rng = seededRng(5);
-    const p = new Persona('weak7s', { baseSkill: 0.8, weakTables: [7], roundsPerDay: () => 4 }, rng);
-    const { state, answerLog } = simulate(p, 45);
-    const factStates = Object.fromEntries(Object.entries(state.facts).map(([id, r]) => [id, r.state]));
-    // Evaluate weekly with a trailing 14-day window, as the app will.
-    let sevensFlagged = false;
-    const allFlagged = new Set();
-    for (let d = 14; d < 45; d += 7) {
-        const win = answerLog.filter(a => a.day >= dayStr(d - 14) && a.day <= dayStr(d) && !a.void);
-        const flags = evaluateFlags(win, {}, factStates, dayStr(d));
-        for (const [t, f] of Object.entries(flags)) {
-            if (f.state === 'flagged') { allFlagged.add(t); if (t === 'table-7') sevensFlagged = true; }
+    const SEEDS = 100;
+    /** Play one persona for 45 days and return every theme ever flagged. */
+    function flaggedThemes(persona) {
+        const { state, answerLog } = simulate(persona, 45);
+        const flagged = new Set();
+        // Evaluate weekly with a trailing 14-day window, as the app does. Pass
+        // the full fact RECORDS — evaluateFlags reads cumulative attempts.
+        for (let d = 14; d < 45; d += 7) {
+            const win = answerLog.filter(a => a.day >= dayStr(d - 14) && a.day <= dayStr(d) && !a.void);
+            for (const [t, f] of Object.entries(evaluateFlags(win, {}, state.facts, dayStr(d)))) {
+                if (f.state === 'flagged') flagged.add(t);
+            }
         }
+        return flagged;
     }
-    console.log(`  themes flagged at any point: ${JSON.stringify([...allFlagged])}`);
-    check(sevensFlagged, 'weak 7s table gets flagged while being worked');
 
-    const rng2 = seededRng(6);
-    const p2 = new Persona('steady2', { baseSkill: 0.8, roundsPerDay: () => 4 }, rng2);
-    const sim2 = simulate(p2, 45);
-    const fs2 = Object.fromEntries(Object.entries(sim2.state.facts).map(([id, r]) => [id, r.state]));
-    const flagged2 = new Set();
-    for (let d = 14; d < 45; d += 7) {
-        const win = sim2.answerLog.filter(a => a.day >= dayStr(d - 14) && a.day <= dayStr(d) && !a.void);
-        const flags = evaluateFlags(win, {}, fs2, dayStr(d));
-        for (const [t, f] of Object.entries(flags)) if (f.state === 'flagged') flagged2.add(t);
+    let weakHit = 0, steadyQuiet = 0, steadyFalse7 = 0;
+    let weakFlagTotal = 0, steadyFlagTotal = 0;
+    for (let i = 0; i < SEEDS; i++) {
+        const weak = flaggedThemes(new Persona('weak7s',
+            { baseSkill: 0.8, weakTables: [7], roundsPerDay: () => 4 }, seededRng(100 + i)));
+        // Same seed, same everything, EXCEPT the 7s are not weak. The paired
+        // control is what makes this a discrimination test rather than a
+        // base-rate test.
+        const steady = flaggedThemes(new Persona('steady2',
+            { baseSkill: 0.8, roundsPerDay: () => 4 }, seededRng(100 + i)));
+        if (weak.has('table-7')) weakHit++;
+        if (steady.has('table-7')) steadyFalse7++;
+        if (steady.size <= 1) steadyQuiet++;
+        weakFlagTotal += weak.size;
+        steadyFlagTotal += steady.size;
     }
-    console.log(`  steady child flags: ${JSON.stringify([...flagged2])}`);
-    check(flagged2.size <= 1, `steady child mostly unflagged (${flagged2.size})`);
+    const hitRate = weakHit / SEEDS, falseRate = steadyFalse7 / SEEDS, quietRate = steadyQuiet / SEEDS;
+    console.log(`  weak-7s child: table-7 flagged in ${weakHit}/${SEEDS} seeds ` +
+        `(${(weakFlagTotal / SEEDS).toFixed(1)} themes flagged/seed)`);
+    console.log(`  steady twin:   table-7 flagged in ${steadyFalse7}/${SEEDS} seeds ` +
+        `(${(steadyFlagTotal / SEEDS).toFixed(1)} themes flagged/seed), ` +
+        `≤1 flag in ${steadyQuiet}/${SEEDS}`);
+
+    // Sensitivity: a genuinely weak table is usually caught.
+    check(hitRate >= 0.70, `weak 7s table flagged in most seeds (${(hitRate * 100).toFixed(0)}%)`);
+    // Specificity: the same table in a child who is fine is usually not caught.
+    check(falseRate <= 0.20, `steady twin's 7s rarely flagged (${(falseRate * 100).toFixed(0)}%)`);
+    // Discrimination — the check that actually guards the construct. It fails
+    // if the flag goes dead (hitRate→0) AND if it fires on everything
+    // (falseRate→hitRate), so neither degenerate engine can pass it.
+    check(hitRate - falseRate >= 0.50,
+        `flag discriminates weak 7s from steady 7s (${((hitRate - falseRate) * 100).toFixed(0)}pt gap)`);
+    // The dashboard must stay readable: a steady child is not a wall of amber.
+    check(quietRate >= 0.60, `steady child mostly unflagged (${(quietRate * 100).toFixed(0)}% of seeds ≤1 flag)`);
+    // Mean false flags per steady seed is the SENSITIVE specificity measure —
+    // the ≤1-flag rate above saturates and hides regressions. Measured: 0.1
+    // with fact-state corroboration, 0.9 without it (a 9× swing that the
+    // saturating check only registered as 100%→80%). The 0.4 bar sits between
+    // the two measured regimes.
+    check(steadyFlagTotal / SEEDS <= 0.4,
+        `steady child accrues few false flags (${(steadyFlagTotal / SEEDS).toFixed(2)}/seed)`);
 }
 
 console.log(failures ? `\n${failures} CHECKS FAILED` : '\nall simulation checks passed');

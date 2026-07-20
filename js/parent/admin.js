@@ -222,8 +222,9 @@ async function kidSection(kid) {
     // Struggle flags over the trailing 14 days.
     const winStart = lastNDays(today, 14)[0];
     const recent = classified.filter(a => a.day >= winStart && !a.void);
-    const factStates = Object.fromEntries(Object.entries(state.facts).map(([id, r]) => [id, r.state]));
-    const flags = evaluateFlags(recent, {}, factStates, today);
+    // Full fact RECORDS, not bare states: evaluateFlags needs cumulative
+    // attempts to tell "measured and failing" from "barely met" (DESIGN §3).
+    const flags = evaluateFlags(recent, {}, state.facts, today);
     const flagged = Object.entries(flags).filter(([, f]) => f.state === 'flagged');
 
     // Exclusion-rate alarm.
@@ -258,7 +259,21 @@ async function kidSection(kid) {
             <div class="panel">
                 <h3>Times tables — fact map</h3>
                 ${factGrid(state)}
-                <div class="dim small">green fluent · amber slow (counting) · grey not settled · red stuck</div>
+                <div class="dim small">
+                    <span class="fs-key fs-fluent"></span>recalled ·
+                    <span class="fs-key fs-slow"></span>right, but working it out ·
+                    <span class="fs-key fs-unsettled"></span>too few attempts to judge yet ·
+                    <span class="fs-key fs-unknown"></span>not secure yet ·
+                    <span class="fs-key fs-stuck"></span>stuck ·
+                    <span class="fs-key fs-unseen"></span>not shown yet</div>
+                <div class="dim small">Most of a new grid is “too few attempts” — that is missing
+                    evidence, not weakness. A fact needs 5 attempts across 2 days before its speed
+                    is judged at all. Hover a square for that fact's thinking time.</div>
+                <div class="dim small">Speed is shown here for your information only: it never
+                    changes what ${kid.name} is given to practise, and working an answer out is
+                    never treated as a mistake. Of ~200 12-year-olds studied (Hopkins &amp; Bayliss,
+                    2017), fewer than half were fluent with simple addition and about a third were
+                    still predominantly counting.</div>
             </div>
 
             <div class="panel">
@@ -302,6 +317,17 @@ async function kidSection(kid) {
 
 // ---------- views ----------
 
+// Parent-facing words for engine states. The grid is judged on thinking time
+// (question shown → first keypress), so the tooltip reports that, not total.
+const STATE_WORDS = {
+    FLUENT: 'recalled',
+    SLOW: 'counting',
+    UNSETTLED: 'too few attempts to judge yet',
+    UNKNOWN: 'not secure yet',
+    STUCK: 'stuck',
+    UNSEEN: 'not shown yet',
+};
+
 function factGrid(state) {
     const tables = SCHEDULER.TABLE_ORDER.slice().sort((a, b) => a - b);
     return `<div class="grid-wrap"><table class="fact-grid">
@@ -309,7 +335,10 @@ function factGrid(state) {
         ${tables.map(t => `<tr><th>${t}</th>${tables.map(n => {
             const rec = state.facts[`${t}x${n}`] || state.facts[`${n}x${t}`];
             const st = rec ? rec.state : 'UNSEEN';
-            return `<td class="fs-${st.toLowerCase()}" title="${t}×${n}${rec ? ` · ${st} · ${Math.round(rec.medianRt / 100) / 10}s` : ''}"></td>`;
+            const think = rec && rec.medianInit
+                ? ` · ${Math.round(rec.medianInit / 100) / 10}s thinking` : '';
+            const tries = rec && rec.totalAttempts ? ` · ${rec.totalAttempts} tries` : '';
+            return `<td class="fs-${st.toLowerCase()}" title="${t}×${n} · ${STATE_WORDS[st]}${think}${tries}"></td>`;
         }).join('')}</tr>`).join('')}
     </table></div>`;
 }

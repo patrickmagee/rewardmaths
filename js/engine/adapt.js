@@ -13,7 +13,7 @@
  */
 import { ADAPT, SCHEDULER } from '../config.js';
 import { ADD_FAMILIES, SUB_PARTNER, familyOf } from './facts.js';
-import { factState, childCutoff, median } from './states.js';
+import { ACCURATE_STATES, median } from './states.js';
 
 /**
  * @param {string} day  yyyy-mm-dd being processed (must be complete)
@@ -108,7 +108,7 @@ function applyPromotions(state, day, audit) {
     const days = state.promotionEvidence[frontier] || [];
     const facts = factsInFamily(state, frontier);
     const okShare = facts.length
-        ? facts.filter(f => f.state === 'FLUENT' || f.state === 'SLOW').length / facts.length
+        ? facts.filter(f => ACCURATE_STATES.has(f.state)).length / facts.length
         : 0;
     if (ema >= ADAPT.PROMOTE_EMA && days.length >= ADAPT.PROMOTE_MIN_DAYS &&
         okShare >= ADAPT.PROMOTE_FACTS_OK) {
@@ -190,27 +190,11 @@ export function newChildState(opts = {}) {
     };
 }
 
-/** Update fact records + states for a batch of classified answers (any time). */
-export function applyAnswers(state, answers, day, appendAttemptFn, typingMs) {
-    for (const a of answers) {
-        if (a.round_type === 'free') continue;
-        const rec = state.facts[a.fact_id] || appendAttemptFn.newRecord();
-        state.facts[a.fact_id] = appendAttemptFn.append(rec, a, a.cls, day);
-    }
-    // Recompute states with per-operation cutoffs.
-    const cutoffs = {};
-    for (const op of ['mul', 'add', 'sub']) {
-        const meds = Object.entries(state.facts)
-            .filter(([id, r]) => r.state === 'FLUENT' && id.includes(opSym(op)))
-            .map(([, r]) => r.medianRt).filter(Boolean);
-        cutoffs[op] = childCutoff(meds, typingMs);
-    }
-    for (const [id, rec] of Object.entries(state.facts)) {
-        const op = id.includes('x') ? 'mul' : id.includes('+') ? 'add' : 'sub';
-        rec.state = factState(rec, cutoffs[op]);
-    }
-    return cutoffs;
-}
+// applyAnswers() lived here: a second copy of the fact-record fold + cutoff
+// recomputation that duplicated derive.js recomputeStates(). It had no callers
+// anywhere in the app or the tests, and it had already silently drifted out of
+// sync with the real fold once. Deleted 2026-07-20 — derive.js is the single
+// source of truth for turning answers into fact states.
 
 function factsInFamily(state, fam) {
     return Object.entries(state.facts)
@@ -233,4 +217,3 @@ function daysBetween(a, b) {
     return Math.abs((new Date(b) - new Date(a)) / 86400000);
 }
 
-function opSym(op) { return { mul: 'x', add: '+', sub: '-' }[op]; }

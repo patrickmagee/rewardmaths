@@ -32,9 +32,11 @@ at the point of diminishing returns, and positive-tone-but-always-corrective
 feedback.
 
 Every answer is logged (`fact`, correct, thinking time, typing time) and all
-adaptive state derives from that log — fact states (fluent / slow / unknown /
-stuck), an add/sub fact-family ladder, a bad-day-tolerant adaptation rule,
-and struggle flags for the parent.
+adaptive state derives from that log — fact states (fluent / slow / unsettled /
+unknown / stuck), an add/sub fact-family ladder, a bad-day-tolerant adaptation
+rule, and struggle flags for the parent. Speed is judged on thinking time only
+(question shown → first keypress); typing time is recorded for diagnostics but
+never classified on, so a slow typist is never read as a slow mathematician.
 
 ## Parent dashboard
 
