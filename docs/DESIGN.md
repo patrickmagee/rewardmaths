@@ -153,19 +153,25 @@ Constants fixed a priori in `js/config.js` — never re-tuned after seeing a chi
 data. Ordered rules, first match wins:
 
 1. **Auto-advance at 40s** (question times out — prevention beats cleaning).
-   On a fact in `ACCURATE_STATES` (FLUENT/SLOW/**UNSETTLED**): attention lapse —
-   excluded from both accuracy and RT (kids are on-task far less than adults; a
-   60s answer on a normally-2s fact is distraction, not forgetting). On an
-   UNKNOWN/STUCK fact: counts as wrong (real negative evidence).
-   **UNSETTLED sits with FLUENT/SLOW here, updated 2026-07-20**: the child has
-   answered the fact correctly several times and only the *speed* verdict is
-   pending, so a single timeout is far more plausibly a lapse than forgetting.
-   Treating it as negative evidence would force the answer wrong and knock the
-   fact down to SLOW — reintroducing exactly the spurious amber this change set
-   out to remove, and doing it on the youngest facts, where the evidence base is
-   thinnest and the damage is worst. (Before UNSETTLED existed these facts were
-   labelled SLOW and already took the lapse branch, so this also keeps the rule's
-   behaviour unchanged rather than silently tightening it.)
+   On a **settled** fact (FLUENT/SLOW): attention lapse — excluded from both
+   accuracy and RT (kids are on-task far less than adults; a 60s answer on a
+   normally-2s fact is distraction, not forgetting). On UNKNOWN/STUCK **or
+   UNSETTLED**: counts as wrong (real negative evidence).
+   **UNSETTLED takes the evidence branch, corrected 2026-07-20**: it was briefly
+   grouped with FLUENT/SLOW on the reasoning that only a *speed* verdict was
+   pending. That made UNSETTLED an **absorbing state**. A forgiven timeout is not
+   appended to the fact record (`appendAttempt` returns early on non-evidence),
+   so the record could never grow the history needed to re-judge it, while
+   `weakTargets` remediates UNKNOWN/STUCK only. Measured through the real fold: a
+   fact answered correctly twice on day 1, then timed out 33 times over 11 days,
+   stayed at `attempts=2, state=UNSETTLED` — never re-practised, and invisible to
+   the parent (flags filter on `counts_for_accuracy`, and the fact map read "too
+   few attempts to judge yet" after 33 failures). Forgiveness must be *earned*:
+   only FLUENT/SLOW carry the demonstration that the child can retrieve the fact.
+   This does not reintroduce spurious amber — a forced-wrong timeout sends a
+   young fact to UNKNOWN, never SLOW, and UNKNOWN is the correct reading of a
+   fact the child just failed. `ACCURATE_STATES` still includes UNSETTLED for the
+   ladder mastery gate, where counting accurate-but-young facts is right.
    Untimed rounds are exempt — nothing auto-advances while the clock is off.
    **Parent-tunable per child** (dashboard → Settings → question timeout), 6–60s,
    default 40s. This is an *accessibility* dial for a child who needs longer to

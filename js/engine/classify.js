@@ -5,7 +5,15 @@
  * non-evidence, slow-correct is accuracy-only, slow-wrong counts fully.
  */
 import { RT } from '../config.js';
-import { ACCURATE_STATES } from './states.js';
+
+/**
+ * States that have earned lapse-forgiveness on a timeout — i.e. the engine has
+ * actually established the child can retrieve the fact. Deliberately NARROWER
+ * than states.js ACCURATE_STATES, which includes UNSETTLED: that set exists for
+ * the ladder mastery gate, where counting accurate-but-young facts is right.
+ * Here it is not — see the timeout rule below.
+ */
+const SETTLED_STATES = new Set(['FLUENT', 'SLOW']);
 
 /**
  * The auto-advance ceiling for a child, in ms. Defaults to the a-priori
@@ -44,14 +52,20 @@ export function classifyAnswer(ans, fact) {
     // timeouts (and with them fact states, void rounds, medals). Records
     // written before ceiling_ms existed fall back to the default.
     if (ans.timeout || total >= (ans.ceiling_ms || RT.HARD_CEILING_MS)) {
-        // A timeout on a fact the child gets RIGHT is a lapse, not ignorance.
-        // UNSETTLED belongs with FLUENT/SLOW here: it means several correct
-        // answers but not yet enough history for a speed verdict, and before
-        // UNSETTLED existed those facts were labelled SLOW and took this same
-        // branch. Excluding it would force the answer wrong and knock the fact
-        // to SLOW — reintroducing exactly the spurious amber this change
-        // removed, and on the youngest facts, where it does the most damage.
-        return ACCURATE_STATES.has(fact.state)
+        // A timeout on a fact the child DEMONSTRABLY knows is a lapse, not
+        // ignorance — but only FLUENT/SLOW carry that demonstration. UNSETTLED
+        // means precisely "not enough history to judge yet", so forgiving its
+        // timeouts made it an absorbing state: the attempt isn't appended
+        // (states.js appendAttempt early-returns on non-evidence), so the
+        // record can never grow the history that would re-judge it, and
+        // weakTargets only remediates UNKNOWN/STUCK. Measured: 33 timeouts
+        // over 11 days left a fact at attempts=2, state=UNSETTLED, never
+        // practised again — invisible to the child and to the parent.
+        // Excluding UNSETTLED does NOT reintroduce the spurious amber this
+        // engine removed: a forced-wrong timeout sends it to UNKNOWN, not
+        // SLOW (factState never returns SLOW without enough evidence), and
+        // UNKNOWN is the correct reading of a fact the child just failed.
+        return SETTLED_STATES.has(fact.state)
             ? res(false, false, false, 'timeout')      // lapse on a known fact
             : res(true, false, false, 'timeout', false); // real negative evidence
     }

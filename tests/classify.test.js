@@ -1,4 +1,7 @@
 import { classifyAnswer, roundIsVoid, sessionIsVoid, ceilingMs } from '../js/engine/classify.js';
+import { newFactRecord, appendAttempt, factState } from '../js/engine/states.js';
+import { weakTargets } from '../js/engine/scheduler.js';
+import { newChildState } from '../js/engine/adapt.js';
 import { RT } from '../js/config.js';
 
 export async function run({ eq, ok }) {
@@ -102,4 +105,41 @@ export async function run({ eq, ok }) {
     eq(c.exclusion_reason, 'timeout', 'legacy record over the default = timeout');
     c = classifyAnswer({ correct: false, initiation_ms: RT.HARD_CEILING_MS - 500, typing_ms: 0 }, fresh);
     eq(c.exclusion_reason, null, 'legacy record under the default is full evidence');
+
+    // ---- UNSETTLED must not be an absorbing state (regression, 2026-07-20) ----
+    // Lapse-forgiveness on a timeout belongs to FLUENT/SLOW only. When UNSETTLED
+    // was forgiven too, the attempt was never appended, so the record could not
+    // grow the history that would re-judge it, and weakTargets (UNKNOWN/STUCK
+    // only) never remediated it: a fact failed 33 times over 11 days stayed at
+    // attempts=2 / UNSETTLED, invisible to child and parent alike.
+    const unsettled = { medianRt: 1600, medianInit: 1200, validAttempts: 2, state: 'UNSETTLED' };
+    c = classifyAnswer({ correct: false, initiation_ms: 40000, typing_ms: 0,
+        timeout: true, ceiling_ms: 40000 }, unsettled);
+    eq([c.counts_for_accuracy, c.forced_wrong],
+        [true, true], 'timeout on UNSETTLED is evidence, not a forgiven lapse');
+
+    // End to end: two correct answers then sustained timeouts must escape.
+    let rec = newFactRecord();
+    for (let i = 0; i < 2; i++) {
+        const a = { correct: true, initiation_ms: 1200, typing_ms: 400, timeout: false };
+        rec = appendAttempt(rec, a, classifyAnswer(a, { ...rec, validAttempts: rec.attempts.length }), '2026-07-01');
+        rec.state = factState(rec, 2500);
+    }
+    eq(rec.state, 'UNSETTLED', 'two same-day correct answers = UNSETTLED');
+    for (let d = 2; d <= 12; d++) {
+        const day = `2026-07-${String(d).padStart(2, '0')}`;
+        for (let i = 0; i < 3; i++) {
+            const a = { correct: false, initiation_ms: 40000, typing_ms: 0, timeout: true, ceiling_ms: 40000 };
+            rec = appendAttempt(rec, a, classifyAnswer(a, { ...rec, validAttempts: rec.attempts.length }), day);
+            rec.state = factState(rec, 2500);
+        }
+    }
+    ok(rec.totalAttempts > 2, `sustained timeouts are recorded (${rec.totalAttempts} attempts)`);
+    ok(rec.state === 'UNKNOWN' || rec.state === 'STUCK',
+        `a fact failed 33 times is weak, not "${rec.state}"`);
+
+    const st = newChildState();
+    st.facts['7x8'] = rec;
+    ok(weakTargets(st, { day: '2026-07-13', retrievalsToday: {} }).some(t => t.id === '7x8'),
+        'a repeatedly failed fact is scheduled for remediation');
 }
