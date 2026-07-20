@@ -4,7 +4,8 @@
  * round screen supplies hooks; this module owns the logic so it stays
  * testable and consistent (docs/DESIGN.md §1 "In-round feedback").
  */
-import { RT, SCHEDULER } from '../config.js';
+import { SCHEDULER } from '../config.js';
+import { ceilingMs } from '../engine/classify.js';
 import { parseFact, factCue, familyOf } from '../engine/facts.js';
 import { makeId } from '../data/db.js';
 import { COPY } from './copy.js';
@@ -12,7 +13,7 @@ import { COPY } from './copy.js';
 export class RoundSession {
     /**
      * @param {object} plan  round plan from the scheduler
-     * @param {object} opts  { user, day, factAccuracy: (factId) => number,
+     * @param {object} opts  { user, day, settings, factAccuracy: (factId) => number,
      *                         hooks: { showModel, showQuestion, showCorrect,
      *                                  showWrong, done }, now?: () => ms }
      */
@@ -20,6 +21,7 @@ export class RoundSession {
         this.plan = plan;
         this.user = opts.user;
         this.day = opts.day;
+        this.ceilingMs = ceilingMs(opts.settings);
         this.factAccuracy = opts.factAccuracy || (() => 1);
         this.hooks = opts.hooks;
         this.roundId = `${opts.day}-${plan.round_type}-${makeId()}`;
@@ -64,7 +66,12 @@ export class RoundSession {
 
     armDeadline() {
         clearTimeout(this.deadlineTimer);
-        this.deadlineTimer = setTimeout(() => this.timeout(), RT.HARD_CEILING_MS);
+        // Untimed rounds (placement sweep, focus rounds on a shaky family) must
+        // NOT auto-advance: the whole point is to let a child think without a
+        // clock. Arming the ceiling here made every slow-but-genuine answer a
+        // `timeout` record — see DESIGN §2 "untimed phase".
+        if (this.plan.untimed) return;
+        this.deadlineTimer = setTimeout(() => this.timeout(), this.ceilingMs);
     }
 
     /** Called by the round screen when the keypad submits. */
@@ -102,7 +109,7 @@ export class RoundSession {
         const item = this.current;
         this.record(item, {
             given: null, correct: false,
-            initiation_ms: RT.HARD_CEILING_MS, typing_ms: 0,
+            initiation_ms: this.ceilingMs, typing_ms: 0,
             input: 'none', timeout: true,
         });
         await this.hooks.showWrong(item.fact_id, COPY.correction(item.fact_id), null,
@@ -127,6 +134,9 @@ export class RoundSession {
             round_type: this.plan.round_type,
             fact_id: item.fact_id,
             requeued: !!item.requeued,
+            // The ceiling this attempt was actually played against — the
+            // classifier reads it back per-answer so history stays immutable.
+            ceiling_ms: this.ceilingMs,
             ...result,
         });
     }

@@ -8,8 +8,16 @@
  */
 
 export const RT = {
-    /** Question auto-advances (timeout) at this many ms. */
-    HARD_CEILING_MS: 12000,
+    /** Question auto-advances (timeout) at this many ms. Default per DESIGN §2;
+     *  parent-tunable per child via settings.ceilingMs, clamped to the bounds
+     *  below. The value in force is stamped on each answer as ceiling_ms, so
+     *  changing it never reclassifies already-logged attempts.
+     *  40s (2026-07-20): 12s was cutting off genuine work — Eliza timed out on
+     *  24 of 42 questions with zero fast answers. The ceiling exists to catch
+     *  a walked-away tablet, not to hurry a thinking child. */
+    HARD_CEILING_MS: 40000,
+    HARD_CEILING_MIN_MS: 6000,
+    HARD_CEILING_MAX_MS: 60000,
     /** initiation_ms below this = anticipation → full discard. */
     ANTICIPATION_FLOOR_MS: 300,
     /** wrong AND initiation_ms below this = rapid guess → non-evidence. */

@@ -159,6 +159,7 @@ function startRound(plan) {
     ui.renderRound(plan, {
         user: S.user,
         day: ctx.day,
+        settings: S.profile.settings || {},
         factAccuracy: (factId) => {
             const rec = S.derived.state.facts[factId];
             if (!rec || !rec.attempts.length) return 0;

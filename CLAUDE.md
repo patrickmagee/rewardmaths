@@ -69,7 +69,10 @@ Runs the same derive fold on each child's log: 14-day activity (easy days
 outlined), Westwood-normed fluency-index band + growth slope (needs 3 sprint
 rounds + DOB), times-table fact map, add/sub ladder, struggle flags with
 evidence + literal playbook scripts, engine audit trail, exclusion alarm,
-CSV export, per-child settings.
+CSV export, per-child settings (easy days on/off, DOB, PIN, **question
+timeout** 6–60s default 40s — an accessibility dial, not an engine knob;
+the ceiling in force is stamped on each answer as `ceiling_ms` so changing
+it never reclassifies history).
 
 ---
 

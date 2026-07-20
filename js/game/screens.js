@@ -217,7 +217,8 @@ export function renderRound(plan, opts) {
     };
 
     const session = new RoundSession(plan, {
-        user: opts.user, day: opts.day, factAccuracy: opts.factAccuracy,
+        user: opts.user, day: opts.day, settings: opts.settings,
+        factAccuracy: opts.factAccuracy,
         hooks: {
             showModel: (factId, line) => new Promise(res => {
                 pad.setEnabled(false); // no input during the reveal

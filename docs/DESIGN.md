@@ -151,10 +151,18 @@ Every answer gets `{counts_for_accuracy, counts_for_rt, exclusion_reason}`.
 Constants fixed a priori in `js/config.js` — never re-tuned after seeing a child's
 data. Ordered rules, first match wins:
 
-1. **Auto-advance at 12s** (question times out — prevention beats cleaning).
+1. **Auto-advance at 40s** (question times out — prevention beats cleaning).
    On UNKNOWN/STUCK fact: counts as wrong. On FLUENT/SLOW fact: attention lapse —
    excluded from both accuracy and RT (kids are on-task far less than adults; a
    60s answer on a normally-2s fact is distraction, not forgetting).
+   Untimed rounds are exempt — nothing auto-advances while the clock is off.
+   **Parent-tunable per child** (dashboard → Settings → question timeout), 6–30s,
+   default 12s. This is an *accessibility* dial for a child who needs longer to
+   answer, not a knob for tuning the engine to a child's data — the bands in
+   rules 2–6 are unchanged by it. The ceiling in force is stamped on every
+   answer (`ceiling_ms`), and rule 1 reads it back per-answer, so changing the
+   setting never reclassifies already-logged attempts (which would otherwise
+   have retro-rewritten fact states and medals through the derive fold).
 2. **Anticipation floor**: initiation <300ms → full discard, doesn't consume the
    fact's 3-per-day retrieval budget.
 3. **Rapid guess**: wrong AND initiation <500ms → non-evidence (disengagement
@@ -162,12 +170,19 @@ data. Ordered rules, first match wins:
 4. **Lapse-suspect**: correct but >3× that fact's median (once ≥3 valid attempts)
    → counts for accuracy, excluded from RT. A single slow-correct never demotes
    FLUENT; only ≥2 of last 5 valid attempts over the speed cutoff → FLUENT→SLOW.
-5. **Valid band** (floor…min(12s, 4× fact median)) → full evidence, raw ms.
+5. **Valid band** (floor…min(ceiling, 4× fact median)) → full evidence, raw ms.
 6. **Wrong-and-slow** → full negative evidence (effortful error = real signal).
 
 Asymmetry is deliberate: fast-wrong ignored, slow-correct accuracy-only,
-slow-wrong counted. Session voided for state updates if ≥3 exclusions in a round
-or >20% in a session (feeds the off-day guard). Excluded trials stay in the log
+slow-wrong counted. Session voided for state updates if ≥3 **disengagement**
+exclusions in a round or >20% in a session (feeds the off-day guard).
+**Disengagement means anticipations and rapid guesses only** — a child who is
+merely slow must never have their work discarded. Timeouts are *evidence*
+(rule 1: on an unsettled fact a timeout is what drives it to UNKNOWN) and
+lapse-suspects are evidence too, so neither counts toward voiding. Voiding on
+timeouts silently deleted a real session (Eliza, 2026-07-19: 5 rounds, 42
+answers, zero fast answers) and reported it to the parent as "rapid guessing".
+Excluded trials stay in the log
 with reasons (auditable, re-runnable). Admin alarm if a child's weekly exclusion
 rate exceeds ~10–15%. Floors apply to initiation; typing baseline is subtracted
 only from total-time comparisons.

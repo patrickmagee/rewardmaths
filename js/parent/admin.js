@@ -10,6 +10,7 @@ import { deriveStreak } from '../game/streaks.js';
 import { dayMedal, isEasyDay, validRounds } from '../game/medals.js';
 import { evaluateFlags, flagType, themeOf } from '../engine/flags.js';
 import { fluencyIndex, growthSlope } from '../engine/metrics.js';
+import { ceilingMs } from '../engine/classify.js';
 import { tableFacts, parseFact, STRATEGY_LINES, ADD_FAMILIES, familyOf } from '../engine/facts.js';
 import { RT, SCHEDULER } from '../config.js';
 
@@ -171,14 +172,28 @@ async function kidSection(kid) {
         const nice = dt.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
         const rel = d === today ? 'Today' : d === yesterday ? 'Yesterday' : null;
 
+        // Played-but-all-discarded is NOT "no play" — say what actually happened.
+        const played = (days[d]?.rounds || 0);
         const rows = [];
         if (v > 0) {
             rows.push({ b: `${v} round${v === 1 ? '' : 's'}`, t: m ? ` · ${{ bronze: '🥉 bronze', silver: '🥈 silver', gold: '🥇 gold' }[m]}` : '' });
             if (dayAns.length) rows.push({ t: `${correct}/${dayAns.length} answers correct` });
+        } else if (played > 0) {
+            rows.push({ b: `${played} round${played === 1 ? '' : 's'} played`, t: ' · not counted' });
         } else {
             rows.push({ b: 'No play', t: '' });
         }
-        if (voided) rows.push({ t: `${voided} round${voided === 1 ? '' : 's'} discarded (rapid guessing)` });
+        // Name the real reason rather than asserting one: a round is only
+        // voided by mashing/anticipations, but slow answers and timeouts are
+        // genuine effort and must never be reported as guessing.
+        if (voided) {
+            const slow = classified.filter(a => a.day === d && a.cls.exclusion_reason === 'timeout').length;
+            rows.push({ t: `${voided} round${voided === 1 ? '' : 's'} not counted (too many very fast answers)` });
+            if (slow) rows.push({ t: `${slow} answer${slow === 1 ? '' : 's'} ran out of time — counted as effort` });
+        } else if (classified.some(a => a.day === d && a.cls.exclusion_reason === 'timeout')) {
+            const slow = classified.filter(a => a.day === d && a.cls.exclusion_reason === 'timeout').length;
+            rows.push({ t: `${slow} answer${slow === 1 ? '' : 's'} ran out of time` });
+        }
         if (easy) rows.push({ t: 'Easy day — bronze needs just 1 round' });
         const tip = { head: rel ? `${rel} — ${nice}` : nice, rows };
         const aria = `${tip.head}: ` + rows.map(r => `${r.b || ''}${r.t}`.trim()).join('; ');
@@ -271,8 +286,16 @@ async function kidSection(kid) {
                     easy days on</label>
                 <label>DOB <input type="date" class="dob" value="${kid.dob || ''}"></label>
                 <label>new PIN <input type="text" class="new-pin" maxlength="4" placeholder="····"></label>
+                <label>question timeout
+                    <input type="number" class="ceiling" min="${RT.HARD_CEILING_MIN_MS / 1000}"
+                        max="${RT.HARD_CEILING_MAX_MS / 1000}" step="1"
+                        value="${ceilingMs(kid.settings) / 1000}">s</label>
                 <button class="save">save</button>
                 <button class="csv">export CSV</button>
+                <div class="dim small">Timeout is how long ${kid.name} gets on a question
+                    before it moves on (untimed rounds are unaffected). Takes effect next
+                    time they open the app. Each answer records the timeout it was played
+                    against, so changing this never rewrites past results.</div>
             </div>
         </section>`;
 }
@@ -378,6 +401,12 @@ function wireSettings() {
             if (dob) kid.dob = dob;
             const pin = card.querySelector('.new-pin').value.trim();
             if (/^\d{4}$/.test(pin)) kid.pinHash = await sha256(pin);
+            // Seconds in the UI, ms in the profile. Re-clamped here because a
+            // number input's min/max are trivially bypassed.
+            const secs = Number(card.querySelector('.ceiling').value);
+            if (Number.isFinite(secs) && secs > 0) {
+                kid.settings.ceilingMs = ceilingMs({ ceilingMs: secs * 1000 });
+            }
             kid.updated = Date.now();
             const btn = card.querySelector('.save');
             try {
@@ -400,9 +429,9 @@ function wireSettings() {
         card.querySelector('.csv').addEventListener('click', async () => {
             const res = await fetch(`/api/answers?user=${encodeURIComponent(user)}`);
             const answers = Object.values((await res.json()).days || {}).flat();
-            const head = 'day,ts,round_type,fact,given,correct,initiation_ms,typing_ms,input,timeout';
+            const head = 'day,ts,round_type,fact,given,correct,initiation_ms,typing_ms,input,timeout,ceiling_ms';
             const rows = answers.map(a =>
-                [a.day, a.ts, a.round_type, a.fact_id, a.given, a.correct, a.initiation_ms, a.typing_ms, a.input, a.timeout].join(','));
+                [a.day, a.ts, a.round_type, a.fact_id, a.given, a.correct, a.initiation_ms, a.typing_ms, a.input, a.timeout, a.ceiling_ms ?? ''].join(','));
             const blob = new Blob([[head, ...rows].join('\n')], { type: 'text/csv' });
             const link = Object.assign(document.createElement('a'), {
                 href: URL.createObjectURL(blob), download: `rewardmaths-${user}.csv`,

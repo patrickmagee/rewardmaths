@@ -1,4 +1,5 @@
-import { classifyAnswer, roundIsVoid, sessionIsVoid } from '../js/engine/classify.js';
+import { classifyAnswer, roundIsVoid, sessionIsVoid, ceilingMs } from '../js/engine/classify.js';
+import { RT } from '../js/config.js';
 
 export async function run({ eq, ok }) {
     const settled = { medianRt: 2100, validAttempts: 8, state: 'FLUENT' };
@@ -47,4 +48,58 @@ export async function run({ eq, ok }) {
     ok(!roundIsVoid([excl, excl, okAns, okAns]), '2 exclusions do not');
     ok(sessionIsVoid([excl, excl, excl, okAns, okAns, okAns, okAns, okAns, okAns, okAns]),
         '>20% exclusions void a session');
+
+    // Regression (Eliza, 2026-07-19): a child who simply RUNS OUT OF TIME is
+    // not a masher. Timeouts are evidence (DESIGN §2 — they drive a fact to
+    // UNKNOWN); the void rule covers mashes/anticipations only (DESIGN §3).
+    // Voiding on timeouts discarded her whole session and reported it to the
+    // parent as "rapid guessing".
+    const slowOut = { exclusion_reason: 'timeout' };
+    ok(!roundIsVoid([slowOut, slowOut, slowOut, slowOut, okAns]),
+        'timeouts never void a round — slow is not guessing');
+    ok(!sessionIsVoid([slowOut, slowOut, slowOut, slowOut, slowOut, okAns]),
+        'a timeout-heavy session still counts');
+    ok(!roundIsVoid([{ exclusion_reason: 'lapse_suspect' }, { exclusion_reason: 'lapse_suspect' },
+        { exclusion_reason: 'lapse_suspect' }]), 'lapse-suspects never void');
+    // …but genuine disengagement still voids, mixed in with slowness.
+    ok(roundIsVoid([{ exclusion_reason: 'anticipation' }, excl,
+        { exclusion_reason: 'anticipation' }, slowOut, okAns]),
+        'mashes/anticipations still void a round');
+
+    // ---- per-child auto-advance ceiling (parent-tunable) ----
+
+    eq(ceilingMs(), RT.HARD_CEILING_MS, 'no settings → a-priori default');
+    eq(ceilingMs({}), RT.HARD_CEILING_MS, 'empty settings → default');
+    eq(ceilingMs({ ceilingMs: 20000 }), 20000, 'in-range override honoured');
+    eq(ceilingMs({ ceilingMs: 500 }), RT.HARD_CEILING_MIN_MS, 'below floor clamps up');
+    eq(ceilingMs({ ceilingMs: 999000 }), RT.HARD_CEILING_MAX_MS, 'above cap clamps down');
+    eq(ceilingMs({ ceilingMs: 'nonsense' }), RT.HARD_CEILING_MS, 'junk falls back to default');
+    eq(ceilingMs({ ceilingMs: 0 }), RT.HARD_CEILING_MS, 'zero falls back (never a 0ms ceiling)');
+
+    // The ceiling is read per-answer, so raising a child's timeout does NOT
+    // retroactively rescue past attempts that already timed out…
+    c = classifyAnswer({ correct: false, initiation_ms: 12000, typing_ms: 0,
+        timeout: true, ceiling_ms: 12000 }, learning);
+    eq(c.exclusion_reason, 'timeout', 'old 12s timeout stays a timeout');
+
+    // …and lowering it does NOT retroactively convict past valid attempts.
+    // 14s answer logged under a 20s ceiling stays full evidence — this is the
+    // immutability guarantee (it holds whatever the current default is).
+    c = classifyAnswer({ correct: false, initiation_ms: 13000, typing_ms: 1000,
+        timeout: false, ceiling_ms: 20000 }, fresh);
+    eq([c.counts_for_accuracy, c.counts_for_rt, c.exclusion_reason],
+        [true, true, null], 'answer under its own ceiling is valid, not a timeout');
+
+    // A short ceiling in force at the time is likewise respected.
+    c = classifyAnswer({ correct: true, initiation_ms: 6500, typing_ms: 200,
+        timeout: false, ceiling_ms: 6000 }, fresh);
+    eq(c.exclusion_reason, 'timeout', 'over its own short ceiling = timeout');
+
+    // Legacy records (written before ceiling_ms existed) use the default.
+    // Derived from the constant, not a literal, so raising the default doesn't
+    // silently invert this assertion.
+    c = classifyAnswer({ correct: false, initiation_ms: RT.HARD_CEILING_MS + 500, typing_ms: 0 }, fresh);
+    eq(c.exclusion_reason, 'timeout', 'legacy record over the default = timeout');
+    c = classifyAnswer({ correct: false, initiation_ms: RT.HARD_CEILING_MS - 500, typing_ms: 0 }, fresh);
+    eq(c.exclusion_reason, null, 'legacy record under the default is full evidence');
 }

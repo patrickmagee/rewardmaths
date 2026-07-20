@@ -374,9 +374,13 @@ button { font: inherit; color: inherit; border: 0; cursor: pointer; background: 
 .dash-settings { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
 .dash-settings label { color: var(--dim); font-size: 0.9rem; display: flex;
     gap: 6px; align-items: center; }
-.dash-settings input[type="date"], .dash-settings input[type="text"] {
+.dash-settings input[type="date"], .dash-settings input[type="text"],
+.dash-settings input[type="number"] {
     background: var(--panel); border: 1px solid var(--stroke); border-radius: 8px;
     color: var(--text); padding: 6px 10px; width: auto; }
 .dash-settings .new-pin { width: 64px; text-align: center; }
+.dash-settings .ceiling { width: 64px; text-align: center; }
+/* Help text drops to its own row rather than sitting inline with the controls. */
+.dash-settings .small { flex-basis: 100%; margin: 0; }
 .dash-settings button { background: var(--panel); border: 1px solid var(--stroke);
     border-radius: 8px; padding: 8px 16px; color: var(--text); }
