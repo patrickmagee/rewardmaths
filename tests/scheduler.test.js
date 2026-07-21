@@ -1,4 +1,4 @@
-import { buildDailyRounds, focusRound, weakTargets } from '../js/engine/scheduler.js';
+import { buildDailyRounds, focusRound, weakTargets, workingTable } from '../js/engine/scheduler.js';
 import { newChildState } from '../js/engine/adapt.js';
 import { newFactRecord } from '../js/engine/states.js';
 import { tableFacts } from '../js/engine/facts.js';
@@ -129,5 +129,46 @@ export async function run({ eq, ok, seededRng }) {
     ok(blocked, 'a demoted table gets a blocked warm-up round');
     ok(blocked.items.every(i => i.fact_id && tableFacts(12).includes(i.fact_id)),
         'blocked table round is built from that table\'s real facts');
+
+    // FIX #5 — the working table advances on accuracy, not FLUENT-only.
+    // A child solid on table 2 but whose facts are SLOW/UNSETTLED (correct,
+    // just not yet speed-verdicted) must clear the 70% gate and move on. Under
+    // the old FLUENT-only count these tables never cleared, pinning every child
+    // on table 2 (and the child-facing "today" copy driven off it).
+    const solidT2 = stateWith([
+        ...tableFacts(2).map((f, i) => [f, i % 2 ? 'SLOW' : 'UNSETTLED', 3000]),
+    ]);
+    ok(workingTable(solidT2) !== 2,
+        'working table advances past a table answered correctly (SLOW/UNSETTLED)');
+    eq(workingTable(solidT2), SCHEDULER.TABLE_ORDER[1],
+        'working table moves to the next unmastered table in order');
+    // A child who has NOT settled table 2 (getting it wrong) still stays on it.
+    const weakT2 = stateWith([...tableFacts(2).map(f => [f, 'UNKNOWN'])]);
+    eq(workingTable(weakT2), 2, 'a table still answered wrong stays the working table');
+
+    // FIX #6 — every warm-up family is reachable over a month, not just wu[0].
+    // The parity gate opens on even days; the index must rotate across the whole
+    // list on those days (Math.floor(dom/2) % len), not reuse dom (always even,
+    // so dom % len is even → pinned to wu[0] for a 2-element list).
+    const servedOverMonth = wuFamilies => {
+        const base = stateWith([...tableFacts(2).map(f => [f, 'FLUENT', 1500])]);
+        base.warmupFamilies = wuFamilies;
+        const served = new Set();
+        for (let d = 1; d <= 31; d++) {
+            const day = `2026-07-${String(d).padStart(2, '0')}`;
+            const r = buildDailyRounds(base, { day, retrievalsToday: {} }, seededRng(3))
+                .find(x => x.blockedFamily);
+            if (r) served.add(r.blockedFamily);
+        }
+        return served;
+    };
+    const two = ['add-rest', 'sub-bridge-10'];
+    const servedTwo = servedOverMonth(two);
+    ok(two.every(f => servedTwo.has(f)),
+        `both warm-up families served over a month (got ${[...servedTwo].join(',')})`);
+    const three = ['add-rest', 'sub-bridge-10', 'bridge-10'];
+    const servedThree = servedOverMonth(three);
+    ok(three.every(f => servedThree.has(f)),
+        `all three warm-up families served over a month (got ${[...servedThree].join(',')})`);
 
 }

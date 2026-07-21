@@ -1,6 +1,6 @@
 # RewardMaths — Claude Code Project Guide
 
-**Last Updated**: 2026-07-20
+**Last Updated**: 2026-07-21
 **Version**: 5.0 (evidence-locked adaptive engine)
 **Status**: Live at https://rewardmaths.com (custom domain) and
 https://rewardmaths.pages.dev — same Cloudflare Pages project.
@@ -78,15 +78,20 @@ child — never surface one child's data to the other.
 ### Parent dashboard (admin.html)
 Runs the same derive fold on each child's log: 14-day activity (easy days
 outlined), Westwood-normed fluency-index band + growth slope (needs 3 sprint
-rounds + DOB), times-table fact map (fact states **FLUENT / SLOW / UNSETTLED /
-UNKNOWN / STUCK** — UNSETTLED = answering it right but <5 valid attempts or
-<2 distinct days, so no speed verdict yet; it is not a weakness and never a
-focus-round target), add/sub ladder, struggle flags with
-evidence + literal playbook scripts, engine audit trail, exclusion alarm,
-CSV export, per-child settings (easy days on/off, DOB, PIN, **question
-timeout** 6–60s default 40s — an accessibility dial, not an engine knob;
-the ceiling in force is stamped on each answer as `ceiling_ms` so changing
-it never reclassifies history).
+rounds + DOB; a declining slope reads amber, never green), times-table fact map
+(fact states **FLUENT / SLOW / UNSETTLED / UNKNOWN / STUCK** — UNSETTLED =
+answering it right but <5 valid attempts or <2 distinct days, so no speed
+verdict yet; it is not a weakness and never a focus-round target. Commuted pairs
+(7×8 / 8×7) are pooled to one square showing the more-advanced state; the tooltip
+surfaces any timeout count), add/sub ladder, struggle flags with
+evidence + literal playbook scripts, engine audit trail, disengagement alarm
+(anticipations/rapid-guesses only — timeouts are counted negative evidence, not
+discarded), CSV export, per-child settings (easy days on/off, DOB, PIN,
+**question timeout** 6–60s default 40s — an accessibility dial, not an engine
+knob; the play-time `timeout` flag is the sole ceiling signal, stamped when the
+auto-advance timer fires, and the classifier no longer re-imposes `ceiling_ms`
+at derive time, so changing the setting never reclassifies history and untimed
+rounds can never forge a timeout).
 
 ---
 

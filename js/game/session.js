@@ -134,9 +134,16 @@ export class RoundSession {
             round_type: this.plan.round_type,
             fact_id: item.fact_id,
             requeued: !!item.requeued,
-            // The ceiling this attempt was actually played against — the
-            // classifier reads it back per-answer so history stays immutable.
+            // The ceiling this attempt was actually played against, stamped for
+            // the parent dashboard and audit trail. The classifier no longer
+            // reads it (it trusts the play-time `timeout` flag), so history stays
+            // immutable regardless of later setting changes.
             ceiling_ms: this.ceilingMs,
+            // Durable marker that this round never armed the auto-advance clock
+            // (armDeadline early-returns on plan.untimed). A slow answer here is
+            // genuine thinking, not a timeout — recorded for future consumers;
+            // classify.js does NOT depend on it (legacy records lack it).
+            untimed: !!this.plan.untimed,
             ...result,
         });
     }

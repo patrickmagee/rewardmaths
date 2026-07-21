@@ -36,19 +36,47 @@ async function boot() {
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js').catch(() => {});
     }
-    let local = await db.getProfiles();
-    if (!local.length) {
-        for (const p of DEFAULT_PROFILES) {
-            const prof = { ...p, pinHash: await sha256(p.pin), updated: Date.now() };
-            delete prof.pin;
+    const local = await db.getProfiles();
+
+    // Remote KV is authoritative for any-device login. Fetch it ONCE.
+    //   array  → reachable (may be [] on a genuine first run)
+    //   null   → unreachable (offline)
+    // An empty LOCAL db is NOT proof of first run — it also happens on a
+    // cleared / evicted / brand-new device. Blindly re-seeding defaults with
+    // a fresh `updated` stamp would clobber real parent config (DOB, changed
+    // PINs, question timeouts) everywhere, since profiles.js resolves by
+    // last-write-wins on `updated`. So reconcile before writing anything.
+    const remote = await syncProfiles(null);
+
+    if (Array.isArray(remote)) {
+        // Reachable: mirror remote truth into local, then seed a DEFAULT only
+        // for a user missing from BOTH remote and local (a genuine gap). Push
+        // those gap-fills only — they cannot overwrite existing remote data.
+        for (const p of remote) await db.putProfile(p);
+        const known = new Set([...remote, ...local].map(p => p.user));
+        for (const d of DEFAULT_PROFILES) {
+            if (known.has(d.user)) continue;
+            const prof = await defaultProfile(d);
             await db.putProfile(prof);
-            pushProfile(prof); // best-effort
+            pushProfile(prof); // best-effort; safe — remote lacked this user
         }
-        local = await db.getProfiles();
+    } else if (!local.length) {
+        // Offline AND nothing local: seed defaults LOCALLY ONLY, push nothing.
+        // A default must never later win last-write-wins over real remote
+        // config; the next online boot reconciles via the branch above.
+        for (const d of DEFAULT_PROFILES) await db.putProfile(await defaultProfile(d));
     }
-    S.profiles = await syncProfiles(local);
-    for (const p of S.profiles) await db.putProfile(p);
+    // else: offline with existing local profiles — keep them as-is.
+
+    S.profiles = await db.getProfiles();
     showWho();
+}
+
+/** A seeded default profile: PIN hashed, plaintext pin dropped, stamped now. */
+async function defaultProfile(p) {
+    const prof = { ...p, pinHash: await sha256(p.pin), updated: Date.now() };
+    delete prof.pin;
+    return prof;
 }
 
 function showWho() {

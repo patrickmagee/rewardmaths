@@ -11,7 +11,7 @@ import { dayMedal, isEasyDay, validRounds } from '../game/medals.js';
 import { evaluateFlags, flagType, themeOf } from '../engine/flags.js';
 import { fluencyIndex, growthSlope } from '../engine/metrics.js';
 import { ceilingMs } from '../engine/classify.js';
-import { tableFacts, parseFact, STRATEGY_LINES, ADD_FAMILIES, familyOf } from '../engine/facts.js';
+import { tableFacts, parseFact, STRATEGY_LINES, ADD_FAMILIES, familyOf, canonicalKey } from '../engine/facts.js';
 import { RT, SCHEDULER } from '../config.js';
 
 const app = () => document.getElementById('app');
@@ -20,6 +20,13 @@ const DEFAULT_PW_HASH = // sha256('laura') — bootstrap before profiles exist
 
 let PROFILES = [];
 const KIDS = () => PROFILES.filter(p => p.role !== 'admin');
+
+// Genuine DISENGAGEMENT only — mirrors classify.js's DISENGAGED set (the source
+// of truth; not exported, so replicated here). Since b5a51a5 a timeout is
+// COUNTED negative evidence (counts_for_accuracy:true), not discarded, so it
+// must never inflate the "discarded" alarm; lapse_suspect is also counted, not
+// discarded. Only anticipation/rapid_guess are the child mashing.
+const DISENGAGED_REASONS = new Set(['anticipation', 'rapid_guess']);
 
 boot();
 
@@ -227,9 +234,11 @@ async function kidSection(kid) {
     const flags = evaluateFlags(recent, {}, state.facts, today);
     const flagged = Object.entries(flags).filter(([, f]) => f.state === 'flagged');
 
-    // Exclusion-rate alarm.
+    // Disengagement-rate alarm: only genuine mashing/very-fast guesses count as
+    // "discarded". Timeouts (negative evidence) and lapse_suspect (counted) are
+    // NOT discarded — see DISENGAGED_REASONS.
     const exclRate = recent.length
-        ? recent.filter(a => a.cls.exclusion_reason && a.cls.exclusion_reason !== 'lapse_suspect').length / recent.length
+        ? recent.filter(a => DISENGAGED_REASONS.has(a.cls.exclusion_reason)).length / recent.length
         : 0;
 
     return `
@@ -258,7 +267,7 @@ async function kidSection(kid) {
 
             <div class="panel">
                 <h3>Times tables — fact map</h3>
-                ${factGrid(state)}
+                ${factGrid(state, classified)}
                 <div class="dim small">
                     <span class="fs-key fs-fluent"></span>recalled ·
                     <span class="fs-key fs-slow"></span>right, but working it out ·
@@ -286,8 +295,8 @@ async function kidSection(kid) {
                 ${flagged.length ? flagged.map(([theme, f]) => flagView(kid, theme, f)).join('')
                     : `<div class="dim">Nothing flagged — flags need a persistent deficit vs ${kid.name}'s own baseline across 3+ days.</div>`}
                 ${exclRate > RT.ALARM_EXCLUSION_RATE ? `
-                    <div class="alarm">⚠ ${Math.round(exclRate * 100)}% of recent answers were discarded
-                    (mashing/timeouts) — worth watching a session in person.</div>` : ''}
+                    <div class="alarm">⚠ ${Math.round(exclRate * 100)}% of recent answers were very fast
+                    guesses or mashing (not counted) — worth watching a session in person.</div>` : ''}
             </div>
 
             <details class="panel">
@@ -328,17 +337,48 @@ const STATE_WORDS = {
     UNSEEN: 'not shown yet',
 };
 
-function factGrid(state) {
+// Commuted multiplication facts (7×8 and 8×7) are stored as two DIRECTED
+// records but are one real fact — facts.js canonicalKey pools them. The grid
+// must show ONE colour per real fact, not two contradictory ones (e.g. 10×9
+// FLUENT next to 9×10 UNKNOWN). We show the MORE-ADVANCED of the two states:
+// commutativity means if the child demonstrably retrieves the fact in either
+// direction they know it, and the weaker direction is just fewer/less-lucky
+// samples (genuine conceptual struggle is caught separately by the flags
+// panel). Attempts are summed; thinking time is the direction that set the
+// colour, so the tooltip is internally consistent.
+const STATE_RANK = { STUCK: 0, UNKNOWN: 1, UNSETTLED: 2, SLOW: 3, FLUENT: 4 };
+function pooledFact(a, b) {
+    if (!a && !b) return null;
+    if (!a) return b;
+    if (!b) return a;
+    const best = (STATE_RANK[b.state] ?? -1) > (STATE_RANK[a.state] ?? -1) ? b : a;
+    return { ...best, totalAttempts: (a.totalAttempts || 0) + (b.totalAttempts || 0) };
+}
+
+function factGrid(state, classified = []) {
     const tables = SCHEDULER.TABLE_ORDER.slice().sort((a, b) => a - b);
+    // Timeouts per canonical (commuted) fact. Since b5a51a5 a square can be
+    // COLOURED by timeouts (negative evidence) while its thinking time —
+    // computed from valid attempts only — still looks fast, which reads as a
+    // contradiction. Surface the count so the tooltip explains the colour.
+    const timeoutsByKey = {};
+    for (const a of classified) {
+        if (!a.void && a.cls.exclusion_reason === 'timeout') {
+            const k = canonicalKey(a.fact_id);
+            timeoutsByKey[k] = (timeoutsByKey[k] || 0) + 1;
+        }
+    }
     return `<div class="grid-wrap"><table class="fact-grid">
         <tr><th></th>${tables.map(n => `<th>${n}</th>`).join('')}</tr>
         ${tables.map(t => `<tr><th>${t}</th>${tables.map(n => {
-            const rec = state.facts[`${t}x${n}`] || state.facts[`${n}x${t}`];
+            const rec = pooledFact(state.facts[`${t}x${n}`], state.facts[`${n}x${t}`]);
             const st = rec ? rec.state : 'UNSEEN';
             const think = rec && rec.medianInit
                 ? ` · ${Math.round(rec.medianInit / 100) / 10}s thinking` : '';
             const tries = rec && rec.totalAttempts ? ` · ${rec.totalAttempts} tries` : '';
-            return `<td class="fs-${st.toLowerCase()}" title="${t}×${n} · ${STATE_WORDS[st]}${think}${tries}"></td>`;
+            const to = timeoutsByKey[canonicalKey(`${t}x${n}`)] || 0;
+            const timedOut = to ? ` · ${to} timed out` : '';
+            return `<td class="fs-${st.toLowerCase()}" title="${t}×${n} · ${STATE_WORDS[st]}${think}${tries}${timedOut}"></td>`;
         }).join('')}</tr>`).join('')}
     </table></div>`;
 }

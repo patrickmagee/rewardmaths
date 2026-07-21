@@ -6,6 +6,7 @@
   "description": "Static site — package.json exists only so Node can run the engine tests as ES modules",
   "scripts": {
     "test": "node tests/run.js",
-    "simulate": "node tests/simulate.js"
+    "simulate": "node tests/simulate.js",
+    "health": "node tests/health.mjs"
   }
 }

@@ -38,7 +38,11 @@ is derived and recomputable from the log.**
   sync conflict is resolved by recomputing from the merged log, so there is no
   cache to invalidate and no derived-state migration to write.
 - Corollary: rule changes or bug fixes re-derive everything from history — as
-  the 2026-07-20 initiation-time change did, with no data migration.
+  the 2026-07-20 initiation-time change did, with no data migration. The
+  2026-07-21 derive-time fixes are the same shape: the off-day guard now medians
+  `initiation_ms` (not total RT), and `classify.js` no longer re-imposes the
+  answer's `ceiling_ms` at derive time (it trusts the play-time `timeout` flag
+  alone, so untimed rounds can never forge a timeout). See `docs/DESIGN.md` §2.
 
 Speed classification uses **initiation only** (question shown → first keypress).
 Typing time is logged and reported to parents but is not an input to any
@@ -55,7 +59,14 @@ The only KV namespaces in use are `answers:*` and `profile:*`.
 
 Profiles move to KV (v4 kept them device-local — that limitation dies here; the
 kids can log in from any device). Free-tier KV limits (1k writes/day) are ~50×
-headroom.
+headroom. **Boot reconciles against remote before seeding (2026-07-21)**: an
+empty *local* db is not proof of first run (it also happens on a cleared/evicted
+device), so `main.js` fetches remote once and seeds a `DEFAULT_PROFILE` only for
+a user missing from *both* remote and local. A blind re-seed with a fresh
+`updated` stamp would otherwise clobber real parent config (DOB, changed PINs,
+question timeouts) everywhere, since profiles resolve last-write-wins on
+`updated`. Offline with nothing local: defaults are seeded locally only, pushed
+to nobody, and reconciled on the next online boot.
 
 ---
 

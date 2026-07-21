@@ -8,6 +8,7 @@
  */
 import { SCHEDULER } from '../config.js';
 import { tableFacts, familyFacts, sampleFamily, familyOf, difficultyScore, parseFact } from './facts.js';
+import { ACCURATE_STATES } from './states.js';
 
 /**
  * Build today's default three rounds (+ variants).
@@ -27,7 +28,10 @@ export function buildDailyRounds(state, ctx, rng) {
     // letting it monopolise the slot starves times-table weak-fact work.
     const wu = state.warmupFamilies || [];
     const dom = new Date(ctx.day).getDate();
-    const warmup = wu.length && dom % 2 === 0 ? wu[dom % wu.length] : null;
+    // Parity gates entry (warm-up shares the slot day-about); the index rotates
+    // independently so every warm-up family is reachable. Reusing `dom` for both
+    // pinned a 2-element list to wu[0] forever (even % 2 === 0), starving wu[1].
+    const warmup = wu.length && dom % 2 === 0 ? wu[Math.floor(dom / 2) % wu.length] : null;
     const second = warmup ? blockedRound(state, warmup, rng) : focusRound(state, ctx, rng);
     const rounds = [reviewRound(state, ctx, rng), second, mixedRound(state, ctx, rng)];
     if (ctx.sprintDue) rounds[2] = sprintRound(state, ctx, rng);
@@ -135,8 +139,11 @@ export function mixedRound(state, ctx, rng) {
  */
 export function blockedRound(state, family, rng) {
     const table = /^table-(\d+)$/.exec(family);
+    // Only td-* families are parametric (sampleFamily can synthesize members);
+    // any other familyFacts()-null id (e.g. malformed "table-??" from an
+    // operand>12) would crash sampleFamily, so fall back to a safe fixed pool.
     const pool = (table ? tableFacts(+table[1]) : familyFacts(family)) ||
-        Array.from({ length: 20 }, () => sampleFamily(family, rng));
+        (family.startsWith('td-') ? Array.from({ length: 20 }, () => sampleFamily(family, rng)) : tableFacts(2));
     const items = pick(pool, SCHEDULER.QUESTIONS_PER_ROUND, rng)
         .map((f, i) => ({ fact_id: f, model: i < 2 && !state.facts[f] }));
     return { round_type: 'focus', items, untimed: true, blockedFamily: family };
@@ -231,12 +238,17 @@ export function weakTargets(state, ctx) {
     return out;
 }
 
-/** First table in TABLE_ORDER not yet ~fluent (unseen facts count against). */
+/** First table in TABLE_ORDER not yet ~mastered (unseen facts count against).
+ *  Mastery mirrors the ladder gate in adapt.js: an accurately-answered fact
+ *  counts whether it's FLUENT, SLOW, or UNSETTLED (ACCURATE_STATES). Counting
+ *  FLUENT only meant a table with settled-but-not-yet-fluent facts never
+ *  cleared 70%, pinning every child on table 2 (and the child-facing "today"
+ *  copy in main.js with it). Speed no longer gates progression (DESIGN §2). */
 export function workingTable(state) {
     for (const t of SCHEDULER.TABLE_ORDER) {
         const ids = tableFacts(t);
-        const fluent = ids.filter(id => state.facts[id]?.state === 'FLUENT').length;
-        if (fluent / ids.length < 0.7) return t;
+        const mastered = ids.filter(id => ACCURATE_STATES.has(state.facts[id]?.state)).length;
+        if (mastered / ids.length < 0.7) return t;
     }
     return null; // every table mastered
 }

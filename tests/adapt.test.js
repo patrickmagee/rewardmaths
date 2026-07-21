@@ -4,23 +4,26 @@ import { familyFacts } from '../js/engine/facts.js';
 
 const VALID = { counts_for_accuracy: true, counts_for_rt: true, exclusion_reason: null };
 
-function answers(family, day, { n = 10, acc = 0.9, rt = 2000, fluentExtras = 0 } = {}) {
+function answers(family, day, { n = 10, acc = 0.9, rt = 2000, init = 1500, fluentExtras = 0 } = {}) {
     const facts = familyFacts(family);
     const out = [];
     for (let i = 0; i < n; i++) {
         out.push({
-            fact_id: facts[i % facts.length], day, rt,
+            fact_id: facts[i % facts.length], day, rt, initiation_ms: init,
             correct: i < Math.round(n * acc), cls: VALID, round_type: 'mixed', void: false,
         });
     }
     return out;
 }
 
-/** Answers on FLUENT facts, to feed the off-day guard baseline. */
-function fluentAnswers(state, day, { n = 8, acc = 1, rt = 1800 } = {}) {
+/** Answers on FLUENT facts, to feed the off-day guard baseline. The guard now
+ *  reads initiation_ms only (mirrors the state machine); rt carries total for
+ *  callers that inspect it, but the two are deliberately independent so a test
+ *  can move typing without moving initiation. */
+function fluentAnswers(state, day, { n = 8, acc = 1, rt = 1800, init = 1200 } = {}) {
     const ids = Object.entries(state.facts).filter(([, r]) => r.state === 'FLUENT').map(([id]) => id);
     return Array.from({ length: n }, (_, i) => ({
-        fact_id: ids[i % ids.length], day, rt,
+        fact_id: ids[i % ids.length], day, rt, initiation_ms: init,
         correct: i < Math.round(n * acc), cls: VALID, round_type: 'mixed', void: false,
     }));
 }
@@ -91,6 +94,40 @@ export async function run({ eq, ok }) {
         s3 = r.state; audit = r.audit;
     }
     ok(s3.warmupFamilies.includes('add-2'), 'sustained failure demotes to warm-up');
+
+    // --- Keyboard→tablet input switch must NOT trigger off-day (initiation is
+    // the signal, not total RT). typing_ms triples across the switch while
+    // initiation is held steady; under the old total-RT guard this fired
+    // off-day on every post-switch day and self-latched (adaptation froze).
+    let s6 = newChildState({ unlockedFamilies: ['add-0-1', 'add-2'] });
+    s6.warmupFamilies = [];
+    seedFluent(s6, 'add-0-1');
+    // 12 "keyboard" days: fast typing, steady initiation → builds the baseline.
+    for (let d = 1; d <= 12; d++) {
+        const day = `2026-06-${String(d).padStart(2, '0')}`;
+        const res = processDay(day, [
+            ...answers('add-2', day, { acc: 0.9 }),
+            ...fluentAnswers(s6, day, { rt: 1100, init: 1000 }), // init 1000 + 100 typing
+        ], s6);
+        s6 = res.state;
+    }
+    // 8 "tablet" days: typing jumps (rt 3000) but INITIATION unchanged (1000).
+    let offDaysAfterSwitch = 0, emaFirst = null, emaLast = null;
+    for (let d = 13; d <= 20; d++) {
+        const day = `2026-06-${String(d).padStart(2, '0')}`;
+        const res = processDay(day, [
+            ...answers('add-2', day, { acc: 0.9 }),
+            ...fluentAnswers(s6, day, { rt: 3000, init: 1000 }), // typing tripled, init steady
+        ], s6);
+        if (res.audit.some(a => a.type === 'off_day')) offDaysAfterSwitch++;
+        if (res.audit.some(a => a.type === 'ema')) {
+            if (emaFirst === null) emaFirst = res.state.familyEMA['add-2'];
+            emaLast = res.state.familyEMA['add-2'];
+        }
+        s6 = res.state;
+    }
+    eq(offDaysAfterSwitch, 0, 'input-method switch (typing×3, steady init) never fires off-day');
+    ok(emaLast !== null, 'adaptation continues after the switch (EMA still updates)');
 
     // --- Voided answers are ignored.
     let s4 = newChildState();

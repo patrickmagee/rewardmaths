@@ -9,7 +9,7 @@
  *     unlockedFamilies: string[], warmupFamilies: string[],
  *     demotionEvidence: { [family]: [{day, pDay}] },
  *     promotionEvidence: { [family]: string[] (days) },
- *     fluentRtByDay: [{day, medianRt}], lastProcessedDay, audit: [] }
+ *     fluentRtByDay: [{day, medianInit}], lastProcessedDay, audit: [] }
  */
 import { ADAPT, SCHEDULER } from '../config.js';
 import { ADD_FAMILIES, SUB_PARTNER, familyOf } from './facts.js';
@@ -17,7 +17,8 @@ import { ACCURATE_STATES, median } from './states.js';
 
 /**
  * @param {string} day  yyyy-mm-dd being processed (must be complete)
- * @param {Array} answers  that day's answers, each { fact_id, correct, rt,
+ * @param {Array} answers  that day's answers, each { fact_id, correct,
+ *     initiation_ms, typing_ms, rt (=init+typing, display only),
  *     cls (classification), round_type, void (round/session voided) }
  * @param {object} state  prior adaptive state (not mutated)
  * @returns {{ state: object, audit: Array }}
@@ -31,23 +32,29 @@ export function processDay(day, answers, state) {
     if (!usable.length) return { state: next, audit };
 
     // ---- Off-day guard: judge today's FLUENT-fact performance vs baseline.
+    // The speed arm is INITIATION only (question shown → first keypress),
+    // mirroring the state machine (states.js decides on medianInit / a.init).
+    // Total RT was wrong here: typing_ms scales with input method, so a
+    // keyboard→tablet move steps the total median up and fires a spurious
+    // off-day — which then self-latches, because the baseline series below is
+    // only appended on non-off days and freezes at the last fast-regime day.
     const fluent = usable.filter(a => (state.facts[a.fact_id]?.state) === 'FLUENT');
     const fluentAcc = fluent.length >= ADAPT.MIN_ITEMS_PER_DAY
         ? fluent.filter(a => a.cls.counts_for_accuracy && a.correct).length /
           Math.max(1, fluent.filter(a => a.cls.counts_for_accuracy).length)
         : null;
-    const fluentRt = median(fluent.filter(a => a.cls.counts_for_rt).map(a => a.rt));
-    const baseRt = trailingFluentRt(state, ADAPT.OFFDAY_BASELINE_DAYS);
+    const fluentInit = median(fluent.filter(a => a.cls.counts_for_rt).map(a => a.initiation_ms));
+    const baseInit = trailingFluentInit(state, ADAPT.OFFDAY_BASELINE_DAYS);
     const offDay =
-        (baseRt > 0 && fluentRt > 0 && fluentRt > ADAPT.OFFDAY_RT_MULT * baseRt) ||
+        (baseInit > 0 && fluentInit > 0 && fluentInit > ADAPT.OFFDAY_RT_MULT * baseInit) ||
         (fluentAcc !== null && fluentAcc < ADAPT.OFFDAY_FLUENT_ACCURACY);
 
-    if (fluentRt > 0 && !offDay) {
-        next.fluentRtByDay = [...(next.fluentRtByDay || []), { day, medianRt: fluentRt }]
+    if (fluentInit > 0 && !offDay) {
+        next.fluentRtByDay = [...(next.fluentRtByDay || []), { day, medianInit: fluentInit }]
             .slice(-ADAPT.OFFDAY_BASELINE_DAYS * 2);
     }
     if (offDay) {
-        audit.push({ day, type: 'off_day', fluentAcc, fluentRt, baseRt });
+        audit.push({ day, type: 'off_day', fluentAcc, fluentInit, baseInit });
         return { state: next, audit }; // nothing else is written
     }
 
@@ -202,8 +209,8 @@ function factsInFamily(state, fam) {
         .map(([, r]) => r);
 }
 
-function trailingFluentRt(state, days) {
-    const xs = (state.fluentRtByDay || []).slice(-days).map(d => d.medianRt);
+function trailingFluentInit(state, days) {
+    const xs = (state.fluentRtByDay || []).slice(-days).map(d => d.medianInit);
     return median(xs);
 }
 

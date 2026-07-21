@@ -27,6 +27,11 @@ export async function run({ eq, ok }) {
     eq(growthSlope(flat).status, 'amber', 'flat slope amber');
     eq(growthSlope(flat, { mastered: true }).status, 'flat-at-mastery', 'plateau at mastery is success');
     eq(growthSlope(rising.slice(0, 3)).status, 'provisional', 'few points = provisional');
+    // A steadily DECLINING series is "not flat" because it is falling — it must
+    // never render green (the "is it working?" badge inverting when it matters).
+    const declining = Array.from({ length: 8 }, (_, w) => ({ week: w, correctPerMin: 15 - w * 0.9 }));
+    ok(growthSlope(declining).status !== 'green', 'declining slope is not green');
+    eq(growthSlope(declining).status, 'amber', 'declining slope flagged amber');
 
     // MTC bands.
     ok(mtcBand([25, 25, 24]).band.includes('ceiling'), '25/25 = ceiling');

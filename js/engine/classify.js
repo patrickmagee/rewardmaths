@@ -46,12 +46,22 @@ export function classifyAnswer(ans, fact) {
     const total = ans.initiation_ms + (ans.typing_ms || 0);
     const bandsApply = fact.validAttempts >= RT.MIN_ATTEMPTS_FOR_BANDS && fact.medianRt > 0;
 
-    // 1. Timeout / hard ceiling. Uses the ceiling stamped on the answer — the
-    // one the child actually played against — so re-deriving an old log after
-    // a parent changes the setting can't retroactively flip past attempts into
-    // timeouts (and with them fact states, void rounds, medals). Records
-    // written before ceiling_ms existed fall back to the default.
-    if (ans.timeout || total >= (ans.ceiling_ms || RT.HARD_CEILING_MS)) {
+    // 1. Timeout. Trust the play-time `timeout` flag ALONE — the round screen
+    // sets it iff the auto-advance timer actually fired (session.js), which is
+    // the ground truth of a hit ceiling. We deliberately do NOT re-impose the
+    // ceiling at derive time (`total >= ceiling_ms`): untimed rounds (placement,
+    // blocked warm-up, shaky-family focus) never arm the clock, so a slow answer
+    // there is genuine thinking, not a timeout — yet a total over the ceiling
+    // would forge one, flipping a correct answer to forced_wrong (real case:
+    // Eliza's 6×8, 40.8s init, correct, on an untimed placement round, shown to
+    // the parent as "not secure" and requeued for re-teach). Because a TIMED
+    // round stamps timeout:true the instant it advances, a timeout:false record
+    // over the ceiling can ONLY be an untimed round, making the old arm redundant
+    // for timed play and wrong for untimed. This also makes immutability simpler:
+    // the flag is fixed at write time, so changing the ceiling setting can never
+    // reclassify history (ceiling_ms is still stamped, now purely informational).
+    // Legacy records predate untimed rounds and carry their own timeout flag.
+    if (ans.timeout) {
         // A timeout on a fact the child DEMONSTRABLY knows is a lapse, not
         // ignorance — but only FLUENT/SLOW carry that demonstration. UNSETTLED
         // means precisely "not enough history to judge yet", so forgiving its
@@ -62,9 +72,14 @@ export function classifyAnswer(ans, fact) {
         // over 11 days left a fact at attempts=2, state=UNSETTLED, never
         // practised again — invisible to the child and to the parent.
         // Excluding UNSETTLED does NOT reintroduce the spurious amber this
-        // engine removed: a forced-wrong timeout sends it to UNKNOWN, not
-        // SLOW (factState never returns SLOW without enough evidence), and
-        // UNKNOWN is the correct reading of a fact the child just failed.
+        // engine removed. A forced-wrong timeout usually sends a thin-history
+        // fact to UNKNOWN. It CAN land on SLOW at the 5th attempt — e.g. 4
+        // corrects over 2 days then a timeout: acc 4/5 = 0.80 clears the UNKNOWN
+        // gate but the 4/5 correct count misses the FLUENT bar, so it falls
+        // through to SLOW (verified against states.factState). That is benign:
+        // post-decouple (parent decision 2026-07-20) SLOW no longer drives
+        // scheduling at all, so it earns the child no extra drilling, and the
+        // fact self-heals to FLUENT/UNSETTLED on the next within-ceiling correct.
         return SETTLED_STATES.has(fact.state)
             ? res(false, false, false, 'timeout')      // lapse on a known fact
             : res(true, false, false, 'timeout', false); // real negative evidence

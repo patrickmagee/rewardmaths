@@ -62,6 +62,11 @@ export function growthSlope(weekly, { mastered = false } = {}) {
     if (flat) {
         return { slope, status: mastered ? 'flat-at-mastery' : 'amber', points: pts.length };
     }
+    // Not flat, and below the green threshold, so the trend has a real
+    // direction. A declining child is "not flat" precisely because they are
+    // falling — that must NEVER read as green: this is the dashboard's single
+    // "is it working?" signal. Reserve green for genuinely rising trends.
+    if (slope < 0) return { slope, status: 'amber', points: pts.length };
     return { slope, status: 'green', points: pts.length };
 }
 

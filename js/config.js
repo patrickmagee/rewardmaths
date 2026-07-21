@@ -140,7 +140,9 @@ export const ADAPT = {
     DEMOTE_FLOOR: 0.70,
     /** …on ≥ this many sessions over ≥ as many distinct days (≥1 not off-day). */
     DEMOTE_MIN_DAYS: 3,
-    /** Off-day: FLUENT-fact median RT > this × trailing 14-day FLUENT median… */
+    /** Off-day: FLUENT-fact median INITIATION > this × trailing 14-day FLUENT
+     *  median initiation… (initiation-only since 2026-07-21, matching the state
+     *  machine — a keyboard→tablet typing jump must not fake an off-day). */
     OFFDAY_RT_MULT: 1.5,
     /** …or FLUENT-fact accuracy below this. */
     OFFDAY_FLUENT_ACCURACY: 0.70,

@@ -93,18 +93,71 @@ export async function run({ eq, ok }) {
     eq([c.counts_for_accuracy, c.counts_for_rt, c.exclusion_reason],
         [true, true, null], 'answer under its own ceiling is valid, not a timeout');
 
-    // A short ceiling in force at the time is likewise respected.
+    // Immutability now hinges on the play-time `timeout` flag, not on
+    // re-reading ceiling_ms at derive time. A timeout:true record IS a timeout
+    // whatever the current default…
+    c = classifyAnswer({ correct: false, initiation_ms: 6000, typing_ms: 700,
+        timeout: true, ceiling_ms: 6000 }, learning);
+    eq(c.exclusion_reason, 'timeout', 'timeout:true is a timeout (flag is truth)');
+
+    // …and a record OVER a ceiling but with timeout:false is NOT forged into a
+    // timeout: a timed round would have stamped timeout:true the instant it
+    // advanced, so this can only be an untimed round (see FIX #4 below).
     c = classifyAnswer({ correct: true, initiation_ms: 6500, typing_ms: 200,
         timeout: false, ceiling_ms: 6000 }, fresh);
-    eq(c.exclusion_reason, 'timeout', 'over its own short ceiling = timeout');
+    eq(c.exclusion_reason, null, 'over its own ceiling but timeout:false = untimed, valid');
 
-    // Legacy records (written before ceiling_ms existed) use the default.
-    // Derived from the constant, not a literal, so raising the default doesn't
-    // silently invert this assertion.
-    c = classifyAnswer({ correct: false, initiation_ms: RT.HARD_CEILING_MS + 500, typing_ms: 0 }, fresh);
-    eq(c.exclusion_reason, 'timeout', 'legacy record over the default = timeout');
+    // Legacy records (written before ceiling_ms existed) are classified by their
+    // own timeout flag. A legacy timeout carries timeout:true and stays a
+    // timeout; an untimed-round record carries timeout:false and, however slow,
+    // is full evidence — the derive-time ceiling is never re-imposed.
+    c = classifyAnswer({ correct: false, initiation_ms: RT.HARD_CEILING_MS + 500,
+        typing_ms: 0, timeout: true }, learning);
+    eq(c.exclusion_reason, 'timeout', 'legacy timeout:true stays a timeout');
+    c = classifyAnswer({ correct: false, initiation_ms: RT.HARD_CEILING_MS + 500,
+        typing_ms: 0, timeout: false }, fresh);
+    eq(c.exclusion_reason, null, 'slow answer with timeout:false is not forged into a timeout');
     c = classifyAnswer({ correct: false, initiation_ms: RT.HARD_CEILING_MS - 500, typing_ms: 0 }, fresh);
-    eq(c.exclusion_reason, null, 'legacy record under the default is full evidence');
+    eq(c.exclusion_reason, null, 'answer under the default is full evidence');
+
+    // ---- FIX #4 (Eliza, 2026-07-20): untimed rounds must not be re-ceilinged ----
+    // Untimed rounds (placement, blocked warm-up, shaky-family focus) never arm
+    // the auto-advance clock, so session.js never stamps timeout:true on them.
+    // The old classifier ALSO fired on `total >= ceiling_ms`, forging a timeout
+    // at derive time and flipping a slow-but-CORRECT answer to forced_wrong.
+    // Real case: Eliza's 6×8 on an untimed placement round — 40.8s initiation,
+    // correct, ceiling 40000 → total 43551 ≥ 40000 → forced_wrong → fact UNKNOWN
+    // → parent told "not secure", requeued for re-teach of a fact she got RIGHT.
+    c = classifyAnswer({ correct: true, initiation_ms: 40800, typing_ms: 2751,
+        timeout: false, ceiling_ms: 40000 }, fresh);
+    eq([c.forced_wrong, c.counts_for_accuracy, c.exclusion_reason],
+        [undefined, true, null], 'untimed slow-correct stays correct, not forced_wrong');
+
+    // The genuine timeout it must NOT weaken: same fact, timer actually fired.
+    c = classifyAnswer({ correct: false, initiation_ms: 40000, typing_ms: 0,
+        timeout: true, ceiling_ms: 40000 }, learning);
+    eq([c.forced_wrong, c.exclusion_reason], [true, 'timeout'],
+        'a real timeout:true still counts as negative evidence');
+
+    // FIX #4 (B): the comment above rule 1 must not drift from code. A forced-
+    // wrong timeout does NOT always land on UNKNOWN — 4 corrects over 2 days then
+    // a timeout resolves to SLOW (acc 4/5 = 0.80 clears the UNKNOWN gate; 4/5
+    // correct misses the FLUENT bar; falls through to SLOW). Benign post-decouple
+    // (SLOW no longer schedules), but the boundary is asserted so it stays true.
+    let slowRec = newFactRecord();
+    const good = { correct: true, initiation_ms: 1200, typing_ms: 400, timeout: false };
+    for (const day of ['2026-07-01', '2026-07-01', '2026-07-02', '2026-07-02']) {
+        const cg = classifyAnswer(good, { medianRt: slowRec.medianRt, validAttempts: slowRec.attempts.length, state: slowRec.state });
+        slowRec = appendAttempt(slowRec, good, cg, day);
+        slowRec.state = factState(slowRec, 2500);
+    }
+    eq(slowRec.state, 'UNSETTLED', '4 corrects over 2 days = UNSETTLED (still non-settled)');
+    const lapse = { correct: false, initiation_ms: 40000, typing_ms: 0, timeout: true, ceiling_ms: 40000 };
+    const cl = classifyAnswer(lapse, { medianRt: slowRec.medianRt, validAttempts: slowRec.attempts.length, state: slowRec.state });
+    ok(cl.forced_wrong, 'timeout on the non-settled fact is forced_wrong');
+    slowRec = appendAttempt(slowRec, lapse, cl, '2026-07-03');
+    slowRec.state = factState(slowRec, 2500);
+    eq(slowRec.state, 'SLOW', '4-correct-then-timeout resolves to SLOW, not UNKNOWN (anchors the rule-1 comment)');
 
     // ---- UNSETTLED must not be an absorbing state (regression, 2026-07-20) ----
     // Lapse-forgiveness on a timeout belongs to FLUENT/SLOW only. When UNSETTLED

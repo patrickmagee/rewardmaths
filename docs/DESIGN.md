@@ -168,18 +168,44 @@ data. Ordered rules, first match wins:
    the parent (flags filter on `counts_for_accuracy`, and the fact map read "too
    few attempts to judge yet" after 33 failures). Forgiveness must be *earned*:
    only FLUENT/SLOW carry the demonstration that the child can retrieve the fact.
-   This does not reintroduce spurious amber — a forced-wrong timeout sends a
-   young fact to UNKNOWN, never SLOW, and UNKNOWN is the correct reading of a
-   fact the child just failed. `ACCURATE_STATES` still includes UNSETTLED for the
-   ladder mastery gate, where counting accurate-but-young facts is right.
-   Untimed rounds are exempt — nothing auto-advances while the clock is off.
+   This does not reintroduce spurious amber. A forced-wrong timeout usually
+   sends a thin-history fact to UNKNOWN; it **can** land on SLOW at the 5th
+   attempt (4 corrects over 2 days then a timeout → accuracy 4/5 = 0.80 clears
+   the UNKNOWN gate but misses the FLUENT bar, so it falls through to SLOW —
+   claim corrected in the `classify.js` comment 2026-07-21, verified against
+   `states.factState`). That is benign: post-decouple SLOW drives no scheduling,
+   so it earns the child no extra drilling, and the fact self-heals to
+   FLUENT/UNSETTLED on the next within-ceiling correct. `ACCURATE_STATES` still
+   includes UNSETTLED for the ladder mastery gate, where counting
+   accurate-but-young facts is right.
+   Untimed rounds (placement, blocked warm-up, shaky-family focus) never arm the
+   clock, so nothing auto-advances and no answer there can be a timeout.
    **Parent-tunable per child** (dashboard → Settings → question timeout), 6–60s,
    default 40s. This is an *accessibility* dial for a child who needs longer to
    answer, not a knob for tuning the engine to a child's data — the bands in
-   rules 2–6 are unchanged by it. The ceiling in force is stamped on every
-   answer (`ceiling_ms`), and rule 1 reads it back per-answer, so changing the
-   setting never reclassifies already-logged attempts (which would otherwise
-   have retro-rewritten fact states and medals through the derive fold).
+   rules 2–6 are unchanged by it.
+   **Immutability corrected 2026-07-21 — trust the play-time flag, never
+   re-ceiling at derive.** Rule 1 now fires on the `timeout` flag the round
+   screen stamped **alone** (`session.js` sets it iff the auto-advance timer
+   actually fired); it no longer re-imposes `total >= ceiling_ms` at derive time.
+   The old derive-time arm forged timeouts on untimed rounds — a slow-but-correct
+   answer on a placement/warm-up round (real case: Eliza's 6×8, 40.8s initiation,
+   correct, untimed) was flipped to forced-wrong, shown to the parent as "not
+   secure" and requeued for re-teach. Because a *timed* round stamps
+   `timeout:true` the instant it advances, a `timeout:false` record over the
+   ceiling can only be an untimed round, so the arm was redundant for timed play
+   and wrong for untimed. `ceiling_ms` is still stamped on every answer for the
+   dashboard/audit but is now purely informational; the flag is fixed at write
+   time, so changing the setting can never reclassify already-logged attempts
+   (which would otherwise have retro-rewritten fact states and medals through the
+   derive fold). Session records now also carry `untimed` (a durable marker that
+   the round never armed the clock — recorded for future consumers, not read by
+   `classify.js`, which legacy records lack). **Legacy 12-second-ceiling
+   timeouts** (`timeout:true`, no `ceiling_ms`, `given:null` — e.g. all of
+   Eliza's 32) predate untimed rounds, carry their own flag, and **remain
+   negative evidence by owner decision (2026-07-21)**: this change touches only
+   the derive-time re-ceiling of `timeout:false` answers, never a played
+   timeout.
 2. **Anticipation floor**: initiation <300ms → full discard, doesn't consume the
    fact's 3-per-day retrieval budget.
 3. **Rapid guess**: wrong AND initiation <500ms → non-evidence (disengagement
@@ -213,8 +239,10 @@ lapse-suspects are evidence too, so neither counts toward voiding. Voiding on
 timeouts silently deleted a real session (Eliza, 2026-07-19: 5 rounds, 42
 answers, zero fast answers) and reported it to the parent as "rapid guessing".
 Excluded trials stay in the log
-with reasons (auditable, re-runnable). Admin alarm if a child's weekly exclusion
-rate exceeds ~10–15%. Floors and bands apply to **initiation**.
+with reasons (auditable, re-runnable). Admin alarm if a child's weekly
+**disengagement** rate exceeds ~10–15% — scope narrowed 2026-07-21 to genuine
+disengagement (anticipations + rapid guesses only); see §3. Floors and bands
+apply to **initiation**.
 
 ### Typing baseline
 30-second "type the number you see" mini-game per child, re-run quarterly.
@@ -389,6 +417,17 @@ Round shapes:
   round (2026-07-12): the ladder frontier lives in warm-up for weeks at a time,
   and letting it monopolise the slot starves times-table weak-fact work —
   simulation showed the weak-7s struggle flag never firing without this.
+  **Rotation fix 2026-07-21**: the day-of-month parity gates *entry* to the slot
+  (day-about), but the warm-up family *index* now rotates independently
+  (`floor(dom/2) % wu.length`, was `dom % wu.length`). Reusing `dom` for both
+  pinned a 2-element list to `wu[0]` forever — the slot opens only on even days,
+  and every even day indexed `wu[0]`, so `wu[1]` never ran.
+- `workingTable()` (the "next table to work on", which also drives the
+  child-facing "today" copy) counts a fact as done if it is in `ACCURATE_STATES`
+  (FLUENT/SLOW/UNSETTLED), not FLUENT-only (changed 2026-07-21). Counting FLUENT
+  only meant a table full of settled-but-not-yet-fluent facts never cleared the
+  70% bar, pinning every child on table 2 — same speed-shouldn't-gate-progression
+  principle as the ladder mastery gate and the decouple above.
 - All thresholds in `js/config.js` — this is an n=2 experiment; keep tuning cheap.
 
 ### Add/sub fact-family ladder (replaces Easy/Medium/Hard)
@@ -433,14 +472,21 @@ no carry → 13. with carry/borrow.
 ### Adaptation metric (bad-day-tolerant, all silent)
 Nightly pure function per child over the answer log; constants in `js/config.js`.
 
-- **Off-day guard runs first**: if today's median RT on the child's own FLUENT
-  facts >1.5× their trailing 14-day median, or FLUENT accuracy <70%, or the
-  session-void rule fired → session flagged; mix eases live, **nothing is
-  written** to states or averages. (A bad day depresses everything at once;
-  real forgetting is fact-specific.) Implementation note 2026-07-12: "nothing"
-  now includes per-fact records — the derive fold rolls back a flagged day's
-  fact updates (previously bad-day attempts leaked into fact windows, knocking
-  facts out of FLUENT and stalling family promotion for weeks after).
+- **Off-day guard runs first**: if today's median **initiation** on the child's
+  own FLUENT facts >1.5× their trailing 14-day median initiation, or FLUENT
+  accuracy <70%, or the session-void rule fired → session flagged; mix eases
+  live, **nothing is written** to states or averages. (A bad day depresses
+  everything at once; real forgetting is fact-specific.) Implementation note
+  2026-07-12: "nothing" now includes per-fact records — the derive fold rolls
+  back a flagged day's fact updates (previously bad-day attempts leaked into
+  fact windows, knocking facts out of FLUENT and stalling family promotion for
+  weeks after). **Initiation-based since 2026-07-21**: the speed arm still read
+  *total* RT after the state machine moved to initiation (§2 speed cutoff), so a
+  keyboard→tablet switch stepped the total median up and fired a spurious
+  off-day — which self-latched, because the baseline series is appended only on
+  non-off days and froze at the last fast-regime day. It now medians
+  `initiation_ms` on FLUENT facts, mirroring `states.js`; the accuracy arm is
+  unchanged (`fluentRtByDay` entries now store `medianInit`).
 - **Per family, per day (≥6 items)**: `P_day = correct/presented` (classified
   answers only), smoothed `M ← 0.75·M + 0.25·P_day` — once per day, not per
   round, so a marathon bad evening can't compound. Half-life ~2–3 days.
@@ -484,6 +530,11 @@ within 1–2 normal days. Net visible effect: none.
 - Green ≥ ~0.25–0.4 typed facts/min/week; amber if flat 4+ weeks on a non-mastered
   theme → scheduler shifts + parent flag. Slope marked provisional until 6+ weekly
   points. A plateau at mastery = success, rotate to maintenance.
+- **Declining trends read amber, not green (2026-07-21)**: `growthSlope`
+  special-cased only *flat*, so a genuinely falling slope — being "not flat" —
+  fell through to green. A negative slope below the green threshold now returns
+  amber. Green is reserved for genuinely rising trends: this is the dashboard's
+  single "is it working?" signal.
 - **Dashboard warning shown at launch**: interleaving will *lower* scores for the
   first weeks (desirable difficulty). Judge at weeks 4–10, 30+ sessions. Habit
   formation median ~66 days.
@@ -493,6 +544,18 @@ Once per half-term, parent-triggered: 25 questions, tables 2–12, 6s window
 (median of 2–3 administrations). Convert via DfE's open distribution (2024: mean
 20.6/25, 34% full marks). Displayed caveat: norms are Year 4 (age 8–9) — for these
 kids it's a floor; target is consistent 25/25.
+
+### Disengagement-rate alarm (scope narrowed 2026-07-21)
+The dashboard raises an alarm when >~10–15% of a child's recent answers are
+genuine **disengagement** — anticipations (<300ms) and rapid guesses
+(wrong, <500ms), i.e. the child mashing. It no longer counts timeouts or
+lapse-suspects: since b5a51a5 a timeout on a non-settled fact is *counted*
+negative evidence (`counts_for_accuracy:true`), not discarded, and
+lapse-suspects are counted too, so folding either into a "discarded" alarm both
+double-punished a slow child and misreported the cause. `admin.js` mirrors the
+classifier's disengaged set (`{anticipation, rapid_guess}`), and the alarm copy
+now reads "very fast guesses or mashing (not counted)" rather than
+"mashing/timeouts".
 
 ### Struggle flags ("Child X is struggling with theme Z")
 Theme = a times table (computed bottom-up from facts) or an add/sub fact family
