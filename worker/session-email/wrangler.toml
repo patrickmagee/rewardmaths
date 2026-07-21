@@ -26,12 +26,12 @@ id = "dd938e9f5745405b91a8e6e1dd01b3cf"
 # Everyone's session emails go here (Tom, Eliza, test).
 NOTIFY_TO = "patrick.magee@lumen-electronics.com"
 # Per-child ADDITIONAL recipients (JSON: user → [addresses]). Eliza also cc's a
-# second address. NOTE: this gmail is BLOCKED until a domain is verified in
-# Resend — the free onboarding@resend.dev sender can only reach the account
-# owner (patrick). Verify rewardmaths.com at resend.com/domains, then set
-# MAIL_FROM to an address on that domain and the gmail starts working.
+# second address. Works now that rewardmaths.com is a verified Resend domain
+# (2026-07-21) and MAIL_FROM is on that domain — deliverable to any address.
 EXTRA_TO = '{"eliza":["motel71lundy89@gmail.com"]}'
-MAIL_FROM = "RewardMaths <onboarding@resend.dev>"
+# Verified domain sender (was onboarding@resend.dev, which only reached the
+# account owner). rewardmaths.com verified in Resend 2026-07-21.
+MAIL_FROM = "RewardMaths <notify@rewardmaths.com>"
 IDLE_MINUTES = "20"
 DASHBOARD_URL = "https://rewardmaths.com/admin.html"
 # RESEND_API_KEY is a secret, NOT a var — set with `wrangler secret put`.
