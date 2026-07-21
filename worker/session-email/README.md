@@ -30,29 +30,35 @@ Full picture: https://rewardmaths.com/admin.html
    domain if you want it to come from `rewardmaths.com`.)
 2. **Recipient / from:** edit `wrangler.toml` `[vars]` — `NOTIFY_TO` is the
    address that gets the email; `IDLE_MINUTES` and `DASHBOARD_URL` are there too.
-3. **Store the key as a secret** (never in the repo):
+3. **Enable Workers on the account (one time):** open the Workers & Pages
+   section of the Cloudflare dashboard once. This auto-creates the account's
+   `workers.dev` subdomain, which Cloudflare requires before it will register a
+   cron schedule — even for a cron-only worker with no public URL.
+4. **Store the key as a secret** (never in the repo):
    ```
    cd worker/session-email
    npx wrangler secret put RESEND_API_KEY
    ```
-4. **Deploy:**
+5. **Deploy:**
    ```
    npx wrangler deploy
    ```
    (Uses the Cloudflare token in the repo-root `.cloudflare.env`, same as the
-   site.) The cron trigger is registered automatically.
+   site.) The cron trigger registers automatically once step 3 is done.
 
 ## Check it without waiting for a kid
 
-The Worker's HTTP URL is **dry-run only** — it reports what it *would* send and
-never sends. After deploy:
+`workers_dev = false` — this is a cron-only worker with no public URL, so the
+scheduled sweep can't be poked over HTTP. To watch it:
 
 ```
-curl https://rewardmaths-session-email.<your-subdomain>.workers.dev/
+npx wrangler tail rewardmaths-session-email
 ```
 
-You'll get JSON listing each child and whether a session is open, finished, or
-already emailed.
+then wait for the 5-minute cron (or trigger it from the Cloudflare dashboard →
+the Worker → Triggers). The `fetch` handler is dry-run only, so if you ever set
+`workers_dev = true` to expose a URL, hitting it reports what it *would* send
+and never sends.
 
 ## Local logic test (no Cloudflare, no email)
 
