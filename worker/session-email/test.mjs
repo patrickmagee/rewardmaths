@@ -106,6 +106,15 @@ ok(JSON.stringify(recipientsFor('tom', env)) === JSON.stringify(['p@x']), 'tom �
 ok(JSON.stringify(recipientsFor('eliza', env)) === JSON.stringify(['p@x', 'g@mail']), 'eliza → primary + extra');
 ok(recipientsFor('eliza', { notifyTo: 'p@x', extraTo: 'BAD JSON' })[0] === 'p@x', 'bad EXTRA_TO falls back to primary');
 
+// 3d. The SHIPPED map (wrangler.toml): each child's extra address is theirs
+// alone — an extra recipient must never receive the other child's session.
+const live = { notifyTo: 'p@x', extraTo: readFileSync(new URL('./wrangler.toml', import.meta.url), 'utf8')
+    .match(/^EXTRA_TO = '(.*)'$/m)[1] };
+ok(recipientsFor('tom', live).includes('siobhan80@hotmail.co.uk'), 'tom → siobhan');
+ok(!recipientsFor('eliza', live).includes('siobhan80@hotmail.co.uk'), 'eliza does NOT → siobhan');
+ok(!recipientsFor('test', live).includes('siobhan80@hotmail.co.uk'), 'test does NOT → siobhan');
+ok(!recipientsFor('tom', live).includes('motel71lundy89@gmail.com'), "tom does NOT get eliza's extra");
+
 // 4. currentSession splits on a >idle gap.
 const synth = [{ ts: 1000, correct: true, round_id: 'a' }, { ts: 2000, correct: false, round_id: 'a' },
     { ts: 2000 + IDLE + 1, correct: true, round_id: 'b' }, { ts: 2000 + IDLE + 2000, correct: true, round_id: 'b' }];

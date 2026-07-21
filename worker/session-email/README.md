@@ -74,9 +74,11 @@ globals so this works.
 ## Who gets emailed
 
 - `NOTIFY_TO` — every child's session email goes here (Tom, Eliza, test).
-- `EXTRA_TO` — JSON map of *additional* per-child recipients, e.g.
-  `{"eliza":["someone@gmail.com"]}`. Each address is emailed separately, so a
-  blocked extra never stops the main email.
+- `EXTRA_TO` — JSON map of *additional* per-child recipients. Currently
+  Eliza → `motel71lundy89@gmail.com`, Tom → `siobhan80@hotmail.co.uk`. The
+  lookup is by exact user key, so an extra only ever sees that one child's
+  sessions. Each address is emailed separately, so a blocked extra never stops
+  the main email. `test.mjs` asserts the shipped map's isolation.
 
 **Extra addresses need a verified domain.** Resend's free `onboarding@resend.dev`
 sender only delivers to the account owner (`NOTIFY_TO`). To reach any other
