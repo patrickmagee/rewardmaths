@@ -10,7 +10,7 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sweep, currentSession, renderEmail, notifyKey } from './src/sweep.js';
+import { sweep, currentSession, renderEmail, notifyKey, recipientsFor } from './src/sweep.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const logDir = join(here, '..', '..', 'tmp-logs');
@@ -99,6 +99,12 @@ ok(!r.results.some(x => x.action === 'notify' && x.user === sampleUser), 'same s
 const { kv: fresh } = loadKv();
 r = await sweep(fresh, { now: lastTs + 5 * 60 * 60 * 1000, idleMs: IDLE });
 ok(r.results.every(x => x.action !== 'notify'), 'stale session (5h old) is not emailed');
+
+// 3c. Recipient routing: everyone → NOTIFY_TO; Eliza also → the extra address.
+const env = { notifyTo: 'p@x', extraTo: '{"eliza":["g@mail"]}' };
+ok(JSON.stringify(recipientsFor('tom', env)) === JSON.stringify(['p@x']), 'tom → primary only');
+ok(JSON.stringify(recipientsFor('eliza', env)) === JSON.stringify(['p@x', 'g@mail']), 'eliza → primary + extra');
+ok(recipientsFor('eliza', { notifyTo: 'p@x', extraTo: 'BAD JSON' })[0] === 'p@x', 'bad EXTRA_TO falls back to primary');
 
 // 4. currentSession splits on a >idle gap.
 const synth = [{ ts: 1000, correct: true, round_id: 'a' }, { ts: 2000, correct: false, round_id: 'a' },

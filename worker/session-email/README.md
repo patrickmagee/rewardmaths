@@ -71,6 +71,20 @@ KV: fires after idle, stays quiet while a child is still active, never emails
 the same session twice. `src/sweep.js` is deliberately free of Cloudflare
 globals so this works.
 
+## Who gets emailed
+
+- `NOTIFY_TO` — every child's session email goes here (Tom, Eliza, test).
+- `EXTRA_TO` — JSON map of *additional* per-child recipients, e.g.
+  `{"eliza":["someone@gmail.com"]}`. Each address is emailed separately, so a
+  blocked extra never stops the main email.
+
+**Extra addresses need a verified domain.** Resend's free `onboarding@resend.dev`
+sender only delivers to the account owner (`NOTIFY_TO`). To reach any other
+address (like the gmail above): verify `rewardmaths.com` at resend.com/domains
+(add the DNS records to Cloudflare — you control both), then set `MAIL_FROM` to
+an address on that domain, e.g. `RewardMaths <notify@rewardmaths.com>`. No code
+change — the extras start delivering on the next cron.
+
 ## Turn it off / tune it
 
 - Pause: comment out `[triggers]` in `wrangler.toml` and redeploy, or delete the

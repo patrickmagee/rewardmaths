@@ -16,7 +16,7 @@
  * would send, never sends), so the public workers.dev URL can't be used to
  * send mail.
  */
-import { sweep, renderEmail, notifyKey } from './sweep.js';
+import { sweep, renderEmail, notifyKey, recipientsFor } from './sweep.js';
 
 export default {
     async scheduled(event, env, ctx) {
@@ -40,22 +40,29 @@ async function run(env, { dryRun }) {
         if (r.action !== 'notify') continue;
         if (dryRun) { sent.push({ user: r.user, would: true }); continue; }
 
-        // Send FIRST; only record the watermark once the send actually
-        // succeeds, so a failed send (e.g. before the key is set) is retried
-        // on the next cron rather than marked done and lost.
-        try {
-            const email = renderEmail({ name: r.name }, r.session, { dashboardUrl: env.DASHBOARD_URL });
-            await send(env, r.name, email);
-            await env.SCORES.put(notifyKey(r.user), JSON.stringify({ lastTs: r.session.lastTs, emailedAt: decision.now }));
-            sent.push({ user: r.user, sent: true });
-        } catch (err) {
-            sent.push({ user: r.user, error: String(err && err.message || err) });
+        // One send per recipient (NOT one call with many `to`s): Resend rejects
+        // the WHOLE call if any recipient is unauthorised, which would stop the
+        // primary email too. Sending separately means a blocked extra (e.g. a
+        // gmail before the domain is verified) can't take out the main one.
+        const email = renderEmail({ name: r.name }, r.session, { dashboardUrl: env.DASHBOARD_URL });
+        const to = recipientsFor(r.user, { notifyTo: env.NOTIFY_TO, extraTo: env.EXTRA_TO });
+        const delivered = [];
+        for (const addr of to) {
+            try { await send(env, addr, r.name, email); delivered.push({ addr, ok: true }); }
+            catch (err) { delivered.push({ addr, ok: false, error: String(err && err.message || err) }); }
         }
+        // Watermark on the PRIMARY (first) recipient's success only — so a
+        // failing extra never re-sends to the primary every 5 min, and a failed
+        // primary IS retried next cron.
+        if (delivered[0]?.ok) {
+            await env.SCORES.put(notifyKey(r.user), JSON.stringify({ lastTs: r.session.lastTs, emailedAt: decision.now }));
+        }
+        sent.push({ user: r.user, delivered });
     }
     return { ...decision, sent };
 }
 
-async function send(env, name, text) {
+async function send(env, to, name, text) {
     if (!env.RESEND_API_KEY) throw new Error('RESEND_API_KEY not set');
     const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
@@ -65,7 +72,7 @@ async function send(env, name, text) {
         },
         body: JSON.stringify({
             from: env.MAIL_FROM || 'RewardMaths <onboarding@resend.dev>',
-            to: [env.NOTIFY_TO],
+            to: [to],
             subject: `${name} finished a maths session`,
             text,
         }),

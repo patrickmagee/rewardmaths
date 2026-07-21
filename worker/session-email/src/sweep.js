@@ -54,16 +54,33 @@ export async function sweep(kv, opts = {}) {
 /** Watermark key for a user's last-emailed session. */
 export const notifyKey = user => `notify:${user}`;
 
-/** Real children only — no admin, no test account. */
+/** Every player profile (includes the test account; excludes the parent/admin). */
 async function realKids(kv) {
     const kids = [];
     for await (const key of listKeys(kv, 'profile:')) {
         const p = await kv.get(key, 'json');
-        if (p && p.user && p.role !== 'admin' && p.user !== 'test') {
+        if (p && p.user && p.role !== 'admin') {
             kids.push({ user: p.user, name: p.name || p.user });
         }
     }
     return kids;
+}
+
+/**
+ * Who a given child's email goes to. Everyone goes to NOTIFY_TO; EXTRA_TO is a
+ * JSON map of per-user *additional* addresses ({"eliza":["x@y"]}). The base
+ * address is always first — the caller treats it as primary (its success
+ * decides the watermark), so a blocked extra can't stop the main email or wedge
+ * the session into endless retries.
+ * @param {string} user
+ * @param {{notifyTo?:string, extraTo?:string}} env
+ * @returns {string[]}
+ */
+export function recipientsFor(user, { notifyTo, extraTo } = {}) {
+    const base = notifyTo ? [notifyTo] : [];
+    let extra = [];
+    try { extra = (JSON.parse(extraTo || '{}')[user]) || []; } catch { /* bad JSON → no extras */ }
+    return [...new Set([...base, ...extra.filter(Boolean)])];
 }
 
 /** Answers from the two most recent day-keys (covers a session straddling midnight). */
