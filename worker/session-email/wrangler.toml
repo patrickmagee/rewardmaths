@@ -32,6 +32,6 @@ EXTRA_TO = '{"eliza":["motel71lundy89@gmail.com"]}'
 # Verified domain sender (was onboarding@resend.dev, which only reached the
 # account owner). rewardmaths.com verified in Resend 2026-07-21.
 MAIL_FROM = "RewardMaths <notify@rewardmaths.com>"
-IDLE_MINUTES = "20"
+IDLE_MINUTES = "10"
 DASHBOARD_URL = "https://rewardmaths.com/admin.html"
 # RESEND_API_KEY is a secret, NOT a var — set with `wrangler secret put`.
