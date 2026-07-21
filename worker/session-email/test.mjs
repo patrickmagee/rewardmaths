@@ -10,7 +10,7 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sweep, currentSession, renderEmail } from './src/sweep.js';
+import { sweep, currentSession, renderEmail, notifyKey } from './src/sweep.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const logDir = join(here, '..', '..', 'tmp-logs');
@@ -57,6 +57,17 @@ const ok = (cond, msg) => { console.log(`  ${cond ? 'ok  ' : 'FAIL'} ${msg}`); c
 const { kv } = loadKv();
 const IDLE = 20 * 60 * 1000;
 
+// Mirror index.js run(): decide via sweep, then write watermarks for the ones
+// that would be emailed (a successful send). Watermarks are NOT written by
+// sweep itself anymore, so the test owns that side effect just like the Worker.
+async function runOnce(now) {
+    const d = await sweep(kv, { now, idleMs: IDLE });
+    for (const r of d.results) {
+        if (r.action === 'notify') await kv.put(notifyKey(r.user), JSON.stringify({ lastTs: r.session.lastTs, emailedAt: now }));
+    }
+    return d;
+}
+
 // Find the true last-activity ts across the fake store, to anchor `now`.
 let lastTs = 0, sampleUser = null;
 for (const [key, val] of kv._store) {
@@ -67,21 +78,27 @@ console.log(`anchor: latest answer ts=${lastTs} (${new Date(lastTs).toISOString(
 
 // 1. The most-recently-active child, only 5 min quiet, is NOT emailed (still
 //    playing). Other children who finished earlier today may legitimately fire.
-let r = await sweep(kv, { now: lastTs + 5 * 60 * 1000, idleMs: IDLE, dryRun: true });
+let r = await sweep(kv, { now: lastTs + 5 * 60 * 1000, idleMs: IDLE });
 const latest = r.results.find(x => x.user === sampleUser);
-ok(latest && latest.action === 'skipped' && latest.reason === 'still playing',
+ok(latest && latest.action === 'skip' && latest.reason === 'still playing',
     `no email for the child still mid-session, 5 min quiet (${sampleUser}: ${latest?.reason})`);
 
-// 2. Past the idle window -> the child with the latest activity is notified.
-r = await sweep(kv, { now: lastTs + IDLE + 60 * 1000, idleMs: IDLE, dryRun: false });
-const notified = r.results.filter(x => x.action === 'notified');
+// 2. Past the idle window (but fresh) -> the latest-active child is notified.
+r = await runOnce(lastTs + IDLE + 60 * 1000);
+const notified = r.results.filter(x => x.action === 'notify');
 ok(notified.some(x => x.user === sampleUser), `notified after ${IDLE / 60000} min idle (${notified.map(x => x.user).join(',') || 'none'})`);
 const target = notified.find(x => x.user === sampleUser);
 ok(target && target.session.answered > 0, `session summary is populated (${target?.session.answered} answers, ${target?.session.rounds} rounds)`);
 
-// 3. Run again at the same time -> watermark suppresses a repeat.
-r = await sweep(kv, { now: lastTs + IDLE + 2 * 60 * 1000, idleMs: IDLE, dryRun: false });
-ok(!r.results.some(x => x.action === 'notified'), 'same session never emails twice (watermark holds)');
+// 3. Run again -> watermark (written by runOnce above) suppresses a repeat.
+r = await runOnce(lastTs + IDLE + 2 * 60 * 1000);
+ok(!r.results.some(x => x.action === 'notify' && x.user === sampleUser), 'same session never emails twice (watermark holds)');
+
+// 3b. A session that finished hours ago is skipped as too old (no activation
+//     backfill, no email about yesterday's play).
+const { kv: fresh } = loadKv();
+r = await sweep(fresh, { now: lastTs + 5 * 60 * 60 * 1000, idleMs: IDLE });
+ok(r.results.every(x => x.action !== 'notify'), 'stale session (5h old) is not emailed');
 
 // 4. currentSession splits on a >idle gap.
 const synth = [{ ts: 1000, correct: true, round_id: 'a' }, { ts: 2000, correct: false, round_id: 'a' },

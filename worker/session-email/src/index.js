@@ -16,7 +16,7 @@
  * would send, never sends), so the public workers.dev URL can't be used to
  * send mail.
  */
-import { sweep, renderEmail } from './sweep.js';
+import { sweep, renderEmail, notifyKey } from './sweep.js';
 
 export default {
     async scheduled(event, env, ctx) {
@@ -33,18 +33,26 @@ export default {
 
 async function run(env, { dryRun }) {
     const idleMs = (Number(env.IDLE_MINUTES) || 20) * 60 * 1000;
-    const result = await sweep(env.SCORES, { idleMs, dryRun });
+    const decision = await sweep(env.SCORES, { idleMs });
 
     const sent = [];
-    for (const r of result.results) {
-        if (r.action !== 'notified') continue;
-        const email = renderEmail({ name: r.name }, r.session, {
-            dashboardUrl: env.DASHBOARD_URL,
-        });
-        if (!dryRun) await send(env, r.name, email);
-        sent.push({ user: r.user, would: dryRun });
+    for (const r of decision.results) {
+        if (r.action !== 'notify') continue;
+        if (dryRun) { sent.push({ user: r.user, would: true }); continue; }
+
+        // Send FIRST; only record the watermark once the send actually
+        // succeeds, so a failed send (e.g. before the key is set) is retried
+        // on the next cron rather than marked done and lost.
+        try {
+            const email = renderEmail({ name: r.name }, r.session, { dashboardUrl: env.DASHBOARD_URL });
+            await send(env, r.name, email);
+            await env.SCORES.put(notifyKey(r.user), JSON.stringify({ lastTs: r.session.lastTs, emailedAt: decision.now }));
+            sent.push({ user: r.user, sent: true });
+        } catch (err) {
+            sent.push({ user: r.user, error: String(err && err.message || err) });
+        }
     }
-    return { ...result, sent };
+    return { ...decision, sent };
 }
 
 async function send(env, name, text) {

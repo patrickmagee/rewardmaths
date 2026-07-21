@@ -12,41 +12,47 @@
  */
 
 export const DEFAULT_IDLE_MS = 20 * 60 * 1000;
+// A finished session is only worth an email for a while. Beyond this we skip it
+// (it's history, not "just finished") — which also stops first-activation from
+// emailing about sessions already sitting in the log.
+export const DEFAULT_MAX_STALE_MS = 3 * 60 * 60 * 1000;
 
 /**
- * @param {object} kv   KV-like: list({prefix,cursor}), get(key,'json'), put(key,str)
- * @param {object} opts { now, idleMs, dryRun }
- * @returns {Promise<{now,dryRun,idleMs,results:Array}>}
- *   Each result: { user, name, action:'notified'|'skipped', reason?, session? }
+ * DECIDE who should be emailed — pure read, NO writes. The caller sends the
+ * email and only then records the watermark, so a failed send is retried rather
+ * than silently swallowed. The `notify:<user>` watermark (last emailed lastTs)
+ * is read here to suppress repeats for a session already handled.
+ *
+ * @param {object} kv   KV-like: list({prefix,cursor}), get(key,'json')
+ * @param {object} opts { now, idleMs, maxStaleMs }
+ * @returns {Promise<{now,idleMs,results:Array}>}
+ *   Each result: { user, name, action:'notify'|'skip', reason?, session? }
  */
 export async function sweep(kv, opts = {}) {
     const now = opts.now ?? Date.now();
     const idleMs = opts.idleMs ?? DEFAULT_IDLE_MS;
-    const dryRun = !!opts.dryRun;
+    const maxStaleMs = opts.maxStaleMs ?? DEFAULT_MAX_STALE_MS;
     const results = [];
 
     for (const kid of await realKids(kv)) {
-        const answers = await recentAnswers(kv, kid.user);
-        const session = currentSession(answers, idleMs);
+        const base = { user: kid.user, name: kid.name };
+        const session = currentSession(await recentAnswers(kv, kid.user), idleMs);
 
-        if (!session) { results.push({ user: kid.user, name: kid.name, action: 'skipped', reason: 'no activity' }); continue; }
-        if (now - session.lastTs < idleMs) {
-            results.push({ user: kid.user, name: kid.name, action: 'skipped', reason: 'still playing', session });
-            continue;
-        }
+        if (!session) { results.push({ ...base, action: 'skip', reason: 'no activity' }); continue; }
+        const idle = now - session.lastTs;
+        if (idle < idleMs) { results.push({ ...base, action: 'skip', reason: 'still playing', session }); continue; }
+        if (idle > maxStaleMs) { results.push({ ...base, action: 'skip', reason: 'session too old', session }); continue; }
+
         const wm = await kv.get(`notify:${kid.user}`, 'json');
-        if (wm && wm.lastTs >= session.lastTs) {
-            results.push({ user: kid.user, name: kid.name, action: 'skipped', reason: 'already emailed', session });
-            continue;
-        }
+        if (wm && wm.lastTs >= session.lastTs) { results.push({ ...base, action: 'skip', reason: 'already emailed', session }); continue; }
 
-        if (!dryRun) {
-            await kv.put(`notify:${kid.user}`, JSON.stringify({ lastTs: session.lastTs, emailedAt: now }));
-        }
-        results.push({ user: kid.user, name: kid.name, action: 'notified', session });
+        results.push({ ...base, action: 'notify', session });
     }
-    return { now, dryRun, idleMs, results };
+    return { now, idleMs, results };
 }
+
+/** Watermark key for a user's last-emailed session. */
+export const notifyKey = user => `notify:${user}`;
 
 /** Real children only — no admin, no test account. */
 async function realKids(kv) {
