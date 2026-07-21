@@ -15,8 +15,8 @@ import { tableFacts, parseFact, STRATEGY_LINES, ADD_FAMILIES, familyOf, canonica
 import { RT, SCHEDULER } from '../config.js';
 
 const app = () => document.getElementById('app');
-const DEFAULT_PW_HASH = // sha256('laura') — bootstrap before profiles exist
-    '5d702eb07928ed7b84626b777c86c39bf4cb403d4024f031d5f97a4b0664421f';
+const DEFAULT_PW_HASH = // sha256('slieveleague') — bootstrap before profiles exist
+    'b8dd947fabbf5c08006da0bd63500d411cc555a23ebc6d72a720b609dac6f3e0';
 
 let PROFILES = [];
 const KIDS = () => PROFILES.filter(p => p.role !== 'admin');

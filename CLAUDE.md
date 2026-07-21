@@ -71,7 +71,7 @@ the end of `tests/simulate.js`) or you are testing a coin flip.
 
 ### Accounts
 Avatar + PIN login (hashes in KV profiles). Seeded: **tom 1111 · eliza 2222 ·
-test `Laura` (typed password, not keypad) · parent password `laura`**
+test `Laura` (typed password, not keypad) · parent password `slieveleague`**
 (dashboard can change PINs). Kids' streaks/medals/bars are private per
 child — never surface one child's data to the other.
 

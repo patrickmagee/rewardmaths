@@ -147,7 +147,7 @@ consolidated into `js/game/screens.js` rather than `screens/*.js`); browser
 smoke-test pending. Step 4 partially inside 3 (streaks/medals/goal-reveal/easy
 days/break/lock shipped; victory-lap + sprint-improvement lines pending).
 Default PINs: tom 1111 · eliza 2222 · test password 'Laura' (text entry) ·
-parent PIN-pad entry uses password 'laura' hash. Steps 5–7 not started.
+parent PIN-pad entry uses password 'slieveleague' hash. Steps 5–7 not started.
 
 | Step | Deliverable | Done when |
 |---|---|---|

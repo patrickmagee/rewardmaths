@@ -27,7 +27,7 @@ const DEFAULT_PROFILES = [
     { user: 'tom', name: 'Tom', avatar: '🦖', role: 'player', pin: '1111', settings: { accent: 'a' } },
     { user: 'eliza', name: 'Eliza', avatar: '🎨', role: 'player', pin: '2222', settings: { accent: 'b' } },
     { user: 'test', name: 'Test', avatar: '🧪', role: 'player', pin: 'Laura', settings: { accent: 'a' } },
-    { user: 'patrick', name: 'Patrick', avatar: '🔧', role: 'admin', pin: 'laura', settings: {} },
+    { user: 'patrick', name: 'Patrick', avatar: '🔧', role: 'admin', pin: 'slieveleague', settings: {} },
 ];
 
 boot();
