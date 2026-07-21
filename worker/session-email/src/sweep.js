@@ -135,9 +135,11 @@ export function renderEmail(kid, session, opts = {}) {
         timeZone: tz, weekday: 'short', day: 'numeric', month: 'short',
         hour: 'numeric', minute: '2-digit',
     }).format(new Date(ts));
+    // Plain ASCII only — fancy dashes (—/–) can arrive as � depending on the
+    // send path, and this is a throwaway nudge, so there's nothing to gain.
     const time = session.startTs === session.lastTs
         ? fmt(session.lastTs)
-        : `${fmt(session.startTs)} – ${new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).format(new Date(session.lastTs))}`;
+        : `${fmt(session.startTs)} to ${new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).format(new Date(session.lastTs))}`;
     const acc = session.answered ? Math.round(100 * session.correct / session.answered) : 0;
     const dash = opts.dashboardUrl || 'https://rewardmaths.com/admin.html';
     return [
@@ -149,6 +151,6 @@ export function renderEmail(kid, session, opts = {}) {
         ``,
         `Full picture: ${dash}`,
         ``,
-        `— RewardMaths`,
+        `- RewardMaths`,
     ].join('\n');
 }
