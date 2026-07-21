@@ -131,9 +131,14 @@ functions/). Manual fallback: `./build-dist.ps1` + wrangler (token in
 
 ## Pending / Roadmap
 
-- Daily parent email (deferred by choice): Worker cron + email API (provider
-  TBD — MailChannels free tier is dead; Resend/Brevo fit). Digest + playbook
-  format specified in DESIGN §3/§5.
+- **Session-finished email (built 2026-07-21)**: `worker/session-email/` — a
+  standalone cron Worker (Pages Functions can't schedule) that emails the parent
+  when a child plays then goes quiet 20 min. Binds the same `SCORES` KV; sends
+  via Resend; one email per session (KV watermark `notify:<user>`). Needs a
+  Resend key set as a secret + `wrangler deploy` — see its README. NOT wired
+  into the Pages deploy (separate target).
+- Daily parent DIGEST email (still deferred): the richer digest + playbook
+  format in DESIGN §3/§5, distinct from the session ping above.
 - Big-goal campaign wizard (DESIGN §4) — rare parent-set tangible goal.
 - MTC probe mode (25 q / 6s window, parent-triggered, half-termly).
 - Victory-lap round + data-gated improvement lines at round end.

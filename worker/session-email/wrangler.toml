@@ -1,0 +1,26 @@
+# Standalone Worker: "kid finished a session" email. Deployed SEPARATELY from
+# the Pages site (Pages Functions can't run on a cron). Binds the same KV
+# namespace as the site so it reads the live answer log.
+#
+# Deploy:  cd worker/session-email && wrangler deploy
+# Secret:  wrangler secret put RESEND_API_KEY   (one time, before first deploy)
+name = "rewardmaths-session-email"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# Every 5 minutes; a session is "finished" after IDLE_MINUTES of quiet, so the
+# email lands within ~5 min of that. (Cron is UTC but the logic is ts-based.)
+[triggers]
+crons = ["*/5 * * * *"]
+
+# Same namespace as the site's SCORES binding (wrangler.toml at repo root).
+[[kv_namespaces]]
+binding = "SCORES"
+id = "dd938e9f5745405b91a8e6e1dd01b3cf"
+
+[vars]
+NOTIFY_TO = "patrick.magee@lumen-electronics.com"
+MAIL_FROM = "RewardMaths <onboarding@resend.dev>"
+IDLE_MINUTES = "20"
+DASHBOARD_URL = "https://rewardmaths.com/admin.html"
+# RESEND_API_KEY is a secret, NOT a var — set with `wrangler secret put`.
