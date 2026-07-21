@@ -87,8 +87,19 @@ export function tableFacts(table) {
 }
 
 /** Enumerable single-digit add/sub family members. Two-digit families are
- *  generated parametrically via sampleFamily(). */
-export function familyFacts(family) {
+ *  generated parametrically via sampleFamily().
+ *
+ *  familyOf() is the SINGLE SOURCE OF TRUTH for which family a fact belongs to.
+ *  The raw enumerations below are definitional and therefore overlap (5+5 is
+ *  both make-10 and doubles-small; 2+9 both bridge-10 and add-2), while
+ *  familyOf() resolves each fact to exactly one family by precedence. Serving
+ *  from the raw sets while crediting through familyOf() sent ~21% of practice
+ *  to a different family's EMA than the one it was served for — which silently
+ *  starved the ladder's promotion gate (adapt.js:62-65 groups the day by
+ *  familyOf and needs MIN_ITEMS_PER_DAY of them to score the family at all).
+ *  So familyFacts() now returns the raw universe PARTITIONED by familyOf:
+ *  round-trip exact, no fact stranded, and no fact newly introduced. */
+function rawEnumeration(family) {
     const out = [];
     const push = (a, op, b) => out.push(factId(a, op, b));
     switch (family) {
@@ -138,6 +149,30 @@ export function familyFacts(family) {
             return null; // parametric two-digit family — use sampleFamily
     }
     return [...new Set(out)];
+}
+
+/** Families with a finite enumeration (everything else is parametric). */
+const ENUMERABLE = [
+    'add-0-1', 'add-2', 'doubles-small', 'near-doubles', 'make-10',
+    'doubles-big', 'bridge-10', 'add-rest',
+    'sub-0-1', 'sub-2', 'sub-doubles-small', 'sub-near-doubles', 'sub-make-10',
+    'sub-doubles-big', 'sub-bridge-10', 'sub-rest',
+];
+
+/** Every fact any enumeration can produce — the servable universe, unchanged
+ *  by the partition below (we only re-file facts, never invent them). */
+let UNIVERSE = null;
+const partitioned = new Map();
+
+export function familyFacts(family) {
+    if (!ENUMERABLE.includes(family)) return null;
+    if (!UNIVERSE) {
+        UNIVERSE = [...new Set(ENUMERABLE.flatMap(f => rawEnumeration(f) || []))];
+    }
+    if (!partitioned.has(family)) {
+        partitioned.set(family, UNIVERSE.filter(id => familyOf(id) === family));
+    }
+    return partitioned.get(family);
 }
 
 /** Sample one fact from a parametric two-digit family. rng: () => [0,1). */

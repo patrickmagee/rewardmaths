@@ -1,5 +1,6 @@
 /** Minimal test runner: node tests/run.js */
 const suites = [
+    './facts.test.js',
     './classify.test.js',
     './states.test.js',
     './scheduler.test.js',
