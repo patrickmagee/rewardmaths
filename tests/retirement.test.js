@@ -10,7 +10,7 @@
 import { newChildState, startingFamilies, currentFrontier } from '../js/engine/adapt.js';
 import { newFactRecord } from '../js/engine/states.js';
 import { familyRung, isRetiredFamily, familyOf, ADD_FAMILIES } from '../js/engine/facts.js';
-import { mixedRound } from '../js/engine/scheduler.js';
+import { mixedRound, focusRound, reviewRound } from '../js/engine/scheduler.js';
 import { SCHEDULER } from '../js/config.js';
 
 function fluent(id, lastSeenDay = '2026-07-01') {
@@ -52,11 +52,19 @@ export async function run({ eq, ok, seededRng }) {
     ok(isRetiredFamily('bridge-10', FR, D), 'bridge-10 retires once frontier is two-digit');
     ok(!isRetiredFamily('td-ones', FR, D), 'two-digit family never retires (it is current level)');
     ok(!isRetiredFamily('table-7', FR, D), 'a times table never retires');
-    // Distance boundary: exactly (frontier - distance) rungs down retires; the
-    // rung just inside the window does not.
-    const frIdx = ADD_FAMILIES.indexOf('bridge-10');           // rung 6 frontier
-    ok(!isRetiredFamily(ADD_FAMILIES[frIdx - 1], 'bridge-10', 2), 'one rung below frontier stays active');
-    ok(isRetiredFamily(ADD_FAMILIES[frIdx - 2], 'bridge-10', 2), 'two rungs below frontier retires');
+
+    // Retirement fires ONLY when the frontier itself is two-digit. A child
+    // still on the single-digit ladder (incl. the default bridge-10) retires
+    // NOTHING — they are still consolidating that work. (Protects Eliza and
+    // every default-level child from losing single-digit practice.)
+    for (const fam of ADD_FAMILIES)
+        ok(!isRetiredFamily(fam, 'bridge-10', D), `${fam} not retired under a single-digit frontier`);
+    ok(!isRetiredFamily('add-0-1', 'add-rest', D), 'even the top single-digit frontier retires nothing');
+
+    // Distance boundary, measured from a two-digit frontier: td-ones is rung 8,
+    // so at distance 2 the cut is rung 6 — bridge-10(6) retires, add-rest(7) not.
+    ok(!isRetiredFamily('add-rest', 'td-ones', 2), 'add-rest (rung 7) stays active just below a td-ones frontier');
+    ok(isRetiredFamily('bridge-10', 'td-ones', 2), 'bridge-10 (rung 6) retires two rungs below a td-ones frontier');
 
     // --- Mixed round: outgrown single-digit is maintenance-only ------------
     const st = newChildState({ startFamily: 'td-ones-cross' });
@@ -94,4 +102,35 @@ export async function run({ eq, ok, seededRng }) {
     }
     ok(loSingle / loTotal > 0.5,
         `un-retired single-digit is everyday practice (${Math.round(100 * loSingle / loTotal)}%)`);
+
+    // --- Focus openers + review fallback also exclude retired --------------
+    // rankedKnowns (focus momentum openers) and fluentFactIds (review fallback)
+    // must skip outgrown facts, or "the child's fastest facts" are all trivia.
+    const st2 = newChildState({ startFamily: 'td-ones-cross' });
+    st2.warmupFamilies = [];
+    for (const id of ['1+0', '2+0', '3+0', '6+0']) st2.facts[id] = { ...fluent(id), medianInit: 400 };
+    for (const id of ['24+3', '45+8', '67-20', '38+7']) st2.facts[id] = { ...fluent(id), medianInit: 2500 };
+    let focusRetired = 0, focusTotal = 0;
+    for (let seed = 1; seed <= 30; seed++) {
+        const r = focusRound(st2, { day: '2026-07-22', retrievalsToday: {} }, seededRng(seed));
+        for (const it of r.items) { focusTotal++; if (isSingleDigit(it.fact_id)) focusRetired++; }
+    }
+    ok(focusRetired === 0,
+        `focus openers never serve a retired single-digit fact despite it being fastest (${focusRetired}/${focusTotal})`);
+    const rv = reviewRound(st2, { day: '2026-07-22', retrievalsToday: {} }, seededRng(7));
+    ok(rv.items.every(it => !isSingleDigit(it.fact_id)), 'review fallback excludes retired single-digit');
+
+    // --- Maintenance surfaces the STALEST retired facts, not the freshest ---
+    const st3 = newChildState({ startFamily: 'td-ones-cross' });
+    st3.warmupFamilies = [];
+    st3.facts['1+0'] = fluent('1+0', '2026-05-01'); // very stale
+    st3.facts['2+0'] = fluent('2+0', '2026-05-02'); // stale
+    st3.facts['3+0'] = fluent('3+0', '2026-07-21'); // fresh — should be crowded out
+    let freshSeen = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+        const r = mixedRound(st3, { day: '2026-07-22', retrievalsToday: {} }, seededRng(seed));
+        if (r.items.some(it => it.fact_id === '3+0')) freshSeen++;
+    }
+    ok(freshSeen === 0,
+        `MAINTENANCE_SLOTS=${SCHEDULER.MAINTENANCE_SLOTS} keeps the freshest retired fact out (seen ${freshSeen}/40)`);
 }

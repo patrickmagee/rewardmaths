@@ -122,15 +122,18 @@ export function focusRound(state, ctx, rng) {
  */
 export function mixedRound(state, ctx, rng) {
     const pool = [];
-    const retiredKnown = []; // outgrown but still-mastered — maintenance only
+    const retiredMaint = []; // outgrown families — occasional maintenance only
     for (const [id, rec] of Object.entries(state.facts)) {
         const ret = isRetired(state, id);
         if (rec.state === 'FLUENT' || rec.state === 'SLOW') {
-            if (ret) retiredKnown.push({ id, rec }); else pool.push({ id, w: 1 });
-        } else if (rec.state === 'UNSETTLED' && !ret) {
-            pool.push({ id, w: SCHEDULER.UNSETTLED_WEIGHT });
+            if (ret) retiredMaint.push({ id, rec }); else pool.push({ id, w: 1 });
+        } else if (rec.state === 'UNSETTLED') {
+            // Retired UNSETTLED still goes to maintenance (not dropped): it
+            // resurfaces occasionally so it can still settle rather than being
+            // frozen UNSETTLED forever on the parent's fact map.
+            if (ret) retiredMaint.push({ id, rec });
+            else pool.push({ id, w: SCHEDULER.UNSETTLED_WEIGHT });
         }
-        // Retired UNSETTLED facts are dropped: no drilling of outgrown material.
     }
     // Stale-fact reinjection — staleness IS still a reason to resurface a fact,
     // but not one the child has outgrown (that lane is maintenance, below).
@@ -142,13 +145,13 @@ export function mixedRound(state, ctx, rng) {
     }
     // Parametric variety from unlocked two-digit families (the child's current
     // add/sub level once they've moved up the ladder).
-    for (const fam of state.unlockedFamilies) {
+    for (const fam of (state.unlockedFamilies || [])) {
         if (!familyFacts(fam)) pool.push({ id: sampleFamily(fam, rng), w: 1 });
     }
     // Maintenance: a couple of the stalest retired facts, lightly weighted, so
     // outgrown single-digit work resurfaces occasionally instead of never.
-    retiredKnown.sort((a, b) => stalenessDays(b.rec, ctx.day) - stalenessDays(a.rec, ctx.day));
-    for (const { id } of retiredKnown.slice(0, SCHEDULER.MAINTENANCE_SLOTS)) {
+    retiredMaint.sort((a, b) => stalenessDays(b.rec, ctx.day) - stalenessDays(a.rec, ctx.day));
+    for (const { id } of retiredMaint.slice(0, SCHEDULER.MAINTENANCE_SLOTS)) {
         pool.push({ id, w: SCHEDULER.MAINTENANCE_WEIGHT });
     }
     const items = weightedPick(pool.length ? pool : anyPool(state, rng), SCHEDULER.QUESTIONS_PER_ROUND, rng)

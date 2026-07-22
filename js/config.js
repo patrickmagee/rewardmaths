@@ -205,11 +205,13 @@ export const SCHEDULER = {
     ADD_START_FAMILY: 'bridge-10',
     /** Placement sweep: exposures per fact needed before trusting the prior. */
     PLACEMENT_EXPOSURES: 2,
-    /** Retirement (docs/DESIGN.md §2 "Retirement"): a single-digit add/sub
-     *  family this many rungs below the child's frontier drops to maintenance —
-     *  it stops being everyday practice and only resurfaces occasionally. Keeps
-     *  a child who has moved on to two-digit work from being fed +0/+1 forever.
-     *  Two-digit families and times tables are never retired. */
+    /** Retirement (docs/DESIGN.md §2 "Retirement"): once a child's frontier is
+     *  TWO-DIGIT, a single-digit add/sub family this many rungs below it drops
+     *  to maintenance — it stops being everyday practice and only resurfaces
+     *  occasionally, so a child working on two-digit arithmetic isn't fed +0/+1
+     *  forever. A child still on the single-digit ladder retires nothing (they
+     *  are still consolidating it). Two-digit families and times tables never
+     *  retire. Guard lives in facts.isRetiredFamily(). */
     RETIRE_DISTANCE: 2,
     /** Retired facts injected into a mixed round as light maintenance
      *  ("occasional single-digit"), stalest first. */

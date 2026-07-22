@@ -51,8 +51,16 @@ export function familyRung(family) {
 /** A single-digit add/sub family the child has outgrown: now ≥ `distance`
  *  rungs below the frontier, so it drops from everyday practice to occasional
  *  maintenance. Two-digit families and times tables are never retired (a
- *  10-11 y/o still meets 2-digit work as current level and tables as drills). */
+ *  10-11 y/o still meets 2-digit work as current level and tables as drills).
+ *
+ *  Retirement fires ONLY once the frontier itself is two-digit (a td-* family).
+ *  A child whose frontier is still single-digit (the default bridge-10, or any
+ *  child mid-way up the single-digit ladder) is by definition still
+ *  consolidating single-digit work — "retiring" the easier single-digit
+ *  families under them would strand facts they haven't settled. Retirement is
+ *  for children who have genuinely moved on to two-digit arithmetic. */
 export function isRetiredFamily(family, frontier, distance) {
+    if (!frontier || !frontier.startsWith('td-')) return false;
     const rung = familyRung(family);
     if (rung === null) return false;
     const fr = ADD_FAMILIES.indexOf(frontier);

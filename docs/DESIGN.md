@@ -483,18 +483,27 @@ no carry → 13. with carry/borrow.
   errors if a kid cruises"), and a parent's direct knowledge of a child's level
   is stronger evidence than N days of placement. Set to `td-ones-cross`
   (two-digit ± ones incl. crossing). Surfaced as a dashboard setting.
-- **Retirement (added 2026-07-22)**: a *single-digit* add/sub family whose rung
-  is ≥ `SCHEDULER.RETIRE_DISTANCE` (2) below the frontier drops from everyday
-  practice to **maintenance-only** — excluded from the mixed pool and the
-  fastest-openers, then a couple of the stalest such facts reinjected at
-  `MAINTENANCE_WEIGHT`, so outgrown material resurfaces *occasionally* rather
-  than never (fluency check without drilling). **Two-digit families and times
-  tables never retire**: a 10–11 y/o still meets two-digit work as current level
-  and tables as fast drills (the "just get them popping" case). Without this,
-  nothing ever left the servable pool — a mastered `+0`/`+1` fact kept full
-  scheduling weight forever (`unlockedFamilies` is append-only), so a child on
-  the two-digit frontier was still being served `6+0`. Retirement is the missing
-  exit door, keyed off the same frontier the promotion gate advances.
+- **Retirement (added 2026-07-22)**: **only once the child's frontier is
+  two-digit** (a `td-*` family), a *single-digit* add/sub family whose rung is ≥
+  `SCHEDULER.RETIRE_DISTANCE` (2) below the frontier drops from everyday practice
+  to **maintenance-only** — excluded from the mixed pool and the fastest-openers,
+  then a couple of the stalest such facts (FLUENT *or* still-UNSETTLED)
+  reinjected at `MAINTENANCE_WEIGHT`, so outgrown material resurfaces
+  *occasionally* rather than never (fluency check without drilling, and an
+  UNSETTLED fact can still settle). The two-digit-frontier condition is load
+  bearing: a child still on the single-digit ladder — including every
+  default-level child (frontier `bridge-10`) — retires **nothing**, because they
+  are still consolidating single-digit work; retiring families under them would
+  strand facts they haven't settled. **Two-digit families and times tables never
+  retire**: a 10–11 y/o still meets two-digit work as current level and tables as
+  fast drills (the "just get them popping" case). Without retirement, nothing
+  ever left the servable pool — a mastered `+0`/`+1` fact kept full scheduling
+  weight forever (`unlockedFamilies` is append-only), so a child on the two-digit
+  frontier was still being served `6+0`. Retirement is the missing exit door,
+  keyed off the same frontier the promotion gate advances; guard in
+  `facts.isRetiredFamily()`. Placement and weak-fact targeting stay
+  retirement-blind on purpose, so a genuinely UNKNOWN low fact is still
+  remediated even for a placed-high child.
 
 ### Adaptation metric (bad-day-tolerant, all silent)
 Nightly pure function per child over the answer log; constants in `js/config.js`.
