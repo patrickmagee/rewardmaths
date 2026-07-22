@@ -519,10 +519,24 @@ Nightly pure function per child over the answer log; constants in `js/config.js`
   weeks after). **Initiation-based since 2026-07-21**: the speed arm still read
   *total* RT after the state machine moved to initiation (§2 speed cutoff), so a
   keyboard→tablet switch stepped the total median up and fired a spurious
-  off-day — which self-latched, because the baseline series is appended only on
-  non-off days and froze at the last fast-regime day. It now medians
-  `initiation_ms` on FLUENT facts, mirroring `states.js`; the accuracy arm is
-  unchanged (`fluentRtByDay` entries now store `medianInit`).
+  off-day. It now medians `initiation_ms` on FLUENT facts, mirroring `states.js`
+  (`fluentRtByDay` entries store `medianInit`).
+- **Non-latching baseline (fixed 2026-07-22)**: the baseline series was appended
+  *only on non-off days*, so the first off-day froze it. Because a healthy child's
+  FLUENT median legitimately drifts **up** as harder facts join the FLUENT set,
+  a baseline frozen at an early low value would then read every good day as >1.5×
+  and re-flag it — and a flagged day skipped the append, so the freeze
+  self-perpetuated: up to ~⅓ of a healthy, improving child's days silently
+  discarded (their practice never counting toward promotion). This was the same
+  self-latch class the 2026-07-21 note names for the typing case, left live for
+  legitimate drift. Fix: **the baseline advances every day the child produced
+  FLUENT timing, including off-days** (it is the guard's own calibration, not
+  child mastery state, so it is exempt from "off-day writes nothing"; the
+  caller's rollback only reverts `state.facts`). Robustness to a genuine bad
+  day's high median is intact because `baseInit` is a **median** over the 14-day
+  window — a minority of bad days cannot move it, so a real multi-day slump is
+  still flagged every day until it becomes the window's majority (i.e. the new
+  normal). Off-day entries are tagged `offDay:true` for diagnostics.
 - **Per family, per day (≥6 items)**: `P_day = correct/presented` (classified
   answers only), smoothed `M ← 0.75·M + 0.25·P_day` — once per day, not per
   round, so a marathon bad evening can't compound. Half-life ~2–3 days.

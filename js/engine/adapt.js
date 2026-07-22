@@ -36,8 +36,9 @@ export function processDay(day, answers, state) {
     // mirroring the state machine (states.js decides on medianInit / a.init).
     // Total RT was wrong here: typing_ms scales with input method, so a
     // keyboard→tablet move steps the total median up and fires a spurious
-    // off-day — which then self-latches, because the baseline series below is
-    // only appended on non-off days and freezes at the last fast-regime day.
+    // off-day. (The self-latch this used to cause — baseline frozen because it
+    // was only appended on non-off days — is fixed below: the baseline now
+    // advances every day, so a frozen-low baseline can no longer perpetuate.)
     const fluent = usable.filter(a => (state.facts[a.fact_id]?.state) === 'FLUENT');
     const fluentAcc = fluent.length >= ADAPT.MIN_ITEMS_PER_DAY
         ? fluent.filter(a => a.cls.counts_for_accuracy && a.correct).length /
@@ -49,13 +50,26 @@ export function processDay(day, answers, state) {
         (baseInit > 0 && fluentInit > 0 && fluentInit > ADAPT.OFFDAY_RT_MULT * baseInit) ||
         (fluentAcc !== null && fluentAcc < ADAPT.OFFDAY_FLUENT_ACCURACY);
 
-    if (fluentInit > 0 && !offDay) {
-        next.fluentRtByDay = [...(next.fluentRtByDay || []), { day, medianInit: fluentInit }]
+    // Baseline self-calibration advances EVERY day the child produced FLUENT
+    // timing — INCLUDING off-days (changed 2026-07-22). Appending only on
+    // non-off days let an early off-day FREEZE the baseline low; then as harder
+    // facts became FLUENT the daily median legitimately drifted up past
+    // OFFDAY_RT_MULT× the frozen value, which re-flagged every good day, which
+    // (being flagged) again skipped the append — a self-latch that could
+    // silently discard ~1/3 of a healthy, improving child's days. The baseline
+    // is the GUARD'S OWN calibration, not child mastery state, so it is exempt
+    // from the "off-day writes nothing" rule below (the caller's rollback only
+    // touches state.facts, so this append survives it — by design). Robustness
+    // to a genuine bad day's high median comes from baseInit being a MEDIAN over
+    // the window (trailingFluentInit): a minority of bad days cannot move it, so
+    // always appending does NOT desensitise the guard to real slumps.
+    if (fluentInit > 0) {
+        next.fluentRtByDay = [...(next.fluentRtByDay || []), { day, medianInit: fluentInit, offDay }]
             .slice(-ADAPT.OFFDAY_BASELINE_DAYS * 2);
     }
     if (offDay) {
         audit.push({ day, type: 'off_day', fluentAcc, fluentInit, baseInit });
-        return { state: next, audit }; // nothing else is written
+        return { state: next, audit }; // nothing else (facts/EMAs) is written
     }
 
     // ---- P_day per family, EMA update.

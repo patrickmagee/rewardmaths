@@ -215,6 +215,41 @@ console.log('\n== bad-day-prone (catastrophic day every 8th) ==');
         `bad days don't derail the ladder (${state.unlockedFamilies.length} vs steady twin ${simC.state.unlockedFamilies.length})`);
 }
 
+console.log('\n== climber (fast improver, FLUENT median drifts up, occasional dips) ==');
+{
+    // Drift-into-latch guard (bug fixed 2026-07-22). A healthy, improving child
+    // whose FLUENT set grows — so their FLUENT median legitimately rises — with
+    // an occasional genuine dip. The old off-day guard froze its speed baseline
+    // on the first dip, then re-flagged every good day as the median drifted
+    // past 1.5× the frozen value, silently discarding ~1/3 of good days. The
+    // baseline now advances across off-days, so the guard must flag ≈ only the
+    // real dips, not the good days. Seed-averaged (the sim is chaotic).
+    let totalOff = 0, totalDips = 0, totalSpurious = 0, tagged = 0, fluentSum = 0;
+    const SEEDS = 12;
+    for (let seed = 1; seed <= SEEDS; seed++) {
+        const p = new Persona('climber',
+            { baseSkill: 0.72, learnRate: 0.13, typing: 500, lapseRate: 0.02,
+              badDayEvery: 9, roundsPerDay: () => 3 }, seededRng(seed));
+        const { state, audit } = simulate(p, 60);
+        const dipDay = d => d > 0 && d % 9 === 0;
+        const offIdx = audit.filter(a => a.type === 'off_day')
+            .map(a => Math.round((new Date(a.day) - new Date(dayStr(0))) / 86400000));
+        totalOff += offIdx.length;
+        totalDips += Array.from({ length: 60 }, (_, d) => dipDay(d)).filter(Boolean).length;
+        totalSpurious += offIdx.filter(d => !dipDay(d)).length;
+        tagged += (state.fluentRtByDay || []).filter(e => e.offDay).length;
+        fluentSum += counts(state).FLUENT;
+    }
+    const spuriousPerChild = totalSpurious / SEEDS;
+    console.log(`  over ${SEEDS} seeds: off-days ${(totalOff / SEEDS).toFixed(1)}/child ` +
+        `(dips ${(totalDips / SEEDS).toFixed(1)}, SPURIOUS ${spuriousPerChild.toFixed(1)}); ` +
+        `avg FLUENT ${(fluentSum / SEEDS).toFixed(0)}`);
+    check(spuriousPerChild < 2,
+        `good days are not spuriously discarded — baseline tracks the drift (${spuriousPerChild.toFixed(1)}/child)`);
+    check(fluentSum / SEEDS > 30, `climber still builds a strong fluent base (${(fluentSum / SEEDS).toFixed(0)})`);
+    check(tagged > 0, 'off-days are recorded in the baseline series (they now advance it)');
+}
+
 console.log('\n== masher (mashes 1 day in 5) ==');
 {
     const rng = seededRng(3);

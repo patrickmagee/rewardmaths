@@ -149,4 +149,42 @@ export async function run({ eq, ok }) {
         'sub partners of pre-unlocked families unlocked too');
     ok(!s5.unlockedFamilies.includes('add-rest') && !s5.unlockedFamilies.includes('sub-bridge-10'),
         'families above the start (and the frontier\'s own sub partner) stay locked');
+
+    // --- Off-day baseline must not self-latch (fixed 2026-07-22) ------------
+    // Reproduce the drift-into-latch mechanism deterministically: a baseline
+    // frozen low early, then a run of GOOD days whose FLUENT median has drifted
+    // up (harder facts now FLUENT). Under the old code every drifted good day
+    // tripped the speed arm AND — being flagged — skipped the baseline append,
+    // so the freeze self-perpetuated: all 12 days flagged forever. The baseline
+    // must now advance across off-days and CATCH UP, so the flagging stops.
+    let od = newChildState();
+    const fl = ['2x3', '3x4', '4x5', '5x6', '6x7', '7x8', '2x5', '3x6']; // FLUENT, tables (no add-family noise)
+    for (const id of fl) od.facts[id] = {
+        ...newFactRecord(), state: 'FLUENT', medianInit: 600, medianRt: 1200, lastSeenDay: '2026-06-01',
+        totalAttempts: 10, attempts: [{ correct: true, rt: 1200, init: 600, countsRt: true, day: '2026-06-01' }],
+    };
+    // Early-latched-low baseline (a few fast early days at 600ms).
+    od.fluentRtByDay = ['2026-06-28', '2026-06-29', '2026-06-30'].map(day => ({ day, medianInit: 600 }));
+    // A good day (100% correct → accuracy arm silent) but drifted to 1000ms
+    // initiation (> 1.5×600 = 900, so the speed arm would fire against a frozen
+    // baseline).
+    const driftedGoodDay = day => fl.map(id => ({
+        fact_id: id, day, correct: true, initiation_ms: 1000, rt: 1600, cls: VALID,
+        round_type: 'mixed', void: false,
+    }));
+    const flags = [];
+    for (let d = 0; d < 12; d++) {
+        const day = `2026-07-${String(1 + d).padStart(2, '0')}`;
+        const res = processDay(day, driftedGoodDay(day), od);
+        flags.push(res.audit.some(a => a.type === 'off_day'));
+        od = res.state; // carry the (now-advancing) baseline forward
+    }
+    const offCount = flags.filter(Boolean).length;
+    ok(offCount < 12, `drifted good days are not ALL flagged — baseline catches up (${offCount}/12 flagged)`);
+    ok(!flags[9] && !flags[10] && !flags[11],
+        'the latch is broken: later drifted good days stop being off-days');
+    ok(od.fluentRtByDay.some(e => e.offDay === true),
+        'off-days still advance the baseline (recorded, tagged offDay)');
+    ok(od.fluentRtByDay.slice(-1)[0].medianInit >= 900,
+        'baseline has risen to track the drift rather than freezing low');
 }
