@@ -57,3 +57,4 @@ public_html/
 website_f273a6c3/
 # Local copies of real answer logs pulled from KV for tests/health.mjs
 tmp-logs/
+tmp-logs-test/

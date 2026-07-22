@@ -7,8 +7,22 @@
  * `model: true` → show the fact WITH its answer first ("7 × 8 = 56 — now you").
  */
 import { SCHEDULER } from '../config.js';
-import { tableFacts, familyFacts, sampleFamily, familyOf, difficultyScore, parseFact } from './facts.js';
+import { tableFacts, familyFacts, sampleFamily, familyOf, difficultyScore, parseFact, ADD_FAMILIES, isRetiredFamily } from './facts.js';
 import { ACCURATE_STATES } from './states.js';
+
+/** The child's frontier: the highest unlocked add family. (Kept local to avoid
+ *  a scheduler→adapt import cycle; mirrors adapt.currentFrontier.) */
+function frontierOf(state) {
+    const unlocked = state.unlockedFamilies || [];
+    return ADD_FAMILIES.filter(f => unlocked.includes(f)).pop() || null;
+}
+
+/** Has the child outgrown this fact's family? Retired single-digit families are
+ *  maintenance-only; two-digit families and times tables never retire. */
+function isRetired(state, id) {
+    const fr = frontierOf(state);
+    return fr ? isRetiredFamily(familyOf(id), fr, SCHEDULER.RETIRE_DISTANCE) : false;
+}
 
 /**
  * Build today's default three rounds (+ variants).
@@ -108,19 +122,34 @@ export function focusRound(state, ctx, rng) {
  */
 export function mixedRound(state, ctx, rng) {
     const pool = [];
+    const retiredKnown = []; // outgrown but still-mastered — maintenance only
     for (const [id, rec] of Object.entries(state.facts)) {
-        if (rec.state === 'FLUENT' || rec.state === 'SLOW') pool.push({ id, w: 1 });
-        else if (rec.state === 'UNSETTLED') pool.push({ id, w: SCHEDULER.UNSETTLED_WEIGHT });
+        const ret = isRetired(state, id);
+        if (rec.state === 'FLUENT' || rec.state === 'SLOW') {
+            if (ret) retiredKnown.push({ id, rec }); else pool.push({ id, w: 1 });
+        } else if (rec.state === 'UNSETTLED' && !ret) {
+            pool.push({ id, w: SCHEDULER.UNSETTLED_WEIGHT });
+        }
+        // Retired UNSETTLED facts are dropped: no drilling of outgrown material.
     }
-    // Stale-fact reinjection — staleness IS still a reason to resurface a fact.
+    // Stale-fact reinjection — staleness IS still a reason to resurface a fact,
+    // but not one the child has outgrown (that lane is maintenance, below).
     for (const [id, rec] of Object.entries(state.facts)) {
+        if (isRetired(state, id)) continue;
         if (rec.lastSeenDay && daysBetween(rec.lastSeenDay, ctx.day) >= SCHEDULER.FACT_STALE_DAYS) {
             pool.push({ id, w: SCHEDULER.STALE_WEIGHT });
         }
     }
-    // Parametric variety from unlocked two-digit families.
+    // Parametric variety from unlocked two-digit families (the child's current
+    // add/sub level once they've moved up the ladder).
     for (const fam of state.unlockedFamilies) {
         if (!familyFacts(fam)) pool.push({ id: sampleFamily(fam, rng), w: 1 });
+    }
+    // Maintenance: a couple of the stalest retired facts, lightly weighted, so
+    // outgrown single-digit work resurfaces occasionally instead of never.
+    retiredKnown.sort((a, b) => stalenessDays(b.rec, ctx.day) - stalenessDays(a.rec, ctx.day));
+    for (const { id } of retiredKnown.slice(0, SCHEDULER.MAINTENANCE_SLOTS)) {
+        pool.push({ id, w: SCHEDULER.MAINTENANCE_WEIGHT });
     }
     const items = weightedPick(pool.length ? pool : anyPool(state, rng), SCHEDULER.QUESTIONS_PER_ROUND, rng)
         .map(f => ({ fact_id: f, model: false }));
@@ -255,13 +284,15 @@ export function workingTable(state) {
 
 function rankedKnowns(state) {
     return Object.entries(state.facts)
-        .filter(([, r]) => r.state === 'FLUENT')
+        .filter(([id, r]) => r.state === 'FLUENT' && !isRetired(state, id))
         .sort(([, a], [, b]) => a.medianInit - b.medianInit)
         .map(([id]) => id);
 }
 
 function fluentFactIds(state) {
-    return Object.entries(state.facts).filter(([, r]) => r.state === 'FLUENT').map(([id]) => id);
+    return Object.entries(state.facts)
+        .filter(([id, r]) => r.state === 'FLUENT' && !isRetired(state, id))
+        .map(([id]) => id);
 }
 
 function stalestMasteredTable(state, day) {

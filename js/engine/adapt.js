@@ -171,15 +171,19 @@ export function nextLadderFamily(state) {
  * partner so the placement sweep probes them and weak facts surface as
  * UNKNOWN. The start family itself is the warm-up frontier.
  */
-export function startingFamilies() {
-    const idx = Math.max(0, ADD_FAMILIES.indexOf(SCHEDULER.ADD_START_FAMILY));
+export function startingFamilies(startFamily = SCHEDULER.ADD_START_FAMILY) {
+    const idx = Math.max(0, ADD_FAMILIES.indexOf(startFamily));
     const adds = ADD_FAMILIES.slice(0, idx + 1);
     const subs = adds.slice(0, -1).map(f => SUB_PARTNER[f]).filter(Boolean);
     return [...adds, ...subs];
 }
 
 export function newChildState(opts = {}) {
-    const unlocked = opts.unlockedFamilies || startingFamilies();
+    // opts.startFamily: parent-declared ladder floor for THIS child (DESIGN §2
+    // "Parent-set level"). Undefined → the global default. It seeds where the
+    // fold begins; the answer log is untouched, so it's fully reversible and
+    // never corrupts evidence.
+    const unlocked = opts.unlockedFamilies || startingFamilies(opts.startFamily);
     const addFrontier = ADD_FAMILIES.filter(f => unlocked.includes(f)).pop();
     return {
         facts: {},

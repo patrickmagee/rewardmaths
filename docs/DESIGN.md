@@ -468,6 +468,33 @@ no carry → 13. with carry/borrow.
   family. Going *down* still works without re-locking: pre-unlocked families
   are probed by placement, weak facts surface as UNKNOWN → focus-round
   targets, and sustained failure demotes a family back to warm-up.
+- **Parent-set level, per child (added 2026-07-22, parent decision)**: a
+  `startFamily` in the child's profile settings overrides the global
+  `ADD_START_FAMILY` for that child only, seeding `startingFamilies()` at the
+  declared rung (frontier = that family; everything below pre-unlocked as
+  above). This is deliberately *outside* the a-priori-constants lockbox and the
+  "don't re-tune from a child's data" rule, because it is neither: it is a
+  **parent declaring a level** (config), not the **engine inferring** one
+  (data). DESIGN's learner-control caution (g=0.05) is about *child* control of
+  content; *parent* control is a different actor and is legitimate. Mechanically
+  it only changes where the derive fold begins — **the answer log is untouched**,
+  so it is fully reversible and never corrupts evidence. Rationale for the first
+  use: Tom cruised at 100% for two days (above the 85–90% gate; §2 "don't force
+  errors if a kid cruises"), and a parent's direct knowledge of a child's level
+  is stronger evidence than N days of placement. Set to `td-ones-cross`
+  (two-digit ± ones incl. crossing). Surfaced as a dashboard setting.
+- **Retirement (added 2026-07-22)**: a *single-digit* add/sub family whose rung
+  is ≥ `SCHEDULER.RETIRE_DISTANCE` (2) below the frontier drops from everyday
+  practice to **maintenance-only** — excluded from the mixed pool and the
+  fastest-openers, then a couple of the stalest such facts reinjected at
+  `MAINTENANCE_WEIGHT`, so outgrown material resurfaces *occasionally* rather
+  than never (fluency check without drilling). **Two-digit families and times
+  tables never retire**: a 10–11 y/o still meets two-digit work as current level
+  and tables as fast drills (the "just get them popping" case). Without this,
+  nothing ever left the servable pool — a mastered `+0`/`+1` fact kept full
+  scheduling weight forever (`unlockedFamilies` is append-only), so a child on
+  the two-digit frontier was still being served `6+0`. Retirement is the missing
+  exit door, keyed off the same frontier the promotion gate advances.
 
 ### Adaptation metric (bad-day-tolerant, all silent)
 Nightly pure function per child over the answer log; constants in `js/config.js`.

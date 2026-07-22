@@ -114,7 +114,9 @@ async function enter() {
 async function refreshDerived() {
     const answers = await db.getAnswers(S.user);
     // Typing baseline is estimated inside deriveState from real play.
-    S.derived = deriveState(answers, {});
+    // startFamily: parent-declared ladder floor for this child (config, not
+    // log data) — seeds where the fold begins.
+    S.derived = deriveState(answers, { startFamily: S.profile.settings?.startFamily });
     return S.derived;
 }
 

@@ -33,6 +33,32 @@ export const SUB_PARTNER = {
     // two-digit families mix ± within the family; no separate partner
 };
 
+/** Inverse of SUB_PARTNER: the addition family a subtraction family trails. */
+export const ADD_OF_SUB = Object.fromEntries(
+    Object.entries(SUB_PARTNER).map(([add, sub]) => [sub, add]));
+
+/** Ladder rung (0-based) of a single-digit add/sub family, for retirement
+ *  distance. An add family indexes into ADD_FAMILIES directly; a sub-* family
+ *  borrows its add partner's rung. Two-digit td-* families and times tables
+ *  have no single-digit rung and are NEVER retired — returns null. */
+export function familyRung(family) {
+    const add = ADD_OF_SUB[family] || family;
+    if (add.startsWith('td-')) return null;   // two-digit: current-level work
+    const idx = ADD_FAMILIES.indexOf(add);
+    return idx < 0 ? null : idx;              // tables / unknown: never retire
+}
+
+/** A single-digit add/sub family the child has outgrown: now ≥ `distance`
+ *  rungs below the frontier, so it drops from everyday practice to occasional
+ *  maintenance. Two-digit families and times tables are never retired (a
+ *  10-11 y/o still meets 2-digit work as current level and tables as drills). */
+export function isRetiredFamily(family, frontier, distance) {
+    const rung = familyRung(family);
+    if (rung === null) return false;
+    const fr = ADD_FAMILIES.indexOf(frontier);
+    return fr >= 0 && rung <= fr - distance;
+}
+
 /** @returns {string} directed fact id */
 export function factId(a, op, b) {
     const sym = { mul: 'x', add: '+', sub: '-' }[op];

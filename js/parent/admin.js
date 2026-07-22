@@ -160,7 +160,7 @@ async function kidSection(kid) {
         answers = Object.values((await res.json()).days || {}).flat();
     } catch { /* offline: show what we can */ }
 
-    const derived = deriveState(answers, {});
+    const derived = deriveState(answers, { startFamily: kid.settings?.startFamily });
     const { state, days, classified, audit } = derived;
     const today = todayStr();
     const streak = deriveStreak(days, today);
@@ -314,15 +314,34 @@ async function kidSection(kid) {
                     <input type="number" class="ceiling" min="${RT.HARD_CEILING_MIN_MS / 1000}"
                         max="${RT.HARD_CEILING_MAX_MS / 1000}" step="1"
                         value="${ceilingMs(kid.settings) / 1000}">s</label>
+                <label>add/sub level
+                    <select class="start-family">
+                        <option value=""${kid.settings?.startFamily ? '' : ' selected'}>default</option>
+                        ${ADD_FAMILIES.map(f => `<option value="${f}"${kid.settings?.startFamily === f ? ' selected' : ''}>${LADDER_LABEL[f]}</option>`).join('')}
+                    </select></label>
                 <button class="save">save</button>
                 <button class="csv">export CSV</button>
                 <div class="dim small">Timeout is how long ${kid.name} gets on a question
                     before it moves on (untimed rounds are unaffected). Takes effect next
                     time they open the app. Each answer records the timeout it was played
                     against, so changing this never rewrites past results.</div>
+                <div class="dim small">Add/sub level sets where ${kid.name}'s ladder sits:
+                    that family becomes the working level, everything easier is retired to
+                    occasional practice. It seeds the engine, not the answer log — reversible
+                    any time, and it never changes past results. Times tables are unaffected.</div>
             </div>
         </section>`;
 }
+
+// Parent-facing labels for the add/sub ladder (settings dropdown).
+const LADDER_LABEL = {
+    'add-0-1': '+0 / +1', 'add-2': '+2', 'doubles-small': 'doubles to 5+5',
+    'near-doubles': 'near doubles', 'make-10': 'make 10', 'doubles-big': 'big doubles',
+    'bridge-10': 'bridge through 10', 'add-rest': 'harder single-digit',
+    'td-ones': '2-digit + 1-digit', 'td-tens': '2-digit ± tens',
+    'td-ones-cross': '2-digit ± 1-digit, carrying', 'td-td': '2-digit ± 2-digit',
+    'td-td-carry': '2-digit ± 2-digit, carrying',
+};
 
 // ---------- views ----------
 
@@ -476,6 +495,10 @@ function wireSettings() {
             if (Number.isFinite(secs) && secs > 0) {
                 kid.settings.ceilingMs = ceilingMs({ ceilingMs: secs * 1000 });
             }
+            // Add/sub ladder floor. Empty = fall back to the global default.
+            const sf = card.querySelector('.start-family').value;
+            if (sf && ADD_FAMILIES.includes(sf)) kid.settings.startFamily = sf;
+            else delete kid.settings.startFamily;
             kid.updated = Date.now();
             const btn = card.querySelector('.save');
             try {

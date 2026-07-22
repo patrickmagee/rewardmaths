@@ -91,7 +91,12 @@ discarded), CSV export, per-child settings (easy days on/off, DOB, PIN,
 knob; the play-time `timeout` flag is the sole ceiling signal, stamped when the
 auto-advance timer fires, and the classifier no longer re-imposes `ceiling_ms`
 at derive time, so changing the setting never reclassifies history and untimed
-rounds can never forge a timeout).
+rounds can never forge a timeout) and **add/sub level** (`settings.startFamily`
+— a parent-declared ladder floor for that child, DESIGN §2 "Parent-set level";
+seeds where the derive fold begins, so it's config not log-data, reversible, and
+never rewrites history. Families ≥2 rungs below the frontier retire to occasional
+maintenance — single-digit only; two-digit families and times tables never
+retire. Tom is set to `td-ones-cross` as of 2026-07-22; Eliza stays default).
 
 ---
 
