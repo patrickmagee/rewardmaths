@@ -12,6 +12,9 @@
  */
 
 export const DEFAULT_IDLE_MS = 20 * 60 * 1000;
+// Day keys are written with the DEVICE's local calendar day (js/data/db.js
+// todayStr) — the family's devices are all UK.
+export const DEFAULT_TIME_ZONE = 'Europe/London';
 // A finished session is only worth an email for a while. Beyond this we skip it
 // (it's history, not "just finished") — which also stops first-activation from
 // emailing about sessions already sitting in the log.
@@ -24,7 +27,7 @@ export const DEFAULT_MAX_STALE_MS = 3 * 60 * 60 * 1000;
  * is read here to suppress repeats for a session already handled.
  *
  * @param {object} kv   KV-like: list({prefix,cursor}), get(key,'json')
- * @param {object} opts { now, idleMs, maxStaleMs }
+ * @param {object} opts { now, idleMs, maxStaleMs, timeZone }
  * @returns {Promise<{now,idleMs,results:Array}>}
  *   Each result: { user, name, action:'notify'|'skip', reason?, session? }
  */
@@ -32,11 +35,12 @@ export async function sweep(kv, opts = {}) {
     const now = opts.now ?? Date.now();
     const idleMs = opts.idleMs ?? DEFAULT_IDLE_MS;
     const maxStaleMs = opts.maxStaleMs ?? DEFAULT_MAX_STALE_MS;
+    const timeZone = opts.timeZone ?? DEFAULT_TIME_ZONE;
     const results = [];
 
     for (const kid of await realKids(kv)) {
         const base = { user: kid.user, name: kid.name };
-        const session = currentSession(await recentAnswers(kv, kid.user), idleMs);
+        const session = currentSession(await recentAnswers(kv, kid.user, now, timeZone), idleMs);
 
         if (!session) { results.push({ ...base, action: 'skip', reason: 'no activity' }); continue; }
         const idle = now - session.lastTs;
@@ -83,19 +87,29 @@ export function recipientsFor(user, { notifyTo, extraTo } = {}) {
     return [...new Set([...base, ...extra.filter(Boolean)])];
 }
 
-/** Answers from the two most recent day-keys (covers a session straddling midnight). */
-async function recentAnswers(kv, user) {
-    const prefix = `answers:${user}:`;
-    const dayKeys = [];
-    for await (const key of listKeys(kv, prefix)) dayKeys.push(key);
-    dayKeys.sort();                       // yyyy-mm-dd sorts lexically = chronologically
-    const recent = dayKeys.slice(-2);
+/**
+ * Answers from yesterday's/today's/tomorrow's day-keys, COMPUTED from `now`
+ * rather than discovered via list(): KV list ops are capped at 1000/day on the
+ * free tier and a list-per-child-per-cron blew through it (Cloudflare alert
+ * 2026-07-22). Yesterday covers a session straddling midnight; tomorrow covers
+ * a device clock ahead of the worker. Anything older is beyond maxStaleMs
+ * anyway. Gets are effectively free (100k/day).
+ */
+async function recentAnswers(kv, user, now, timeZone) {
     const out = [];
-    for (const key of recent) {
-        const arr = await kv.get(key, 'json');
+    for (const offset of [-1, 0, 1]) {
+        const day = dayStr(now + offset * 86400000, timeZone);
+        const arr = await kv.get(`answers:${user}:${day}`, 'json');
         if (Array.isArray(arr)) out.push(...arr);
     }
     return out;
+}
+
+/** yyyy-mm-dd for an epoch-ms instant in a time zone (en-CA formats ISO-style). */
+function dayStr(ts, timeZone) {
+    return new Intl.DateTimeFormat('en-CA', {
+        timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+    }).format(new Date(ts));
 }
 
 /**

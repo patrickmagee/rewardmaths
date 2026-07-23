@@ -138,10 +138,14 @@ functions/). Manual fallback: `./build-dist.ps1` + wrangler (token in
 
 - **Session-finished email (built 2026-07-21)**: `worker/session-email/` — a
   standalone cron Worker (Pages Functions can't schedule) that emails the parent
-  when a child plays then goes quiet 20 min. Binds the same `SCORES` KV; sends
+  when a child plays then goes quiet 10 min. Binds the same `SCORES` KV; sends
   via Resend; one email per session (KV watermark `notify:<user>`). Needs a
   Resend key set as a secret + `wrangler deploy` — see its README. NOT wired
-  into the Pages deploy (separate target).
+  into the Pages deploy (separate target). **KV free tier caps list ops at
+  1000/day** — the worker's original */5 cron with a list per child exceeded it
+  (2026-07-22 alert). Now: */10 cron, one profile list per sweep, answer
+  day-keys computed (Europe/London) and fetched with gets. Any new KV consumer
+  must budget list ops; prefer computed keys + get.
 - Daily parent DIGEST email (still deferred): the richer digest + playbook
   format in DESIGN §3/§5, distinct from the session ping above.
 - Big-goal campaign wizard (DESIGN §4) — rare parent-set tangible goal.

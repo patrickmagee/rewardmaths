@@ -1,12 +1,23 @@
 # session-email worker
 
 Emails the parent when a child **finishes a maths session** — i.e. they played
-today, then went quiet for 20 minutes. Runs on a 5-minute cron, reads the live
-answer log from the shared `SCORES` KV namespace, and sends one email per
+today, then went quiet for `IDLE_MINUTES`. Runs on a 10-minute cron, reads the
+live answer log from the shared `SCORES` KV namespace, and sends one email per
 session via [Resend](https://resend.com).
 
 Separate from the Pages site because Pages Functions can't run on a cron. It
 binds the *same* KV namespace, so it sees exactly what the app writes.
+
+## KV free-tier budget (why the cron is shaped like this)
+
+The KV free tier caps **list** operations at 1000/day account-wide; reads are
+100k/day. The original */5 cron did 1 profile list + 1 answers list *per child*
+per run ≈ 1150 lists/day → Cloudflare's "limit exceeded" alert (2026-07-22;
+lists 429 until midnight UTC, which broke the admin dashboard but not the game —
+gameplay syncs never list). Now each sweep does exactly **one** list (profiles)
+and computes the answer day-keys (yesterday/today/tomorrow, Europe/London)
+directly as gets: */10 × 1 = 144 lists/day, leaving the rest for the site. If
+you re-tune the cron, keep runs × lists-per-run well under 1000.
 
 ## What the email looks like
 
@@ -55,7 +66,7 @@ scheduled sweep can't be poked over HTTP. To watch it:
 npx wrangler tail rewardmaths-session-email
 ```
 
-then wait for the 5-minute cron (or trigger it from the Cloudflare dashboard →
+then wait for the 10-minute cron (or trigger it from the Cloudflare dashboard →
 the Worker → Triggers). The `fetch` handler is dry-run only, so if you ever set
 `workers_dev = true` to expose a URL, hitting it reports what it *would* send
 and never sends.

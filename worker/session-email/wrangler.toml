@@ -12,10 +12,15 @@ compatibility_date = "2024-11-01"
 # register a subdomain in the dashboard and set this true.
 workers_dev = false
 
-# Every 5 minutes; a session is "finished" after IDLE_MINUTES of quiet, so the
-# email lands within ~5 min of that. (Cron is UTC but the logic is ts-based.)
+# Every 10 minutes; a session is "finished" after IDLE_MINUTES of quiet, so the
+# email lands within ~10 min of that. (Cron is UTC but the logic is ts-based.)
+# Frequency matters for the KV FREE TIER: each run costs ONE list op (profiles;
+# answers are direct gets), and list ops are capped at 1000/day account-wide —
+# */10 = 144/day, leaving room for the site's own lists (admin dashboard,
+# login-screen profile sync). */5 with per-child answer lists exceeded the cap
+# on 2026-07-22.
 [triggers]
-crons = ["*/5 * * * *"]
+crons = ["*/10 * * * *"]
 
 # Same namespace as the site's SCORES binding (wrangler.toml at repo root).
 [[kv_namespaces]]
