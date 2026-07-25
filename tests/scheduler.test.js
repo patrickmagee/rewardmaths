@@ -1,4 +1,4 @@
-import { buildDailyRounds, focusRound, weakTargets, workingTable } from '../js/engine/scheduler.js';
+import { buildDailyRounds, focusRound, reviewRound, weakTargets, workingTable } from '../js/engine/scheduler.js';
 import { newChildState } from '../js/engine/adapt.js';
 import { newFactRecord } from '../js/engine/states.js';
 import { tableFacts } from '../js/engine/facts.js';
@@ -38,8 +38,28 @@ export async function run({ eq, ok, seededRng }) {
     eq(rounds.map(r => r.round_type), ['review', 'focus', 'mixed'], 'default daily set');
     ok(rounds.every(r => r.items.length === SCHEDULER.QUESTIONS_PER_ROUND), 'rounds are 10 questions');
 
-    // Review targets the stalest mastered table (5s).
+    // Review targets the stalest mastered table (5s). This child's only mul is
+    // 2s, 5s and three 7s facts, so they are below MUL_MAINTENANCE_MIN_CORE —
+    // the easy tables are still their real work and review rightly uses them.
     eq(rounds[0].table, 5, 'review picks stalest mastered table');
+
+    // Once the child HAS core depth (2026-07-25), a one-step-trick table can no
+    // longer claim the review slot — that is a third of the day's practice, and
+    // 2/5/10/11 have dropped to maintenance. Same 5s, now stalest of all, and
+    // passed over for the 7s.
+    const deep = stateWith([
+        ...tableFacts(5).map(f => [f, 'FLUENT', 1700, '2026-06-01']),   // stalest
+        ...tableFacts(7).map(f => [f, 'FLUENT', 1900, '2026-07-01']),
+    ]);
+    const deepTable = reviewRound(deep, ctx, seededRng(3)).table;
+    ok(deepTable !== null && !SCHEDULER.EASY_MUL_OPERANDS.includes(deepTable),
+        `with core depth, review skips the one-step-trick tables (got ${deepTable})`);
+
+    // A table the child has barely met can't be "reviewed": pick() recycles a
+    // short pool, so a 3-fact table yields ten questions on three facts.
+    const thin = stateWith([['3x8', 'FLUENT', 1500], ['8x3', 'FLUENT', 1500], ['3x6', 'FLUENT', 1500]]);
+    eq(reviewRound(thin, ctx, seededRng(3)).table, null,
+        'a barely-met table is not a review target');
 
     // Focus embeds the weak facts and opens with fast knowns.
     const focus = rounds[1];

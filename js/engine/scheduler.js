@@ -7,7 +7,7 @@
  * `model: true` → show the fact WITH its answer first ("7 × 8 = 56 — now you").
  */
 import { SCHEDULER } from '../config.js';
-import { tableFacts, familyFacts, sampleFamily, familyOf, difficultyScore, parseFact, ADD_FAMILIES, isRetiredFamily } from './facts.js';
+import { tableFacts, familyFacts, sampleFamily, familyOf, difficultyScore, parseFact, ADD_FAMILIES, isRetiredFamily, isEasyMulFact, isLargeFact } from './facts.js';
 import { ACCURATE_STATES } from './states.js';
 
 /** The child's frontier: the highest unlocked add family. (Kept local to avoid
@@ -17,11 +17,42 @@ function frontierOf(state) {
     return ADD_FAMILIES.filter(f => unlocked.includes(f)).pop() || null;
 }
 
-/** Has the child outgrown this fact's family? Retired single-digit families are
- *  maintenance-only; two-digit families and times tables never retire. */
-function isRetired(state, id) {
-    const fr = frontierOf(state);
-    return fr ? isRetiredFamily(familyOf(id), fr, SCHEDULER.RETIRE_DISTANCE) : false;
+/**
+ * Has the child outgrown this fact? Two routes, one destination (maintenance):
+ *
+ *  - add/sub: the fact's family is ≥ RETIRE_DISTANCE rungs below a two-digit
+ *    frontier (isRetiredFamily).
+ *  - multiplication: the fact has a one-step derived route (×0/1/2/5/10/11) AND
+ *    the child already has enough real mul work in circulation to fill rounds
+ *    without it (MUL_MAINTENANCE_MIN_CORE). Tables carry no ladder rung, so the
+ *    add/sub distance rule can never reach them; without this arm 46 of Tom's
+ *    66 circulating mul facts sat at full weight and 11s alone took a quarter
+ *    of his multiplication.
+ */
+function isRetired(ctx, id) {
+    if (ctx.frontier && isRetiredFamily(familyOf(id), ctx.frontier, SCHEDULER.RETIRE_DISTANCE)) return true;
+    return ctx.coreDepth && isEasyMulFact(id);
+}
+
+/** Per-call retirement context. Both terms are whole-state properties, so they
+ *  are computed ONCE per round and threaded through — calling hasCoreMulDepth()
+ *  from inside a per-fact predicate made every round O(facts²) and took the
+ *  60-day simulation from seconds to minutes. */
+function retireCtx(state) {
+    return { frontier: frontierOf(state), coreDepth: hasCoreMulDepth(state) };
+}
+
+/** Enough accurate NON-easy mul facts to sustain rounds without the easy ones.
+ *  Guards a beginner whose entire repertoire is 2s/5s/10s from having their
+ *  whole multiplication pool retired out from under them. */
+function hasCoreMulDepth(state) {
+    let n = 0;
+    for (const [id, rec] of Object.entries(state.facts)) {
+        if (!ACCURATE_STATES.has(rec.state)) continue;
+        if (!id.includes('x') || isEasyMulFact(id)) continue;
+        if (++n >= SCHEDULER.MUL_MAINTENANCE_MIN_CORE) return true;
+    }
+    return false;
 }
 
 /**
@@ -57,7 +88,7 @@ export function reviewRound(state, ctx, rng) {
     const table = stalestMasteredTable(state, ctx.day);
     const pool = table !== null
         ? tableFacts(table).filter(f => state.facts[f])
-        : fluentFactIds(state);
+        : revisionPool(state);
     const items = pick(pool.length ? pool : fallbackPool(state), SCHEDULER.QUESTIONS_PER_ROUND, rng)
         .map(f => ({ fact_id: f, model: false }));
     return { round_type: 'review', items, untimed: false, table };
@@ -119,44 +150,66 @@ export function focusRound(state, ctx, rng) {
  * nobody gets drilled for thinking. UNSETTLED keeps a mild boost, which is not
  * a speed judgement — it is simply the fact needing more attempts before any
  * verdict is possible.
+ *
+ * DIFFICULTY, unlike speed, does allocate practice (parent decision
+ * 2026-07-25). Facts with both operands ≥ 6 draw at LARGE_FACT_WEIGHT, and
+ * outgrown material — retired add/sub families plus one-step-derivable
+ * multiplication — is capped at MAINTENANCE_SLOTS items per round instead of
+ * competing for every slot. That is the curriculum deciding where the time
+ * goes, not the engine judging the child.
  */
 export function mixedRound(state, ctx, rng) {
     const pool = [];
-    const retiredMaint = []; // outgrown families — occasional maintenance only
+    const rc = retireCtx(state);
+    const retiredMaint = []; // outgrown material — occasional maintenance only
     for (const [id, rec] of Object.entries(state.facts)) {
-        const ret = isRetired(state, id);
+        const ret = isRetired(rc, id);
         if (rec.state === 'FLUENT' || rec.state === 'SLOW') {
-            if (ret) retiredMaint.push({ id, rec }); else pool.push({ id, w: 1 });
+            if (ret) retiredMaint.push({ id, rec }); else pool.push({ id, w: weightOf(id, 1) });
         } else if (rec.state === 'UNSETTLED') {
             // Retired UNSETTLED still goes to maintenance (not dropped): it
             // resurfaces occasionally so it can still settle rather than being
             // frozen UNSETTLED forever on the parent's fact map.
             if (ret) retiredMaint.push({ id, rec });
-            else pool.push({ id, w: SCHEDULER.UNSETTLED_WEIGHT });
+            else pool.push({ id, w: weightOf(id, SCHEDULER.UNSETTLED_WEIGHT) });
         }
     }
     // Stale-fact reinjection — staleness IS still a reason to resurface a fact,
     // but not one the child has outgrown (that lane is maintenance, below).
     for (const [id, rec] of Object.entries(state.facts)) {
-        if (isRetired(state, id)) continue;
+        if (isRetired(rc, id)) continue;
         if (rec.lastSeenDay && daysBetween(rec.lastSeenDay, ctx.day) >= SCHEDULER.FACT_STALE_DAYS) {
             pool.push({ id, w: SCHEDULER.STALE_WEIGHT });
         }
     }
     // Parametric variety from unlocked two-digit families (the child's current
-    // add/sub level once they've moved up the ladder).
+    // add/sub level once they've moved up the ladder). Retired ones are skipped:
+    // a frontier of td-td must not keep synthesising fresh td-ones items.
     for (const fam of (state.unlockedFamilies || [])) {
-        if (!familyFacts(fam)) pool.push({ id: sampleFamily(fam, rng), w: 1 });
+        if (familyFacts(fam)) continue;
+        if (rc.frontier && isRetiredFamily(fam, rc.frontier, SCHEDULER.RETIRE_DISTANCE)) continue;
+        pool.push({ id: sampleFamily(fam, rng), w: 1 });
     }
-    // Maintenance: a couple of the stalest retired facts, lightly weighted, so
-    // outgrown single-digit work resurfaces occasionally instead of never.
+
+    const n = SCHEDULER.QUESTIONS_PER_ROUND;
+    // Maintenance is drawn FIRST, as a hard cap on items rather than a cap on
+    // pool candidates. Two candidates at MAINTENANCE_WEIGHT against a ~40-weight
+    // pool were only drawn ~2% of the time, so a large retired set took months
+    // to cycle; a fixed 2-of-10, stalest first, is both the "occasional" the
+    // design intends and a rotation that actually reaches every retired fact.
     retiredMaint.sort((a, b) => stalenessDays(b.rec, ctx.day) - stalenessDays(a.rec, ctx.day));
-    for (const { id } of retiredMaint.slice(0, SCHEDULER.MAINTENANCE_SLOTS)) {
-        pool.push({ id, w: SCHEDULER.MAINTENANCE_WEIGHT });
-    }
-    const items = weightedPick(pool.length ? pool : anyPool(state, rng), SCHEDULER.QUESTIONS_PER_ROUND, rng)
+    const maint = retiredMaint.slice(0, SCHEDULER.MAINTENANCE_SLOTS).map(m => m.id);
+    const fill = weightedPick(pool.length ? pool : anyPool(state, rng), n - maint.length, rng);
+    // Interleave so maintenance isn't a predictable easy block at one end.
+    const items = shuffle([...fill, ...maint], rng).slice(0, n)
         .map(f => ({ fact_id: f, model: false }));
     return { round_type: 'mixed', items, untimed: false };
+}
+
+/** Base weight scaled for problem size: the 6/7/8/9 core (and 12×6..12×9) is
+ *  where fluency is actually won, so it draws LARGE_FACT_WEIGHT× as often. */
+function weightOf(id, base) {
+    return isLargeFact(id) ? base * SCHEDULER.LARGE_FACT_WEIGHT : base;
 }
 
 /**
@@ -285,24 +338,62 @@ export function workingTable(state) {
     return null; // every table mastered
 }
 
+/**
+ * Known material for focus-round openers and filler: FLUENT first (so the
+ * momentum openers really are the child's fastest facts), then the rest of
+ * ACCURATE_STATES by speed.
+ *
+ * FLUENT-ONLY was too narrow once easy multiplication joined the retired set
+ * (2026-07-25). Most of what a mid-ladder child has driven all the way to
+ * FLUENT is precisely the ×2/×5/×10/×11 material now held back — Tom was left
+ * with three eligible facts, so a focus round filled its seven known slots by
+ * cycling the same three. Same failure mode, and same fix, as `workingTable()`
+ * on 2026-07-21: accuracy is what "known" means here, speed is not.
+ */
 function rankedKnowns(state) {
+    const rc = retireCtx(state);
+    const rank = r => (r.state === 'FLUENT' ? 0 : 1);
     return Object.entries(state.facts)
-        .filter(([id, r]) => r.state === 'FLUENT' && !isRetired(state, id))
-        .sort(([, a], [, b]) => a.medianInit - b.medianInit)
+        .filter(([id, r]) => ACCURATE_STATES.has(r.state) && !isRetired(rc, id))
+        .sort(([, a], [, b]) =>
+            rank(a) - rank(b) ||
+            (a.medianInit ?? Infinity) - (b.medianInit ?? Infinity))
         .map(([id]) => id);
 }
 
-function fluentFactIds(state) {
+/** Review fallback pool when no table qualifies: everything the child has
+ *  learned and not outgrown. Accurate, not FLUENT-only — see rankedKnowns(). */
+function revisionPool(state) {
+    const rc = retireCtx(state);
     return Object.entries(state.facts)
-        .filter(([id, r]) => r.state === 'FLUENT' && !isRetired(state, id))
+        .filter(([id, r]) => ACCURATE_STATES.has(r.state) && !isRetired(rc, id))
         .map(([id]) => id);
 }
 
+/**
+ * Stalest mastered table for the review round.
+ *
+ * A one-step-trick table (2/5/10/11 — SCHEDULER.EASY_MUL_OPERANDS) is only a
+ * legitimate review target for a child who has not yet got past it. Once
+ * hasCoreMulDepth() holds, those facts are maintenance, and a maintenance fact
+ * must not be able to claim a whole 10-question round — review is a third of
+ * the day's practice. Returning null then is the right answer, not a
+ * consolation table: reviewRound falls through to the child's fluent-fact pool,
+ * which is retirement-filtered and so reviews the material they actually had to
+ * learn. Same gate as the mixed-round easy-mul rule, so the two can't disagree.
+ */
 function stalestMasteredTable(state, day) {
+    const skipEasy = hasCoreMulDepth(state);
     let best = null, bestGap = -1;
     for (const t of SCHEDULER.TABLE_ORDER) {
+        if (skipEasy && SCHEDULER.EASY_MUL_OPERANDS.includes(t)) continue;
         const facts = tableFacts(t).map(f => state.facts[f]).filter(Boolean);
-        if (!facts.length) continue;
+        // A table needs enough MET facts to fill a round without repeats.
+        // pick() recycles a short pool, so a table the child has met three
+        // facts of produced "3x8 3x6 8x12 8x12 3x6 3x8 …" — ten questions, three
+        // facts. That was always possible; skipping the easy tables (which are
+        // large and fully met) is what made it likely, so the guard lands here.
+        if (facts.length < SCHEDULER.QUESTIONS_PER_ROUND) continue;
         const fluentShare = facts.filter(r => r.state === 'FLUENT').length / facts.length;
         if (fluentShare < 0.6) continue;
         const gap = Math.min(...facts.map(r => r.lastSeenDay ? daysBetween(r.lastSeenDay, day) : 999));
@@ -344,6 +435,16 @@ function sampleAnything(state, rng) {
 
 function insertAt(arr, pos, item) {
     arr.splice(Math.min(pos, arr.length), 0, item);
+}
+
+/** Seeded Fisher-Yates — keeps the round order deterministic per seed. */
+function shuffle(xs, rng) {
+    const a = [...xs];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
 }
 
 function pick(pool, n, rng) {

@@ -6,6 +6,7 @@
  * Commuted multiplication/addition pairs are distinct facts for presentation
  * but share a canonical key for flagging/state pooling.
  */
+import { SCHEDULER, STATES } from '../config.js';
 
 /** Addition/subtraction ladder families, in unlock order. */
 export const ADD_FAMILIES = [
@@ -37,21 +38,31 @@ export const SUB_PARTNER = {
 export const ADD_OF_SUB = Object.fromEntries(
     Object.entries(SUB_PARTNER).map(([add, sub]) => [sub, add]));
 
-/** Ladder rung (0-based) of a single-digit add/sub family, for retirement
- *  distance. An add family indexes into ADD_FAMILIES directly; a sub-* family
- *  borrows its add partner's rung. Two-digit td-* families and times tables
- *  have no single-digit rung and are NEVER retired — returns null. */
+/** Ladder rung (0-based) of an add/sub family, for retirement distance. An add
+ *  family indexes into ADD_FAMILIES directly; a sub-* family borrows its add
+ *  partner's rung. Times tables have no ladder rung — returns null, so they are
+ *  never retired by distance (they have their own maintenance route, see
+ *  SCHEDULER.EASY_MUL_OPERANDS).
+ *
+ *  Two-digit td-* families DO have a rung as of 2026-07-25. They used to return
+ *  null on the reasoning that two-digit work is always "current level", but
+ *  that is only true of the two-digit families NEAR the frontier: `td-ones`
+ *  (two-digit ± ones, no crossing) is 32+1, and a child whose frontier is
+ *  `td-ones-cross` has outgrown it exactly as thoroughly as they outgrew +0/+1.
+ *  Worse, `familyOf()` files 10+0 and 10+1 as `td-ones` (a ≥ 10 ⇒ two-digit),
+ *  so the exemption made literal plus-ones un-retirable: measured on Tom's log,
+ *  10+1 was served five times in two days while he was on the crossing
+ *  frontier. The frontier-is-two-digit guard below still protects every child
+ *  who has not moved on. */
 export function familyRung(family) {
     const add = ADD_OF_SUB[family] || family;
-    if (add.startsWith('td-')) return null;   // two-digit: current-level work
     const idx = ADD_FAMILIES.indexOf(add);
     return idx < 0 ? null : idx;              // tables / unknown: never retire
 }
 
-/** A single-digit add/sub family the child has outgrown: now ≥ `distance`
- *  rungs below the frontier, so it drops from everyday practice to occasional
- *  maintenance. Two-digit families and times tables are never retired (a
- *  10-11 y/o still meets 2-digit work as current level and tables as drills).
+/** An add/sub family the child has outgrown: now ≥ `distance` rungs below the
+ *  frontier, so it drops from everyday practice to occasional maintenance.
+ *  Times tables are never retired this way (they carry no ladder rung).
  *
  *  Retirement fires ONLY once the frontier itself is two-digit (a td-* family).
  *  A child whose frontier is still single-digit (the default bridge-10, or any
@@ -213,9 +224,10 @@ export function familyFacts(family) {
 export function sampleFamily(family, rng) {
     const ri = (lo, hi) => lo + Math.floor(rng() * (hi - lo + 1));
     switch (family) {
-        case 'td-ones': { // no crossing
+        case 'td-ones': { // no crossing / no borrow
             const a = ri(2, 8) * 10 + ri(1, 4);
-            return factId(a, 'add', ri(1, 9 - (a % 10)));
+            return rng() < 0.5 ? factId(a, 'add', ri(1, 9 - (a % 10)))
+                : factId(a, 'sub', ri(1, a % 10));
         }
         case 'td-tens': {
             const a = ri(2, 7) * 10 + ri(0, 9);
@@ -223,8 +235,24 @@ export function sampleFamily(family, rng) {
                 : factId(a, 'sub', ri(1, Math.floor(a / 10) - 1) * 10);
         }
         case 'td-ones-cross': {
-            const a = ri(2, 8) * 10 + ri(5, 9);
-            return factId(a, 'add', ri(10 - (a % 10), 9));
+            // Both directions, and the crossing has to be a REAL one.
+            //
+            // The add lower bound used to be `10 - (a % 10)` — exactly enough
+            // to land ON the next ten — so the family legitimately emitted
+            // 39+1, 38+2 and 25+5. Those are the "+1 / +2" a parent watching
+            // over a child's shoulder sees, and they teach nothing the family
+            // exists to teach. `11 - (a % 10)` forces a non-zero ones digit in
+            // the answer (a genuine regroup), and the floor of 3 keeps +1/+2
+            // out even when a ends in 9. Same idea on the subtract side: b must
+            // exceed the minuend's ones digit (guaranteeing a borrow) and be
+            // ≥ 3, so 40−1 can't stand in for 62−7.
+            const MIN_ADDEND = 3;
+            if (rng() < 0.5) {
+                const a = ri(2, 8) * 10 + ri(5, 9);
+                return factId(a, 'add', ri(Math.max(MIN_ADDEND, 11 - (a % 10)), 9));
+            }
+            const a = ri(2, 8) * 10 + ri(0, 4);
+            return factId(a, 'sub', ri(Math.max(MIN_ADDEND, (a % 10) + 1), 9));
         }
         case 'td-td': { // no carry/borrow
             const a = ri(2, 6) * 10 + ri(1, 4), b = ri(1, 3) * 10 + ri(1, 4);
@@ -274,6 +302,27 @@ export function familyOf(id) {
     if (b % 10 === 0) return 'td-tens';
     if (b < 10) return f.borrow ? 'td-ones-cross' : 'td-ones';
     return f.borrow ? 'td-td-carry' : 'td-td';
+}
+
+/**
+ * A multiplication fact with a one-step derived route (×0/×1/×2/×5/×10/×11 —
+ * see SCHEDULER.EASY_MUL_OPERANDS). Not a retrieval problem once the trick is
+ * known, so the scheduler treats these as maintenance rather than practice.
+ * Non-multiplication facts are never "easy mul" — the add/sub ladder has its
+ * own outgrown-material mechanism (isRetiredFamily).
+ */
+export function isEasyMulFact(id) {
+    const { a, op, b } = parseFact(id);
+    return op === 'mul' &&
+        (SCHEDULER.EASY_MUL_OPERANDS.includes(a) || SCHEDULER.EASY_MUL_OPERANDS.includes(b));
+}
+
+/** Both operands ≥ STATES.LARGE_FACT_MIN_OPERAND (6) — the 6/7/8/9 core plus
+ *  12×6..12×9. Same construct the classifier allows extra time for; here it
+ *  buys extra practice (SCHEDULER.LARGE_FACT_WEIGHT). */
+export function isLargeFact(id) {
+    const { a, b } = parseFact(id);
+    return a >= STATES.LARGE_FACT_MIN_OPERAND && b >= STATES.LARGE_FACT_MIN_OPERAND;
 }
 
 /** Table a multiplication fact belongs to (the larger operand's table by

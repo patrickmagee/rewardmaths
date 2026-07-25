@@ -405,9 +405,14 @@ and being slow must never earn extra drilling. Concretely:
 Round shapes:
 - Focus round: 2–3 UNKNOWN/STUCK facts with highest error-weighted staleness, each
   repeated 2–3× within the round at increasing spacing, embedded ~80/20 in knowns.
-- Review round: mastered table with oldest `last_seen`.
-- Mixed round: samples all met categories at 1×, plus UNSETTLED facts at
-  `SCHEDULER.UNSETTLED_WEIGHT` 1.5 (since 2026-07-20) and stale facts at
+- Review round: mastered table with oldest `last_seen` — excluding one-step-trick
+  tables for a child with core depth, and excluding any table with fewer than
+  `QUESTIONS_PER_ROUND` met facts (both 2026-07-25, see §2 "Retirement, second
+  pass"). Falls through to the child's retirement-filtered accurate facts.
+- Mixed round: 2 of 10 slots to maintenance (outgrown material, stalest first);
+  the remaining 8 sampled from met categories at 1×, ×2 for facts with both
+  operands ≥ 6 (`SCHEDULER.LARGE_FACT_WEIGHT`, 2026-07-25), plus UNSETTLED facts
+  at `SCHEDULER.UNSETTLED_WEIGHT` 1.5 (since 2026-07-20) and stale facts at
   `SCHEDULER.STALE_WEIGHT` 2.5. The UNSETTLED boost is **not** a speed judgement —
   extra exposure is exactly what resolves an unsettled fact into a verdict.
   Focus-round `weakTargets` excludes UNSETTLED: unjudged ≠ weak.
@@ -483,6 +488,16 @@ no carry → 13. with carry/borrow.
   errors if a kid cruises"), and a parent's direct knowledge of a child's level
   is stronger evidence than N days of placement. Set to `td-ones-cross`
   (two-digit ± ones incl. crossing). Surfaced as a dashboard setting.
+  **Raised to `td-td` 2026-07-25** (two-digit ± two-digit, no carry). Note what
+  the evidence did *not* say: Tom's `td-ones-cross` work ran at **91% accuracy
+  with a 3.0s median initiation** over the preceding week — squarely in his ZPD,
+  not too easy. The problem was **dilution**, not pitch: only 33 of ~400 items
+  in that week were the crossing work at all. So the bump is deliberately one
+  rung, and its main effect is via retirement — `td-ones` (rung 8) and `td-tens`
+  (rung 9) fall ≥ 2 rungs below the new frontier and drop to maintenance, while
+  `td-ones-cross` stays live as everyday practice alongside the new `td-td`
+  frontier. Jumping to `td-td-carry` would have retired the crossing work he is
+  actually mid-learning.
 - **Retirement (added 2026-07-22)**: **only once the child's frontier is
   two-digit** (a `td-*` family), a *single-digit* add/sub family whose rung is ≥
   `SCHEDULER.RETIRE_DISTANCE` (2) below the frontier drops from everyday practice
@@ -494,16 +509,79 @@ no carry → 13. with carry/borrow.
   bearing: a child still on the single-digit ladder — including every
   default-level child (frontier `bridge-10`) — retires **nothing**, because they
   are still consolidating single-digit work; retiring families under them would
-  strand facts they haven't settled. **Two-digit families and times tables never
-  retire**: a 10–11 y/o still meets two-digit work as current level and tables as
-  fast drills (the "just get them popping" case). Without retirement, nothing
-  ever left the servable pool — a mastered `+0`/`+1` fact kept full scheduling
-  weight forever (`unlockedFamilies` is append-only), so a child on the two-digit
-  frontier was still being served `6+0`. Retirement is the missing exit door,
-  keyed off the same frontier the promotion gate advances; guard in
-  `facts.isRetiredFamily()`. Placement and weak-fact targeting stay
-  retirement-blind on purpose, so a genuinely UNKNOWN low fact is still
-  remediated even for a placed-high child.
+  strand facts they haven't settled. (This first pass also exempted **two-digit
+  families and times tables** — superseded 2026-07-25, see below.) Without
+  retirement, nothing ever left the servable pool — a mastered `+0`/`+1` fact
+  kept full scheduling weight forever (`unlockedFamilies` is append-only), so a
+  child on the two-digit frontier was still being served `6+0`. Retirement is
+  the missing exit door, keyed off the same frontier the promotion gate
+  advances; guard in `facts.isRetiredFamily()`. Placement and weak-fact
+  targeting stay retirement-blind on purpose, so a genuinely UNKNOWN low fact is
+  still remediated even for a placed-high child.
+- **Retirement, second pass (2026-07-25, parent decision — "he's wasting time on
+  stuff that's far too easy")**. Watching Tom play showed the first pass had
+  three holes. Measured on his live log (7 days, ~400 items) before the fix:
+  **46% of served multiplication was tables 2/5/10/11, only 4% of it had both
+  operands in 6–9, and there was no subtraction at all.**
+  1. **Two-digit families now retire on the same rung rule** (`familyRung()`
+     returns an index for `td-*` instead of `null`). The old exemption said
+     two-digit work is always current level; that is only true *near the
+     frontier*. `td-ones` is `32+1`, and a child on `td-ones-cross` has outgrown
+     it as thoroughly as they outgrew `+0/+1`. Worse, `familyOf()` files `10+0`
+     and `10+1` as `td-ones` (a ≥ 10 ⇒ two-digit), so the exemption made literal
+     plus-ones **un-retirable** — Tom was served `10+1` five times in two days.
+     The frontier-must-be-two-digit guard is untouched, so no default-level
+     child (including Eliza) is affected.
+  2. **One-step-derivable multiplication goes to maintenance too**
+     (`SCHEDULER.EASY_MUL_OPERANDS` = 0/1/2/5/10/11: ×2 double, ×5 half of ×10,
+     ×10 append a zero, ×11 repeat the digit). Times tables carry no ladder
+     rung, so the distance rule could never reach them and nothing else
+     distinguished `4×11` from `7×8`. The predicate is keyed on the **fact, not
+     the table**, because `tableOf()` files by the *larger* operand — table-11
+     owns 21 facts and table-12 owns 23 while table-2 owns one, so uniform
+     per-fact sampling handed the biggest share of every round to the easiest
+     high tables. By fact, `12×7` stays real work while `12×10` drops out.
+     Gated on `MUL_MAINTENANCE_MIN_CORE` (10 accurate non-easy mul facts) so a
+     beginner whose whole repertoire *is* the 2s and 5s keeps them.
+  3. **`MAINTENANCE_SLOTS` is now a cap on maintenance items per round, not on
+     pool candidates.** Two candidates at `MAINTENANCE_WEIGHT` against a
+     ~40-weight pool were drawn ~2% of the time, so a large retired set would
+     take months to cycle — while material that was *not* retired ran at full
+     weight. Maintenance is drawn first (2 of 10, stalest first) and the rest of
+     the round filled from current-level material.
+
+  Consequences elsewhere, all of a piece: a one-step-trick table can no longer
+  claim the **review** round once the child has core depth (a third of the day's
+  practice is too much to spend on the 11s — review falls through to the
+  retirement-filtered pool instead); a table needs ≥ `QUESTIONS_PER_ROUND`
+  **met** facts to be a review target at all (`pick()` recycles a short pool, so
+  a barely-met table produced ten questions on three facts); and
+  `rankedKnowns()` / the review fallback widened from FLUENT-only to
+  `ACCURATE_STATES`, because most of what a mid-ladder child has driven all the
+  way to FLUENT is exactly the easy material now held back — Tom was left with
+  three eligible facts. Same failure and same fix as `workingTable()` on
+  2026-07-21. Net effect on Tom's simulated diet: two-digit ± 49%, 6–9 core mul
+  26%, other mul 16%, easy mul 10% (was: easy-heavy, 4% large, 0% subtraction).
+- **Difficulty allocates practice; speed still does not (2026-07-25).** Facts
+  with both operands ≥ `STATES.LARGE_FACT_MIN_OPERAND` (6) — the 6/7/8/9 core
+  plus 12×6…12×9 — draw at `SCHEDULER.LARGE_FACT_WEIGHT` (2×) in mixed rounds.
+  This is *not* a retreat from the 2026-07-20 decision: that rule is about not
+  punishing a child for **how they answered** a fact (worked out vs recalled),
+  and it stands unchanged. This is the curriculum deciding **which facts are
+  worth the time**, a property of the fact rather than of the child's
+  performance on it. Same problem-size construct the classifier already grants
+  extra *time* for (`LARGE_FACT_ALLOWANCE_MS`, Dickson et al. 2022); here it
+  buys extra practice.
+- **Two-digit samplers (2026-07-25)**: `td-ones-cross` drew its addend from
+  `10 − (a % 10)` — exactly enough to land *on* the next ten — so the family
+  legitimately emitted `39+1`, `38+2` and `25+5`. Those are the "plus ones and
+  plus twos" a parent sees over a child's shoulder, and they teach nothing the
+  family exists to teach. The bound is now `11 − (a % 10)`, forcing a non-zero
+  ones digit in the answer (a real regroup), with a floor of 3. Separately,
+  neither `td-ones` nor `td-ones-cross` emitted **subtraction at all** — so a
+  child on the two-digit frontier, with the single-digit sub families retired
+  under them, got none whatsoever. That is exactly what happened to Tom. Both
+  families now emit both operations, the subtract side guaranteeing a borrow.
 
 ### Adaptation metric (bad-day-tolerant, all silent)
 Nightly pure function per child over the answer log; constants in `js/config.js`.

@@ -94,9 +94,27 @@ at derive time, so changing the setting never reclassifies history and untimed
 rounds can never forge a timeout) and **add/sub level** (`settings.startFamily`
 — a parent-declared ladder floor for that child, DESIGN §2 "Parent-set level";
 seeds where the derive fold begins, so it's config not log-data, reversible, and
-never rewrites history. Families ≥2 rungs below the frontier retire to occasional
-maintenance — single-digit only; two-digit families and times tables never
-retire. Tom is set to `td-ones-cross` as of 2026-07-22; Eliza stays default).
+never rewrites history. Tom is `td-td` as of 2026-07-25 (was `td-ones-cross`);
+Eliza stays default).
+
+### What counts as "outgrown" (DESIGN §2 "Retirement", second pass 2026-07-25)
+Outgrown material goes to a **maintenance lane**: `MAINTENANCE_SLOTS` (2) items
+per mixed round, stalest first — a hard cap on *items*, not on pool candidates.
+Two routes in:
+
+- **add/sub** — any family, single- **or** two-digit, ≥ `RETIRE_DISTANCE` (2)
+  rungs below the frontier, and only once that frontier is itself two-digit. A
+  default-level child therefore retires nothing.
+- **multiplication** — any fact with a one-step route (`EASY_MUL_OPERANDS`
+  0/1/2/5/10/11), once the child has `MUL_MAINTENANCE_MIN_CORE` (10) accurate
+  non-easy mul facts. Keyed on the **fact**, not the table: `tableOf()` files by
+  the larger operand, so table-11 owns 21 facts and table-2 owns one — `12×7`
+  stays real work, `12×10` doesn't.
+
+Everything else in the mixed pool draws at 1×, doubled (`LARGE_FACT_WEIGHT`)
+when both operands ≥ 6. **Difficulty allocates practice; speed still never
+does** — the 2026-07-20 rule is untouched. Two-digit samplers emit both
+operations and only genuine crossings/borrows (no `39+1`).
 
 ---
 

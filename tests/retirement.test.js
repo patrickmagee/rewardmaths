@@ -9,7 +9,7 @@
  */
 import { newChildState, startingFamilies, currentFrontier } from '../js/engine/adapt.js';
 import { newFactRecord } from '../js/engine/states.js';
-import { familyRung, isRetiredFamily, familyOf, ADD_FAMILIES } from '../js/engine/facts.js';
+import { familyRung, isRetiredFamily, familyOf, ADD_FAMILIES, isEasyMulFact, isLargeFact, tableFacts, sampleFamily, parseFact } from '../js/engine/facts.js';
 import { mixedRound, focusRound, reviewRound } from '../js/engine/scheduler.js';
 import { SCHEDULER } from '../js/config.js';
 
@@ -44,14 +44,28 @@ export async function run({ eq, ok, seededRng }) {
     // --- Rung / retirement taxonomy ----------------------------------------
     eq(familyRung('add-0-1'), 0, 'add-0-1 is rung 0');
     eq(familyRung('sub-bridge-10'), familyRung('bridge-10'), 'a sub family borrows its add partner rung');
-    eq(familyRung('td-ones'), null, 'two-digit families have no retire rung');
+    eq(familyRung('td-ones'), ADD_FAMILIES.indexOf('td-ones'),
+        'two-digit families DO carry a retire rung (changed 2026-07-25)');
     eq(familyRung('table-7'), null, 'times tables have no retire rung');
 
     const FR = 'td-ones-cross', D = SCHEDULER.RETIRE_DISTANCE;
     ok(isRetiredFamily('add-0-1', FR, D), 'far-below single-digit family retires');
     ok(isRetiredFamily('bridge-10', FR, D), 'bridge-10 retires once frontier is two-digit');
-    ok(!isRetiredFamily('td-ones', FR, D), 'two-digit family never retires (it is current level)');
-    ok(!isRetiredFamily('table-7', FR, D), 'a times table never retires');
+    ok(!isRetiredFamily('table-7', FR, D), 'a times table never retires by ladder distance');
+
+    // Two-digit families retire on the SAME distance rule as single-digit ones
+    // (2026-07-25). td-ones is 32+1 — a child on the crossing frontier has
+    // outgrown it exactly as thoroughly as they outgrew +0/+1. td-tens sits one
+    // rung below the frontier and stays.
+    ok(isRetiredFamily('td-ones', FR, D), 'td-ones retires two rungs below a td-ones-cross frontier');
+    ok(!isRetiredFamily('td-tens', FR, D), 'td-tens (one rung below) is still current level');
+    ok(!isRetiredFamily('td-ones-cross', FR, D), 'the frontier itself never retires');
+
+    // The bug this fixed: familyOf() files 10+0 / 10+1 as td-ones (a ≥ 10), so
+    // exempting two-digit families made literal plus-ones un-retirable. Tom was
+    // served 10+1 five times in two days while on the crossing frontier.
+    eq(familyOf('10+1'), 'td-ones', '10+1 is filed two-digit by familyOf');
+    ok(isRetiredFamily(familyOf('10+1'), FR, D), '…and therefore now retires with td-ones');
 
     // Retirement fires ONLY when the frontier itself is two-digit. A child
     // still on the single-digit ladder (incl. the default bridge-10) retires
@@ -86,8 +100,12 @@ export async function run({ eq, ok, seededRng }) {
         }
     }
     ok(singleDigit > 0, `outgrown single-digit still appears occasionally (${singleDigit}/${total})`);
-    ok(singleDigit / total < 0.15,
-        `outgrown single-digit is a minority, not everyday practice (${Math.round(100 * singleDigit / total)}%)`);
+    // MAINTENANCE_SLOTS is a hard cap on maintenance ITEMS PER ROUND
+    // (2026-07-25), so this is an exact structural bound, not a lucky ratio —
+    // it holds however lopsided the retired-vs-current fact counts get.
+    const cap = SCHEDULER.MAINTENANCE_SLOTS / SCHEDULER.QUESTIONS_PER_ROUND;
+    ok(singleDigit / total <= cap,
+        `outgrown single-digit capped at MAINTENANCE_SLOTS/round (${Math.round(100 * singleDigit / total)}% ≤ ${Math.round(100 * cap)}%)`);
     ok(twoDigit > singleDigit,
         `current-level two-digit outweighs retired single-digit (${twoDigit} vs ${singleDigit})`);
 
@@ -133,4 +151,87 @@ export async function run({ eq, ok, seededRng }) {
     }
     ok(freshSeen === 0,
         `MAINTENANCE_SLOTS=${SCHEDULER.MAINTENANCE_SLOTS} keeps the freshest retired fact out (seen ${freshSeen}/40)`);
+
+    // --- One-step-derivable multiplication is maintenance too (2026-07-25) ---
+    // Tables carry no ladder rung, so the distance rule can never reach them.
+    // Measured on Tom's log: 46 of 66 circulating mul facts used a ×2/×5/×10/×11
+    // route, 46% of served multiplication was tables 2/5/10/11, and 4% had both
+    // operands in 6-9. The predicate is per-FACT, not per-table, because
+    // tableOf() files by larger operand — 12×10 must go, 12×7 must stay.
+    ok(isEasyMulFact('4x11') && isEasyMulFact('12x10') && isEasyMulFact('7x5'),
+        'a ×2/×5/×10/×11 route makes the fact easy whatever table owns it');
+    ok(!isEasyMulFact('12x7') && !isEasyMulFact('7x8') && !isEasyMulFact('3x4'),
+        'facts with no one-step route are real practice');
+    ok(!isEasyMulFact('10+1'), 'the predicate is multiplication-only');
+
+    const mul = newChildState({ startFamily: 'td-ones-cross' });
+    mul.warmupFamilies = [];
+    const easyIds = [], coreIds = [];
+    for (const t of [2, 5, 10, 11]) for (const f of tableFacts(t)) if (isEasyMulFact(f)) easyIds.push(f);
+    for (const f of ['6x7', '7x6', '6x8', '8x6', '7x8', '8x7', '7x9', '9x7', '8x9', '9x8', '6x9', '9x6',
+        '3x4', '4x3', '3x6', '12x7', '12x8']) coreIds.push(f);
+    for (const id of [...new Set(easyIds)]) mul.facts[id] = fluent(id);
+    for (const id of coreIds) mul.facts[id] = fluent(id);
+
+    let easyN = 0, largeN = 0, mulTotal = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+        const r = mixedRound(mul, { day: '2026-07-25', retrievalsToday: {} }, seededRng(seed));
+        for (const it of r.items) {
+            mulTotal++;
+            if (isEasyMulFact(it.fact_id)) easyN++;
+            else if (isLargeFact(it.fact_id)) largeN++;
+        }
+    }
+    ok(easyN > 0, `easy multiplication still appears occasionally (${easyN}/${mulTotal})`);
+    ok(easyN / mulTotal <= SCHEDULER.MAINTENANCE_SLOTS / SCHEDULER.QUESTIONS_PER_ROUND,
+        `easy multiplication capped at the maintenance slots (${Math.round(100 * easyN / mulTotal)}%)`);
+    ok(largeN > easyN * 2,
+        `the 6-9 core dominates the easy tables it used to lose to (${largeN} large vs ${easyN} easy)`);
+
+    // The depth gate: a child whose whole repertoire IS the easy tables keeps
+    // them as everyday practice — retiring them would empty the pool.
+    const beginner = newChildState();
+    beginner.warmupFamilies = [];
+    for (const id of [...new Set(easyIds)].slice(0, 12)) beginner.facts[id] = fluent(id);
+    let begEasy = 0, begTotal = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+        const r = mixedRound(beginner, { day: '2026-07-25', retrievalsToday: {} }, seededRng(seed));
+        for (const it of r.items) { begTotal++; if (isEasyMulFact(it.fact_id)) begEasy++; }
+    }
+    ok(begEasy / begTotal > 0.8,
+        `below MUL_MAINTENANCE_MIN_CORE the easy tables stay everyday practice (${Math.round(100 * begEasy / begTotal)}%)`);
+
+    // --- Two-digit samplers: real crossings, and both operations ------------
+    // The add lower bound used to be "just enough to reach the next ten", so
+    // td-ones-cross legitimately emitted 39+1 / 38+2 / 25+5 — the "+1 / +2" a
+    // parent sees over a child's shoulder. And neither td-ones nor
+    // td-ones-cross emitted subtraction at all, so a child on the two-digit
+    // frontier with the single-digit sub families retired got NONE.
+    // One rng drawn 400 times, not 400 fresh rngs: a seeded generator's FIRST
+    // output correlates with its seed, and that first draw is the add/sub coin.
+    let sawSub = 0, tiny = 0, noCross = 0;
+    const crossRng = seededRng(11);
+    for (let i = 0; i < 400; i++) {
+        const id = sampleFamily('td-ones-cross', crossRng);
+        const { a, op, b, answer } = parseFact(id);
+        if (op === 'sub') sawSub++;
+        if (b < 3) tiny++;
+        const crosses = op === 'add'
+            ? Math.floor(answer / 10) > Math.floor(a / 10)
+            : Math.floor(answer / 10) < Math.floor(a / 10);
+        if (!crosses) noCross++;
+        eq(familyOf(id), 'td-ones-cross', `${id} round-trips through familyOf`);
+    }
+    ok(sawSub > 100, `td-ones-cross emits subtraction as well as addition (${sawSub}/400)`);
+    eq(tiny, 0, 'td-ones-cross never emits a +1 / +2 / -1 / -2');
+    eq(noCross, 0, 'every td-ones-cross item actually crosses the decade');
+
+    const onesRng = seededRng(13);
+    let onesSub = 0;
+    for (let i = 0; i < 200; i++) {
+        const id = sampleFamily('td-ones', onesRng);
+        if (parseFact(id).op === 'sub') onesSub++;
+        eq(familyOf(id), 'td-ones', `${id} round-trips through familyOf`);
+    }
+    ok(onesSub > 50, `td-ones emits subtraction as well as addition (${onesSub}/200)`);
 }

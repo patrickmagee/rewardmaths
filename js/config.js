@@ -206,17 +206,54 @@ export const SCHEDULER = {
     /** Placement sweep: exposures per fact needed before trusting the prior. */
     PLACEMENT_EXPOSURES: 2,
     /** Retirement (docs/DESIGN.md §2 "Retirement"): once a child's frontier is
-     *  TWO-DIGIT, a single-digit add/sub family this many rungs below it drops
-     *  to maintenance — it stops being everyday practice and only resurfaces
+     *  TWO-DIGIT, an add/sub family this many rungs below it drops to
+     *  maintenance — it stops being everyday practice and only resurfaces
      *  occasionally, so a child working on two-digit arithmetic isn't fed +0/+1
      *  forever. A child still on the single-digit ladder retires nothing (they
-     *  are still consolidating it). Two-digit families and times tables never
-     *  retire. Guard lives in facts.isRetiredFamily(). */
+     *  are still consolidating it). Times tables have no ladder rung and never
+     *  retire this way (see EASY_MUL_OPERANDS for their maintenance route).
+     *  Two-digit families DO retire as of 2026-07-25 — see facts.familyRung().
+     *  Guard lives in facts.isRetiredFamily(). */
     RETIRE_DISTANCE: 2,
-    /** Retired facts injected into a mixed round as light maintenance
-     *  ("occasional single-digit"), stalest first. */
+    /** HARD CAP on maintenance ITEMS PER MIXED ROUND (was a cap on pool
+     *  candidates, which is not the same thing — 2 candidates at 0.5 against a
+     *  ~40-weight pool were drawn ~2% of the time, so a 70-fact retired set
+     *  took months to cycle; meanwhile easy material that was NOT retired ran
+     *  at full weight). Now: draw exactly this many, stalest first, and fill
+     *  the rest of the round from current-level material. 2/10 = the
+     *  "occasional fallback" the retired set is supposed to be. */
     MAINTENANCE_SLOTS: 2,
     MAINTENANCE_WEIGHT: 0.5,
+    /**
+     * Multiplication operands with an instant positional or one-step derived
+     * route: ×0/×1 trivial, ×2 double, ×5 half of ×10, ×10 append a zero,
+     * ×11 repeat the digit (n ≤ 9). A fact using ANY of these is not a
+     * retrieval problem once the trick is known, so it belongs in maintenance
+     * rather than everyday practice.
+     *
+     * Keyed on the FACT, not the table, deliberately. `tableOf()` files a fact
+     * under its LARGER operand, so table-11 owns 21 facts and table-12 owns 23
+     * while table-2 owns one — uniform per-fact sampling therefore hands the
+     * biggest share of every round to the easiest high tables. Measured on
+     * Tom's log 2026-07-25: 46 of his 66 circulating mul facts were of this
+     * kind, 46% of served multiplication was tables 2/5/10/11, and just 4% had
+     * both operands in 6-9. Filing by fact keeps 12×7 as real work while 12×10
+     * drops out; filing by table could not.
+     */
+    EASY_MUL_OPERANDS: [0, 1, 2, 5, 10, 11],
+    /** Easy mul facts drop to maintenance only once the child has at least this
+     *  many accurate NON-easy mul facts in circulation. Without the gate a
+     *  beginner whose whole repertoire is 2s/5s/10s would have their entire
+     *  multiplication pool retired out from under them. */
+    MUL_MAINTENANCE_MIN_CORE: 10,
+    /** Mixed-round weight for facts with both operands ≥ LARGE_FACT_MIN_OPERAND
+     *  (6) — the 6/7/8/9 core plus 12×6..12×9. Same problem-size construct the
+     *  classifier already allows for (STATES.LARGE_FACT_ALLOWANCE_MS): these
+     *  are the facts that stay effortful longest and the ones adults still get
+     *  wrong, so they earn proportionally more of the practice budget. This is
+     *  a DIFFICULTY judgement, not a speed one — it is the curriculum choosing
+     *  where the time goes, not the engine punishing a child for thinking. */
+    LARGE_FACT_WEIGHT: 2,
 };
 
 export const DAY = {
