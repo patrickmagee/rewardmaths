@@ -39,6 +39,18 @@ states. Wrong answers always show the correct fact neutrally and requeue.
   digit count, which is confounded with problem size. Cutoff = max(2500ms,
   2.0× the child's own fluent-initiation median), +300ms where both operands
   ≥6. Sourcing and the 2026-07-20 revision rationale: DESIGN §2 "Speed cutoff".
+- **Two kinds of timeout are non-evidence** (2026-07-28, DESIGN §2 rule 1).
+  `ceiling_ms` is absent on every record written before the 40s fix, so its
+  absence dates a record to the **12-second era**; those timeouts cut off
+  genuine working-out and were alone holding 26 facts in UNKNOWN across the two
+  children (Eliza 28→16, Tom 35→21, incl. `2×5` and `9×10`, never once answered
+  wrong) — and UNKNOWN is barred from the mixed pool. They now classify as
+  `legacy_timeout`: non-evidence, raw records untouched. Likewise the 60s
+  **sprint** runs `RT.SPRINT_CEILING_MS` (10s, `min` with the child's own
+  ceiling) so one stall can't eat the probe, and its timeouts are
+  `sprint_timeout` — non-evidence, keyed on `round_type`, or the short clock
+  would rebuild the 12s trap weekly. Dashboard consumers must count timeouts
+  with `isTimeoutReason()`, never `=== 'timeout'`.
 
 ---
 

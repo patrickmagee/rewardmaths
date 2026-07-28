@@ -1,4 +1,4 @@
-import { classifyAnswer, roundIsVoid, sessionIsVoid, ceilingMs } from '../js/engine/classify.js';
+import { classifyAnswer, roundIsVoid, sessionIsVoid, ceilingMs, isTimeoutReason } from '../js/engine/classify.js';
 import { newFactRecord, appendAttempt, factState } from '../js/engine/states.js';
 import { weakTargets } from '../js/engine/scheduler.js';
 import { newChildState } from '../js/engine/adapt.js';
@@ -9,13 +9,15 @@ export async function run({ eq, ok }) {
     const learning = { medianRt: 4000, validAttempts: 5, state: 'UNKNOWN' };
     const fresh = { medianRt: 0, validAttempts: 0, state: 'UNKNOWN' };
 
-    // 60s on a normally-2s fact → the UI times out at 12s; lapse, not evidence.
-    let c = classifyAnswer({ correct: false, initiation_ms: 11000, typing_ms: 1500, timeout: true }, settled);
+    // A timeout on a normally-2s fact → lapse, not evidence. ceiling_ms must be
+    // stamped: an unstamped timeout is a 12s-era record and is non-evidence
+    // whatever the fact's state (see "12s era" below).
+    let c = classifyAnswer({ correct: false, initiation_ms: 11000, typing_ms: 1500, timeout: true, ceiling_ms: 40000 }, settled);
     eq([c.counts_for_accuracy, c.counts_for_rt, c.exclusion_reason],
         [false, false, 'timeout'], 'timeout on FLUENT fact = lapse');
 
     // Timeout on an UNKNOWN fact = real negative evidence.
-    c = classifyAnswer({ correct: false, initiation_ms: 11000, typing_ms: 1500, timeout: true }, learning);
+    c = classifyAnswer({ correct: false, initiation_ms: 11000, typing_ms: 1500, timeout: true, ceiling_ms: 40000 }, learning);
     eq([c.counts_for_accuracy, c.forced_wrong], [true, true], 'timeout on UNKNOWN counts as wrong');
 
     // Anticipation.
@@ -107,13 +109,37 @@ export async function run({ eq, ok }) {
         timeout: false, ceiling_ms: 6000 }, fresh);
     eq(c.exclusion_reason, null, 'over its own ceiling but timeout:false = untimed, valid');
 
-    // Legacy records (written before ceiling_ms existed) are classified by their
-    // own timeout flag. A legacy timeout carries timeout:true and stays a
-    // timeout; an untimed-round record carries timeout:false and, however slow,
-    // is full evidence — the derive-time ceiling is never re-imposed.
+    // ---- 12s era (2026-07-28): an unstamped timeout is not evidence ----
+    // ceiling_ms arrived with the 40s fix, so a timeout with no ceiling_ms can
+    // only be a pre-2026-07-20 record played against the 12s clock. 12s cut off
+    // genuine working-out, leaving 26 facts across the two children UNKNOWN on
+    // timeouts alone with zero wrong answers ever. Those records are kept
+    // verbatim (append-only) but stop steering the engine.
     c = classifyAnswer({ correct: false, initiation_ms: RT.HARD_CEILING_MS + 500,
         typing_ms: 0, timeout: true }, learning);
-    eq(c.exclusion_reason, 'timeout', 'legacy timeout:true stays a timeout');
+    eq([c.counts_for_accuracy, c.counts_as_retrieval, c.forced_wrong, c.exclusion_reason],
+        [false, false, undefined, 'legacy_timeout'], '12s-era timeout is non-evidence, not forced-wrong');
+    ok(isTimeoutReason(c.exclusion_reason), 'the parent dashboard still counts it as a timeout');
+    // Same record with a ceiling stamped is untouched — only the unstamped ones
+    // are quarantined, so nothing written since 2026-07-20 changes meaning.
+    c = classifyAnswer({ correct: false, initiation_ms: RT.HARD_CEILING_MS + 500,
+        typing_ms: 0, timeout: true, ceiling_ms: RT.HARD_CEILING_MS }, learning);
+    eq([c.forced_wrong, c.exclusion_reason], [true, 'timeout'], 'a stamped timeout still counts fully');
+
+    // ---- sprint (2026-07-28): short probe clock never judges knowledge ----
+    // The sprint runs SPRINT_CEILING_MS so one stall can't eat the 60s probe.
+    // Counting that as negative evidence would rebuild the 12s trap weekly.
+    c = classifyAnswer({ correct: false, initiation_ms: RT.SPRINT_CEILING_MS, typing_ms: 0,
+        timeout: true, ceiling_ms: RT.SPRINT_CEILING_MS, round_type: 'sprint' }, learning);
+    eq([c.counts_for_accuracy, c.counts_as_retrieval, c.forced_wrong, c.exclusion_reason],
+        [false, false, undefined, 'sprint_timeout'], 'sprint timeout is non-evidence');
+    ok(isTimeoutReason(c.exclusion_reason), 'sprint timeout still reads as a timeout to the parent');
+    // The same short ceiling OUTSIDE a sprint is a normal timeout: it is the
+    // round type that earns the exemption, not the clock length.
+    c = classifyAnswer({ correct: false, initiation_ms: RT.SPRINT_CEILING_MS, typing_ms: 0,
+        timeout: true, ceiling_ms: RT.SPRINT_CEILING_MS, round_type: 'mixed' }, learning);
+    eq(c.exclusion_reason, 'timeout', 'a short ceiling outside a sprint is still a real timeout');
+
     c = classifyAnswer({ correct: false, initiation_ms: RT.HARD_CEILING_MS + 500,
         typing_ms: 0, timeout: false }, fresh);
     eq(c.exclusion_reason, null, 'slow answer with timeout:false is not forged into a timeout');

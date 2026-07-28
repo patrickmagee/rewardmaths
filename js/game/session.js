@@ -4,7 +4,7 @@
  * round screen supplies hooks; this module owns the logic so it stays
  * testable and consistent (docs/DESIGN.md §1 "In-round feedback").
  */
-import { SCHEDULER } from '../config.js';
+import { SCHEDULER, RT } from '../config.js';
 import { ceilingMs } from '../engine/classify.js';
 import { parseFact, factCue, familyOf } from '../engine/facts.js';
 import { makeId } from '../data/db.js';
@@ -21,7 +21,15 @@ export class RoundSession {
         this.plan = plan;
         this.user = opts.user;
         this.day = opts.day;
-        this.ceilingMs = ceilingMs(opts.settings);
+        // The sprint is a 60s rate probe, so it runs a much shorter per-question
+        // ceiling — one stall must cost a question, not the round. min() so a
+        // parent's accessibility ceiling (which can be below it) still wins.
+        // The value in force is stamped on every record as ceiling_ms; sprint
+        // timeouts are non-evidence in classify.js, so the short clock can never
+        // reach a child's fact states.
+        this.ceilingMs = plan.round_type === 'sprint'
+            ? Math.min(RT.SPRINT_CEILING_MS, ceilingMs(opts.settings))
+            : ceilingMs(opts.settings);
         this.factAccuracy = opts.factAccuracy || (() => 1);
         this.hooks = opts.hooks;
         this.roundId = `${opts.day}-${plan.round_type}-${makeId()}`;

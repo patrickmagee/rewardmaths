@@ -202,10 +202,37 @@ data. Ordered rules, first match wins:
    the round never armed the clock — recorded for future consumers, not read by
    `classify.js`, which legacy records lack). **Legacy 12-second-ceiling
    timeouts** (`timeout:true`, no `ceiling_ms`, `given:null` — e.g. all of
-   Eliza's 32) predate untimed rounds, carry their own flag, and **remain
-   negative evidence by owner decision (2026-07-21)**: this change touches only
-   the derive-time re-ceiling of `timeout:false` answers, never a played
-   timeout.
+   Eliza's 32) predate untimed rounds and carry their own flag.
+   **Superseded 2026-07-28 — 12s-era timeouts are now non-evidence.** The
+   2026-07-21 decision was to leave them as negative evidence. Seven days of
+   real data reversed it. `ceiling_ms` arrived with the 40s fix, so its absence
+   dates a record exactly (verified across both children's full logs: absent on
+   every day up to 2026-07-19 for Tom / 2026-07-09–19 for Eliza, `40000` on
+   every day after). Measured through the real fold, those records alone were
+   holding **26 facts in UNKNOWN** — Eliza 28→16, Tom 35→21 — including `2×5`,
+   `4×3`, `9×10` and `4×10`, none of which either child has ever answered
+   wrong. That is not cosmetic: `mixedRound` pools FLUENT/SLOW/UNSETTLED only,
+   and `weakTargets` rations UNKNOWN to `FOCUS_WEAK_FACTS` (3) per focus round
+   while the focus slot alternates with warm-up day-about — so Eliza's entire
+   7/8/9 core was out of circulation for a week (no `7×8`, `7×7`, `6×7`, `8×9`
+   or `9×9` served in either of her last two sessions) on a ceiling the engine
+   itself retired as wrong. Rule 1 now returns `legacy_timeout` (non-evidence,
+   not forced-wrong) when `ceiling_ms` is absent. Raw records are untouched —
+   append-only still holds; what changed is only what the fold reads as
+   evidence. Every affected fact re-enters as UNSETTLED and re-earns its state
+   from current play, so a genuinely weak one is back within a session or two.
+   The parent dashboard still counts these as timeouts (`isTimeoutReason`):
+   they happened, and the history stays truthful.
+   **Sprint timeouts are non-evidence too (2026-07-28).** The 60s benchmark
+   sprint runs `RT.SPRINT_CEILING_MS` (10s, applied as `min` with the child's
+   own ceiling so accessibility still wins) because the 40s ceiling let one
+   stall consume the probe — Eliza's 2026-07-28 sprint returned **3 items**
+   because `7×9` burned 40 of the 60 seconds, which measures no rate at all and
+   corrupts the Westwood fluency index built on it. A short clock that fed the
+   state machine would rebuild the 12s trap on a weekly cycle, so a sprint
+   timeout classifies as `sprint_timeout`: non-evidence. The exemption is keyed
+   on `round_type`, not on clock length — the same short ceiling outside a
+   sprint is still a real timeout.
 2. **Anticipation floor**: initiation <300ms → full discard, doesn't consume the
    fact's 3-per-day retrieval budget.
 3. **Rapid guess**: wrong AND initiation <500ms → non-evidence (disengagement

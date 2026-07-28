@@ -1,5 +1,7 @@
 import { deriveStreak, weekView, addDays, isoWeek } from '../js/game/streaks.js';
 import { isEasyDay, dayMedal, goalReveal } from '../js/game/medals.js';
+import { RoundSession } from '../js/game/session.js';
+import { RT } from '../js/config.js';
 
 function daysFrom(spec, endDay) {
     // spec: array of rounds-per-day, oldest first, ending at endDay.
@@ -119,4 +121,20 @@ export async function run({ eq, ok }) {
 
     // isoWeek sanity.
     eq(isoWeek('2026-01-01'), isoWeek('2026-01-01'), 'isoWeek stable');
+
+    // ---- sprint auto-advance ceiling (2026-07-28) ----
+    // The sprint is a 60s rate probe; the 40s question ceiling let one stall eat
+    // it (Eliza 2026-07-28: 3 items, 7×9 burned 40 of the 60 seconds). A stall
+    // must cost a question, not the round.
+    const mk = (round_type, settings) => new RoundSession(
+        { round_type, items: [{ fact_id: '3x4' }], untimed: false,
+            durationMs: round_type === 'sprint' ? 60000 : undefined },
+        { user: 'u', day: '2026-07-28', settings, hooks: {} });
+    eq(mk('mixed', {}).ceilingMs, RT.HARD_CEILING_MS, 'normal round keeps the full ceiling');
+    eq(mk('sprint', {}).ceilingMs, RT.SPRINT_CEILING_MS, 'sprint runs the short probe ceiling');
+    // Accessibility beats the probe: a child given a shorter ceiling keeps it.
+    eq(mk('sprint', { ceilingMs: 8000 }).ceilingMs, 8000, 'a lower per-child ceiling still wins in a sprint');
+    eq(mk('mixed', { ceilingMs: 8000 }).ceilingMs, 8000, 'per-child ceiling unchanged outside sprints');
+    // …and the probe never LENGTHENS a sprint for a child set above it.
+    eq(mk('sprint', { ceilingMs: 30000 }).ceilingMs, RT.SPRINT_CEILING_MS, 'a higher per-child ceiling does not lengthen the sprint');
 }

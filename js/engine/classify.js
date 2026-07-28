@@ -62,6 +62,35 @@ export function classifyAnswer(ans, fact) {
     // reclassify history (ceiling_ms is still stamped, now purely informational).
     // Legacy records predate untimed rounds and carry their own timeout flag.
     if (ans.timeout) {
+        // 1a. Timeouts that were never a verdict on knowledge (2026-07-28).
+        //
+        // (i) The 12-SECOND ERA. Records written before 2026-07-20 carry no
+        // ceiling_ms (the field was added with the 40s fix — verified across
+        // both children's full logs: absent on every earlier day, 40000 on
+        // every later one). 12s cut off genuine working-out wholesale, and the
+        // wreckage is still steering the engine: 26 facts across the two
+        // children sit UNKNOWN on those timeouts alone with ZERO wrong answers
+        // ever — Tom's include 2×5 and 9×10. UNKNOWN is excluded from the mixed
+        // pool (scheduler.mixedRound takes FLUENT/SLOW/UNSETTLED only) and
+        // rationed to FOCUS_WEAK_FACTS per focus round, so the effect is not
+        // cosmetic: Eliza's whole 7/8/9 core was frozen out of circulation for
+        // a week. Raw records stay exactly as written (append-only) — we simply
+        // stop reading a retired ceiling as evidence, and the facts get judged
+        // on how the child does now.
+        //
+        // (ii) SPRINT. The sprint runs a deliberately short ceiling
+        // (RT.SPRINT_CEILING_MS) so one stall can't eat the 60s probe. Letting
+        // that count as negative evidence would rebuild the 12s trap on a
+        // one-week cycle, so it doesn't.
+        //
+        // Both are non-evidence, NOT forced-wrong: counts_as_retrieval false
+        // means states.appendAttempt skips them entirely.
+        if (!Number.isFinite(ans.ceiling_ms) || ans.ceiling_ms <= 0) {
+            return res(false, false, false, 'legacy_timeout');
+        }
+        if (ans.round_type === 'sprint') {
+            return res(false, false, false, 'sprint_timeout');
+        }
         // A timeout on a fact the child DEMONSTRABLY knows is a lapse, not
         // ignorance — but only FLUENT/SLOW carry that demonstration. UNSETTLED
         // means precisely "not enough history to judge yet", so forgiving its
@@ -123,6 +152,15 @@ function res(acc, rt, retrieval, reason, correctOverride) {
  * child who was simply slow — the opposite of the intent.
  */
 const DISENGAGED = new Set(['anticipation', 'rapid_guess']);
+
+/**
+ * Every exclusion_reason that means "the auto-advance timer fired". The parent
+ * dashboard counts all of them as timeouts — they genuinely happened and the
+ * history stays truthful; what changed in 1a is only whether they steer the
+ * engine. Consumers must use this rather than `=== 'timeout'`.
+ */
+export const TIMEOUT_REASONS = new Set(['timeout', 'legacy_timeout', 'sprint_timeout']);
+export const isTimeoutReason = r => TIMEOUT_REASONS.has(r);
 
 const disengagedCount = list =>
     list.filter(c => DISENGAGED.has(c.exclusion_reason)).length;

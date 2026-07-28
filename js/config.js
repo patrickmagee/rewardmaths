@@ -18,6 +18,15 @@ export const RT = {
     HARD_CEILING_MS: 40000,
     HARD_CEILING_MIN_MS: 6000,
     HARD_CEILING_MAX_MS: 60000,
+    /** Auto-advance inside the 60s benchmark SPRINT only (2026-07-28).
+     *  The sprint is a rate probe, and the 40s ceiling let a single stall eat
+     *  it: Eliza's 2026-07-28 sprint returned 3 items because 7×9 burned 40 of
+     *  the 60 seconds, which does not measure a rate at all. Applied as
+     *  min(this, the child's ceiling) so an accessibility setting still wins.
+     *  A sprint timeout is NON-EVIDENCE (classify.js) — this is a pacing device
+     *  for the probe, never a verdict on whether the child knows the fact,
+     *  which is exactly the mistake the 12s era made. */
+    SPRINT_CEILING_MS: 10000,
     /** initiation_ms below this = anticipation → full discard. */
     ANTICIPATION_FLOOR_MS: 300,
     /** wrong AND initiation_ms below this = rapid guess → non-evidence. */

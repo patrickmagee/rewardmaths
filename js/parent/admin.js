@@ -10,7 +10,7 @@ import { deriveStreak } from '../game/streaks.js';
 import { dayMedal, isEasyDay, validRounds } from '../game/medals.js';
 import { evaluateFlags, flagType, themeOf } from '../engine/flags.js';
 import { fluencyIndex, growthSlope } from '../engine/metrics.js';
-import { ceilingMs } from '../engine/classify.js';
+import { ceilingMs, isTimeoutReason } from '../engine/classify.js';
 import { tableFacts, parseFact, STRATEGY_LINES, ADD_FAMILIES, familyOf, canonicalKey } from '../engine/facts.js';
 import { RT, SCHEDULER } from '../config.js';
 
@@ -193,12 +193,11 @@ async function kidSection(kid) {
         // Name the real reason rather than asserting one: a round is only
         // voided by mashing/anticipations, but slow answers and timeouts are
         // genuine effort and must never be reported as guessing.
+        const slow = classified.filter(a => a.day === d && isTimeoutReason(a.cls.exclusion_reason)).length;
         if (voided) {
-            const slow = classified.filter(a => a.day === d && a.cls.exclusion_reason === 'timeout').length;
             rows.push({ t: `${voided} round${voided === 1 ? '' : 's'} not counted (too many very fast answers)` });
             if (slow) rows.push({ t: `${slow} answer${slow === 1 ? '' : 's'} ran out of time — counted as effort` });
-        } else if (classified.some(a => a.day === d && a.cls.exclusion_reason === 'timeout')) {
-            const slow = classified.filter(a => a.day === d && a.cls.exclusion_reason === 'timeout').length;
+        } else if (slow) {
             rows.push({ t: `${slow} answer${slow === 1 ? '' : 's'} ran out of time` });
         }
         if (easy) rows.push({ t: 'Easy day — bronze needs just 1 round' });
@@ -380,9 +379,12 @@ function factGrid(state, classified = []) {
     // COLOURED by timeouts (negative evidence) while its thinking time —
     // computed from valid attempts only — still looks fast, which reads as a
     // contradiction. Surface the count so the tooltip explains the colour.
+    // Counts every timeout kind, including the 12s-era and sprint ones that no
+    // longer steer the engine: they happened, so the tooltip still reports them
+    // — they just aren't why the square is the colour it is any more.
     const timeoutsByKey = {};
     for (const a of classified) {
-        if (!a.void && a.cls.exclusion_reason === 'timeout') {
+        if (!a.void && isTimeoutReason(a.cls.exclusion_reason)) {
             const k = canonicalKey(a.fact_id);
             timeoutsByKey[k] = (timeoutsByKey[k] || 0) + 1;
         }
