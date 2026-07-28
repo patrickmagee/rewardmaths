@@ -29,8 +29,15 @@ export function tagError(fact_id, givenAnswer) {
         return { type: 'weak_fact' };
     }
     if (Math.abs(g - answer) <= 2) return { type: 'counting_slip' };
-    if (op === 'add' && (g === a - b || g === b - a)) return { type: 'operation_confusion' };
-    if (op === 'sub' && g === a + b) return { type: 'operation_confusion' };
+    // Mode slips run BOTH ways. The mul branch above has caught
+    // added-instead-of-multiplied since day one; the add/sub branches had no
+    // mirror, so multiplied-instead-of-added fell through to `weak_fact` —
+    // real case, Eliza 2026-07-28: `5+7 → 35` was reported to the parent as a
+    // weak fact when 35 is 5×7 and she plainly knows the sum. A mode slip needs
+    // "check the sign", not re-teaching. Ordered after the counting_slip band
+    // so a coincidental small product (1+2 vs 1×2) stays a slip.
+    if (op === 'add' && (g === a - b || g === b - a || g === a * b)) return { type: 'operation_confusion' };
+    if (op === 'sub' && (g === a + b || g === a * b)) return { type: 'operation_confusion' };
     if (Math.abs(g - answer) === 10) return { type: 'decade_error' };
     return { type: 'weak_fact' };
 }

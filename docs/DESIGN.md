@@ -975,8 +975,18 @@ implies anyway: a broken table gets blocked warm-up rounds.
 - Absolute backstop: theme "on track" needs ~30–40 dcpm equivalent + ≥90% accuracy
   (stops relative logic passing a uniformly-slow child).
 - Error tagging (drives flag type): answer in either operand's table = table
-  confusion (log which neighbour); ±1/2 = counting slip; equals a+b = operation
-  confusion; same wrong answer twice+ = bug; other = weak/absent fact.
+  confusion (log which neighbour); ±1/2 = counting slip; **wrong operation =
+  operation confusion, in either direction**; same wrong answer twice+ = bug;
+  other = weak/absent fact.
+  **Both directions, corrected 2026-07-28.** The mul branch had tested `a+b`
+  (added instead of multiplied) since the start, but the add/sub branches had no
+  mirror, so *multiplied* instead of added fell through to `weak_fact` — real
+  case: Eliza's `5+7 → 35`, reported to the parent as a weak fact when 35 is 5×7
+  and the sum itself is one she can do. That is the wrong advice at the playbook
+  level ("practise 5+7" rather than "check the sign"), which is the whole point
+  of tagging. `add` now also tests `a×b`, `sub` tests `a+b` and `a×b`. The
+  counting-slip band is checked first, so a product that coincidentally lands
+  beside the sum (`1+2` vs `1×2`) stays a slip rather than being relabelled.
 
 ### Daily email (to patrick.magee@lumen-electronics.com) — DEFERRED
 Deferred at parent's request (2026-07-02): the parent layer ships dashboard-only

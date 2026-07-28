@@ -40,6 +40,22 @@ export async function run({ eq, ok }) {
     eq(tagError('13-9', 5).type, 'counting_slip', 'off-by-one sub');
     eq(tagError('13-9', 22).type, 'operation_confusion', '13-9=22 is adding');
 
+    // Mode slips run both ways (2026-07-28). The mul branch always caught
+    // added-instead-of-multiplied; the add/sub branches had no mirror, so
+    // Eliza's real `5+7 → 35` was reported to the parent as a WEAK FACT when it
+    // is 5×7 — a sign slip on a sum she can plainly do. Wrong advice: "practise
+    // 5+7" instead of "check the sign".
+    eq(tagError('5+7', 35).type, 'operation_confusion', '5+7=35 is multiplying');
+    eq(tagError('8+4', 32).type, 'operation_confusion', '8+4=32 is multiplying');
+    eq(tagError('12-4', 48).type, 'operation_confusion', '12-4=48 is multiplying');
+    // The counting_slip band still wins where a product lands next to the sum,
+    // so a genuine miscount is not relabelled a mode slip on a coincidence.
+    eq(tagError('1+2', 2).type, 'counting_slip', '1+2=2 stays a slip, not 1×2');
+    eq(tagError('2+2', 5).type, 'counting_slip', 'near miss stays a slip');
+    // And a real weak fact is still a weak fact — the new arm must not swallow
+    // everything that is merely wrong.
+    eq(tagError('7+8', 40).type, 'weak_fact', 'an unrelated wrong answer is still weak_fact');
+
     eq(themeOf('7x8'), 'table-8', 'mul theme = table of larger operand');
     eq(themeOf('3x7'), 'table-7', 'theme by larger operand');
     eq(themeOf('8+5'), 'bridge-10', 'add theme = ladder family');
