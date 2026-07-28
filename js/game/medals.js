@@ -22,19 +22,52 @@ export function validRounds(dayInfo) {
 }
 
 /**
+ * Silver/gold thresholds for a child. Config holds the a-priori defaults; a
+ * parent may raise or lower them per child from the dashboard
+ * (DESIGN §1 "Medals", per-child tiers 2026-07-28).
+ *
+ * DELIBERATELY a parent-set dial and NOT an adaptive rule. The engine could
+ * infer "they finished fast, give them more", but a rule that silently grows a
+ * child's daily quota when they have a good day is the one mistake this design
+ * cannot afford: it converts effort into a rising bar, which is the licensing
+ * trap medals exist to avoid. Owner decision 2026-07-28 — set by hand, reviewed
+ * fortnightly against real session lengths.
+ *
+ * Bronze is NEVER per-child: it is the bad-evening floor and the streak's
+ * neighbour, and must stay identical for both children.
+ * @param {{silverRounds?: number, goldRounds?: number}} [settings]
+ */
+export function medalTiers(settings = {}) {
+    const pick = (v, dflt) => {
+        const n = Math.round(Number(v));
+        return Number.isFinite(n) && n > 0 ? n : dflt;
+    };
+    // Silver must sit strictly between bronze and gold whatever a parent types,
+    // or dayMedal's ladder would skip a tier (or make silver unreachable).
+    const gold = Math.min(DAY.MAX_GOLD_ROUNDS,
+        Math.max(DAY.BRONZE_ROUNDS + 2, pick(settings.goldRounds, DAY.GOLD_ROUNDS)));
+    const silver = Math.min(gold - 1,
+        Math.max(DAY.BRONZE_ROUNDS + 1, pick(settings.silverRounds, DAY.SILVER_ROUNDS)));
+    return { bronze: DAY.BRONZE_ROUNDS, silver, gold };
+}
+
+/**
+ * @param {object} opts { easy, bounceBack, settings } — settings carries the
+ *   per-child silver/gold override; omit it and the config defaults apply.
  * @returns {{ medal: null|'bronze'|'silver'|'gold', bronzeTarget, next,
  *             goldDone, rounds }}
  */
-export function dayMedal(dayInfo, { easy = false, bounceBack = false } = {}) {
+export function dayMedal(dayInfo, { easy = false, bounceBack = false, settings = {} } = {}) {
     const rounds = validRounds(dayInfo);
-    const bronzeTarget = (easy || bounceBack) ? DAY.EASY_DAY_BRONZE_ROUNDS : DAY.BRONZE_ROUNDS;
+    const tiers = medalTiers(settings);
+    const bronzeTarget = (easy || bounceBack) ? DAY.EASY_DAY_BRONZE_ROUNDS : tiers.bronze;
     let medal = null;
-    if (rounds >= DAY.GOLD_ROUNDS) medal = 'gold';
-    else if (rounds >= DAY.SILVER_ROUNDS) medal = 'silver';
+    if (rounds >= tiers.gold) medal = 'gold';
+    else if (rounds >= tiers.silver) medal = 'silver';
     else if (rounds >= bronzeTarget) medal = 'bronze';
     const next = medal === 'gold' ? null
-        : medal === 'silver' ? { medal: 'gold', roundsLeft: DAY.GOLD_ROUNDS - rounds }
-        : medal === 'bronze' ? { medal: 'silver', roundsLeft: DAY.SILVER_ROUNDS - rounds }
+        : medal === 'silver' ? { medal: 'gold', roundsLeft: tiers.gold - rounds }
+        : medal === 'bronze' ? { medal: 'silver', roundsLeft: tiers.silver - rounds }
         : { medal: 'bronze', roundsLeft: bronzeTarget - rounds };
     return { medal, bronzeTarget, next, goldDone: medal === 'gold', rounds };
 }

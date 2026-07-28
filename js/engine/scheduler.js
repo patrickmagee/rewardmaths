@@ -161,23 +161,43 @@ export function focusRound(state, ctx, rng) {
 export function mixedRound(state, ctx, rng) {
     const pool = [];
     const rc = retireCtx(state);
+    // DESIGN §1 volume cap: "max ~3 correct retrievals/day, then that fact
+    // stops being served". Until 2026-07-28 MAX_RETRIEVALS_PER_FACT_PER_DAY was
+    // read in weakTargets() ALONE, so the cap bound focus-round weak facts and
+    // nothing else — while every round past the third is a mixed round, which
+    // is exactly where a longer day adds volume. Measured over 24 seeds on the
+    // real logs, 4th-plus exposures ran 0.8%/1.7% of items at 6 rounds and
+    // 3.1%/5.7% at 8. ctx.retrievalsToday is live within a session (main.js
+    // re-derives after every round), so this re-reads as the day fills up.
+    const budgetLeft = id =>
+        ((ctx.retrievalsToday || {})[id] || 0) < SCHEDULER.MAX_RETRIEVALS_PER_FACT_PER_DAY;
+    // Same pool without the budget filter, kept only as the exhaustion fallback
+    // below — never used while any in-budget candidate remains.
+    const poolNoBudget = [];
     const retiredMaint = []; // outgrown material — occasional maintenance only
     for (const [id, rec] of Object.entries(state.facts)) {
         const ret = isRetired(rc, id);
+        let entry = null;
         if (rec.state === 'FLUENT' || rec.state === 'SLOW') {
-            if (ret) retiredMaint.push({ id, rec }); else pool.push({ id, w: weightOf(id, 1) });
+            entry = { id, w: weightOf(id, 1) };
         } else if (rec.state === 'UNSETTLED') {
-            // Retired UNSETTLED still goes to maintenance (not dropped): it
-            // resurfaces occasionally so it can still settle rather than being
-            // frozen UNSETTLED forever on the parent's fact map.
-            if (ret) retiredMaint.push({ id, rec });
-            else pool.push({ id, w: weightOf(id, SCHEDULER.UNSETTLED_WEIGHT) });
+            entry = { id, w: weightOf(id, SCHEDULER.UNSETTLED_WEIGHT) };
         }
+        if (!entry) continue;
+        // Retired UNSETTLED still goes to maintenance (not dropped): it
+        // resurfaces occasionally so it can still settle rather than being
+        // frozen UNSETTLED forever on the parent's fact map.
+        if (ret) {
+            if (budgetLeft(id)) retiredMaint.push({ id, rec });
+            continue;
+        }
+        poolNoBudget.push(entry);
+        if (budgetLeft(id)) pool.push(entry);
     }
     // Stale-fact reinjection — staleness IS still a reason to resurface a fact,
     // but not one the child has outgrown (that lane is maintenance, below).
     for (const [id, rec] of Object.entries(state.facts)) {
-        if (isRetired(rc, id)) continue;
+        if (isRetired(rc, id) || !budgetLeft(id)) continue;
         if (rec.lastSeenDay && daysBetween(rec.lastSeenDay, ctx.day) >= SCHEDULER.FACT_STALE_DAYS) {
             pool.push({ id, w: SCHEDULER.STALE_WEIGHT });
         }
@@ -188,7 +208,9 @@ export function mixedRound(state, ctx, rng) {
     for (const fam of (state.unlockedFamilies || [])) {
         if (familyFacts(fam)) continue;
         if (rc.frontier && isRetiredFamily(fam, rc.frontier, SCHEDULER.RETIRE_DISTANCE)) continue;
-        pool.push({ id: sampleFamily(fam, rng), w: 1 });
+        // Sampled ids can repeat across a long day, so they take the cap too.
+        const sampled = sampleFamily(fam, rng);
+        if (budgetLeft(sampled)) pool.push({ id: sampled, w: 1 });
     }
 
     const n = SCHEDULER.QUESTIONS_PER_ROUND;
@@ -199,7 +221,25 @@ export function mixedRound(state, ctx, rng) {
     // design intends and a rotation that actually reaches every retired fact.
     retiredMaint.sort((a, b) => stalenessDays(b.rec, ctx.day) - stalenessDays(a.rec, ctx.day));
     const maint = retiredMaint.slice(0, SCHEDULER.MAINTENANCE_SLOTS).map(m => m.id);
-    const fill = weightedPick(pool.length ? pool : anyPool(state, rng), n - maint.length, rng);
+    // Budget exhaustion must NOT reach anyPool(). Rounds 4+ are all mixed
+    // rounds, so a long day draws 6+ of them; a child with a thin circulating
+    // set can spend every fact's 3-retrieval budget and drain the filtered pool.
+    // anyPool() is the last-ditch fallback and ignores retirement, the budget
+    // AND the UNKNOWN exclusion — it would put UNKNOWN facts into the mixed
+    // lane, which DESIGN §3 relies on never happening.
+    //
+    // Top up rather than swap: weightedPick only de-duplicates while the pool is
+    // LARGER than the number wanted — below that it draws with replacement, and
+    // both draws see the same pre-round retrievalsToday, so a drained pool
+    // serves the same fact twice in one round (measured: Eliza, 10+ rounds).
+    // The cap is what drains the pool, so it has to be the thing that yields.
+    // Over-serving a fact the child already knows is much the lesser evil.
+    const want = n - maint.length;
+    if (pool.length < want) {
+        const have = new Set(pool.map(p => p.id));
+        for (const e of poolNoBudget) if (!have.has(e.id)) pool.push(e);
+    }
+    const fill = weightedPick(pool.length ? pool : anyPool(state, rng), want, rng);
     // Interleave so maintenance isn't a predictable easy block at one end.
     const items = shuffle([...fill, ...maint], rng).slice(0, n)
         .map(f => ({ fact_id: f, model: false }));

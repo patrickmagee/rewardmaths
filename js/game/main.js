@@ -81,6 +81,10 @@ async function defaultProfile(p) {
 
 function showWho() {
     S.user = null;
+    // Per-child, not per-tab: the break counter has to reset with the account or
+    // the next sibling inherits it and gets a break prompt after one round.
+    // Latent before gold went to 8 (one break window per day); now there are two.
+    S.consecutiveRounds = 0;
     delete document.body.dataset.accent;
     ui.renderWho(S.profiles, {
         onPick: (user) => {
@@ -144,7 +148,7 @@ async function showToday() {
     const streak = deriveStreak(days, day);
     const easy = isEasyDay(S.user, day, S.profile.settings || {});
     const reveal = goalReveal(S.user, days, day, streak, S.profile.settings || {});
-    const medal = dayMedal(days[day], { easy, bounceBack: reveal.bounceBack });
+    const medal = dayMedal(days[day], { easy, bounceBack: reveal.bounceBack, settings: S.profile.settings || {} });
 
     S.todayPlan = buildDailyRounds(S.derived.state, ctx, S.rng);
 
@@ -212,7 +216,7 @@ function afterRound(result) {
     const streak = deriveStreak(days, ctx.day);
     const easy = isEasyDay(S.user, ctx.day, S.profile.settings || {});
     const reveal = goalReveal(S.user, days, ctx.day, streak, S.profile.settings || {});
-    const medal = dayMedal(days[ctx.day], { easy, bounceBack: reveal.bounceBack });
+    const medal = dayMedal(days[ctx.day], { easy, bounceBack: reveal.bounceBack, settings: S.profile.settings || {} });
 
     const easyBronzeLine = easy && medal.medal === 'bronze' && medal.next
         ? COPY.easyBronzeDone(medal.next) : null;

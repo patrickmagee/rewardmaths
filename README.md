@@ -15,7 +15,8 @@ adaptive practice engine. Zero dependencies, no build step, free hosting.
    own, a challenge targeting your weakest facts, and a mixed round.
 3. Answer 10 timed questions per round on the big keypad (physical keyboard
    works too). Wrong answers show the correct fact and come round again.
-4. Effort medals — bronze (2 rounds) / silver (4) / gold (6) — and a streak
+4. Effort medals — bronze (2 rounds) / silver / gold, with the silver and gold
+   thresholds set per child by the parent — and a streak
    that survives real life (2 automatic shields a week, bounce-back bonuses,
    the occasional surprise easy day).
 

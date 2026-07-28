@@ -4,6 +4,7 @@
  * correction is information, lock-framing never completion-framing.
  */
 import { parseFact } from '../engine/facts.js';
+import { DAY } from '../config.js';
 
 export const COPY = {
     whosPlaying: "Who's playing?",
@@ -44,9 +45,20 @@ export const COPY = {
     },
     secondChanceFixed: n =>
         `${n === 1 ? '1 fixed' : n + ' fixed'} on the 2nd chance ✅`,
-    medalProgress: (rounds, next) => next
-        ? `${rounds} round${rounds === 1 ? '' : 's'} today — ${next.roundsLeft} more for ${{ bronze: '🥉', silver: '🥈', gold: '🥇' }[next.medal]}`
-        : `🥇🥈🥉 every medal earned today`,
+    // The child never sees a big rounds-remaining number. Per-child gold can now
+    // be 9+ (parent-set), and "7 more for 🥇" reads as a chore list to a
+    // ten-year-old — the opposite of the light, game-like tone §1 requires. Past
+    // MAX_SHOWN_ROUNDS_LEFT the digit is dropped and the medal is framed as
+    // on its way, so the count the child actually reads stays in twos and
+    // threes however long the parent has made the day.
+    medalProgress: (rounds, next) => {
+        const done = `${rounds} round${rounds === 1 ? '' : 's'} today`;
+        if (!next) return `🥇🥈🥉 every medal earned today`;
+        const icon = { bronze: '🥉', silver: '🥈', gold: '🥇' }[next.medal];
+        return next.roundsLeft <= DAY.MAX_SHOWN_ROUNDS_LEFT
+            ? `${done} — ${next.roundsLeft} more for ${icon}`
+            : `${done} — ${icon} on its way`;
+    },
     personalBest: (theme, delta) => `New personal best on the ${theme} — ${delta} faster than last week`,
     badRound: (hardThing) =>
         `That was a tough set — ${hardThing} are the hard ones, and you stuck with the whole round. They'll show up again tomorrow.`,
@@ -67,7 +79,17 @@ export const COPY = {
     streakMilestone: n => `${n} days — that's a real habit`,
     streakSafe: 'The app paused your streak — it\'s safe, play today to keep it going',
 
-    easyBronzeDone: next =>
-        `Bronze done early — ${next.medal} is only ${next.roundsLeft} more round${next.roundsLeft === 1 ? '' : 's'}`,
+    // Anti-licensing nudge on an easy day (bronze = 1 round, so a child can hit
+    // it and stop). "only" is the whole mechanism — and it has to be TRUE.
+    // With gold at 8, silver is 5, so after the easy-day bronze this said
+    // "silver is only 4 more rounds", overselling a 4× jump on the day the
+    // child was told to take it easy. Keep "only" where the step really is
+    // short; state it plainly otherwise. Tone rule: no fake framing (DESIGN §1).
+    easyBronzeDone: next => {
+        const r = next.roundsLeft;
+        return r <= 2
+            ? `Bronze done early — ${next.medal} is only ${r} more round${r === 1 ? '' : 's'}`
+            : `Bronze done early — ${next.medal} is there if you fancy it`;
+    },
 
 };

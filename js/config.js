@@ -266,10 +266,28 @@ export const SCHEDULER = {
 };
 
 export const DAY = {
-    /** Rounds per medal tier. */
+    /** Rounds per medal tier.
+     *  Raised 4/6 → 5/8 on 2026-07-28. This is NOT re-tuning from a child's
+     *  data — DESIGN §1 has always specified the daily loop as "~2 min minimum,
+     *  ~12 min gold", and 6 rounds simply never got there: measured over both
+     *  children's in-zone sessions, gold days ran 5.2–10.3 min (one child hit
+     *  gold in 5.2). The dial was calibrated against an assumed per-question
+     *  pace the children beat. 8 rounds models to ~11–14 min for the slower
+     *  child and ~9 for the faster one. BRONZE stays 2 so a bad evening still
+     *  earns a medal and the streak floor (STREAK_MIN_ROUNDS 1) is untouched;
+     *  the tier gaps become 2/3/3. BREAK_AFTER_ROUNDS then fires after rounds 3
+     *  and 6 rather than 3 alone — both inside DESIGN's "3–4 consecutive". */
     BRONZE_ROUNDS: 2,
-    SILVER_ROUNDS: 4,
-    GOLD_ROUNDS: 6,
+    SILVER_ROUNDS: 5,
+    GOLD_ROUNDS: 8,
+    /** Ceiling on a parent-set per-child gold (settings.goldRounds). A dial,
+     *  not a rule — nothing in the engine ever raises it on its own. 12 rounds
+     *  is ~120 questions, already past any sourced session length. */
+    MAX_GOLD_ROUNDS: 12,
+    /** Never show a child a rounds-remaining count above this — a big number
+     *  reads as a chore list. Above it the copy drops the digit entirely and
+     *  keeps the tone light (DESIGN §1 "Medals", child-facing counts). */
+    MAX_SHOWN_ROUNDS_LEFT: 3,
     /** Bronze on an easy day. */
     EASY_DAY_BRONZE_ROUNDS: 1,
     /** Exactly one easy day per rolling window of this many days, random slot. */

@@ -7,12 +7,12 @@
  */
 import { deriveState } from '../data/derive.js';
 import { deriveStreak } from '../game/streaks.js';
-import { dayMedal, isEasyDay, validRounds } from '../game/medals.js';
+import { dayMedal, isEasyDay, validRounds, medalTiers } from '../game/medals.js';
 import { evaluateFlags, flagType, themeOf } from '../engine/flags.js';
 import { fluencyIndex, growthSlope } from '../engine/metrics.js';
 import { ceilingMs, isTimeoutReason } from '../engine/classify.js';
 import { tableFacts, parseFact, STRATEGY_LINES, ADD_FAMILIES, familyOf, canonicalKey } from '../engine/facts.js';
-import { RT, SCHEDULER } from '../config.js';
+import { RT, SCHEDULER, DAY } from '../config.js';
 
 const app = () => document.getElementById('app');
 const DEFAULT_PW_HASH = // sha256('slieveleague') — bootstrap before profiles exist
@@ -164,6 +164,9 @@ async function kidSection(kid) {
     const { state, days, classified, audit } = derived;
     const today = todayStr();
     const streak = deriveStreak(days, today);
+    // This child's medal thresholds (parent-set, clamped) — the settings form
+    // and the activity bars both scale to them, not to the global default.
+    const tiers = medalTiers(kid.settings || {});
 
     // Activity strip: one labelled, hoverable column per day.
     const last14 = lastNDays(today, 14);
@@ -172,7 +175,7 @@ async function kidSection(kid) {
         const v = validRounds(days[d]);
         const voided = days[d]?.voidRounds || 0;
         const easy = isEasyDay(kid.user, d, kid.settings || {});
-        const m = dayMedal(days[d], { easy }).medal;
+        const m = dayMedal(days[d], { easy, settings: kid.settings || {} }).medal;
         const dayAns = classified.filter(a => a.day === d && !a.void && a.cls.counts_for_accuracy);
         const correct = dayAns.filter(a => a.correct).length;
         const dt = new Date(d + 'T12:00:00');
@@ -210,13 +213,13 @@ async function kidSection(kid) {
                  data-tip='${JSON.stringify(tip).replace(/'/g, '&#39;')}'>
                 <div class="acol-plot">
                     ${m ? `<span class="acol-medal">${{ bronze: '🥉', silver: '🥈', gold: '🥇' }[m]}</span>` : ''}
-                    ${v ? `<div class="acol-bar" style="height:${6 + Math.min(v, 8) / 8 * 66}px"></div>` : ''}
+                    ${v ? `<div class="acol-bar" style="height:${6 + Math.min(v, tiers.gold) / tiers.gold * 66}px"></div>` : ''}
                 </div>
                 <span class="acol-dow">${'SMTWTFS'[dt.getDay()]}</span>
                 <span class="acol-date${easy ? ' easy' : ''}">${d === today ? 'now' : dt.getDate()}</span>
             </div>`;
     }).join('');
-    const medal = dayMedal(days[today], { easy: isEasyDay(kid.user, today, kid.settings || {}) });
+    const medal = dayMedal(days[today], { easy: isEasyDay(kid.user, today, kid.settings || {}), settings: kid.settings || {} });
 
     // Fluency index from sprint rounds (falls back to mixed-round rate).
     const sprint = sprintHistory(classified);
@@ -318,12 +321,25 @@ async function kidSection(kid) {
                         <option value=""${kid.settings?.startFamily ? '' : ' selected'}>default</option>
                         ${ADD_FAMILIES.map(f => `<option value="${f}"${kid.settings?.startFamily === f ? ' selected' : ''}>${LADDER_LABEL[f]}</option>`).join('')}
                     </select></label>
+                <label>rounds for 🥈
+                    <input type="number" class="silver-rounds" min="${DAY.BRONZE_ROUNDS + 1}"
+                        max="${DAY.MAX_GOLD_ROUNDS - 1}" step="1" value="${tiers.silver}"></label>
+                <label>rounds for 🥇
+                    <input type="number" class="gold-rounds" min="${DAY.BRONZE_ROUNDS + 2}"
+                        max="${DAY.MAX_GOLD_ROUNDS}" step="1" value="${tiers.gold}"></label>
                 <button class="save">save</button>
                 <button class="csv">export CSV</button>
                 <div class="dim small">Timeout is how long ${kid.name} gets on a question
                     before it moves on (untimed rounds are unaffected). Takes effect next
                     time they open the app. Each answer records the timeout it was played
                     against, so changing this never rewrites past results.</div>
+                <div class="dim small">Medal rounds set how long a full day is for
+                    ${kid.name}. Bronze stays ${DAY.BRONZE_ROUNDS} for both children — it is the
+                    bad-evening floor. Nothing adjusts these automatically: a bar that
+                    rises whenever a child has a good day punishes effort, so this is a
+                    hand-set dial. ${kid.name} is never shown a big number of rounds
+                    remaining, however high you set it. Aim for a 10–15 minute day and
+                    revisit after a fortnight of real sessions.</div>
                 <div class="dim small">Add/sub level sets where ${kid.name}'s ladder sits:
                     that family becomes the working level, everything easier is retired to
                     occasional practice. It seeds the engine, not the answer log — reversible
@@ -501,6 +517,16 @@ function wireSettings() {
             const sf = card.querySelector('.start-family').value;
             if (sf && ADD_FAMILIES.includes(sf)) kid.settings.startFamily = sf;
             else delete kid.settings.startFamily;
+            // Per-child medal tiers. Stored raw and re-clamped by medalTiers() on
+            // every read (min/max on a number input are trivially bypassed), so a
+            // nonsense value can never invert the ladder. Writing the CLAMPED
+            // value back means the field shows what the engine will actually use.
+            const wanted = medalTiers({
+                silverRounds: card.querySelector('.silver-rounds').value,
+                goldRounds: card.querySelector('.gold-rounds').value,
+            });
+            kid.settings.silverRounds = wanted.silver;
+            kid.settings.goldRounds = wanted.gold;
             kid.updated = Date.now();
             const btn = card.querySelector('.save');
             try {

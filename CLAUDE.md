@@ -23,7 +23,16 @@ fact-checked education research:
 Core loop: child taps their avatar, enters a 4-digit PIN, sees today's goal
 reveal + streak, and plays **system-picked** 10-question rounds
 (review → focus → mixed). No child choice of content (learner control g=0.05).
-Effort medals bronze/silver/gold (2/4/6 rounds), streak with 2 shields/week
+Effort medals bronze/silver/gold (defaults **2/5/8 rounds** — raised from 2/4/6
+on 2026-07-28 because 6 rounds ran 5–10 min against DESIGN §1's long-standing
+"~12 min gold" target. Silver/gold are **per-child** via
+`settings.silverRounds`/`goldRounds`, hand-set from the dashboard and clamped by
+`medals.medalTiers()`; live: Tom 2/6/9, Eliza 2/5/9. Bronze is never per-child —
+it's the bad-evening floor. **Deliberately not adaptive**: a quota that rises on
+a good day turns effort into a receding bar. The child never sees a
+rounds-remaining count above `MAX_SHOWN_ROUNDS_LEFT` (3) — past that the copy
+drops the digit, so a 9-round day still reads in twos and threes),
+streak with 2 shields/week
 (5-of-7 model), random weekly easy day, volume caps with lock-framed stop
 states. Wrong answers always show the correct fact neutrally and requeue.
 
@@ -107,7 +116,8 @@ rounds can never forge a timeout) and **add/sub level** (`settings.startFamily`
 — a parent-declared ladder floor for that child, DESIGN §2 "Parent-set level";
 seeds where the derive fold begins, so it's config not log-data, reversible, and
 never rewrites history. Tom is `td-td` as of 2026-07-25 (was `td-ones-cross`);
-Eliza stays default).
+Eliza stays default) and **medal rounds** (`settings.silverRounds`/`goldRounds`
+— how long a full day is for that child; see the medals note above).
 
 ### What counts as "outgrown" (DESIGN §2 "Retirement", second pass 2026-07-25)
 Outgrown material goes to a **maintenance lane**: `MAINTENANCE_SLOTS` (2) items
@@ -122,6 +132,12 @@ Two routes in:
   non-easy mul facts. Keyed on the **fact**, not the table: `tableOf()` files by
   the larger operand, so table-11 owns 21 facts and table-2 owns one — `12×7`
   stays real work, `12×10` doesn't.
+
+The **per-fact daily cap** (`MAX_RETRIEVALS_PER_FACT_PER_DAY`, 3) is enforced in
+`mixedRound` as of 2026-07-28 — it used to bind `weakTargets()` alone, while
+every round past the third is a mixed round, so a longer day was where the cap
+leaked. `ctx.retrievalsToday` is rebuilt from the fold after each round, so the
+pool shrinks as the day fills.
 
 Everything else in the mixed pool draws at 1×, doubled (`LARGE_FACT_WEIGHT`)
 when both operands ≥ 6. **Difficulty allocates practice; speed still never

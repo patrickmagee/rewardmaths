@@ -69,6 +69,13 @@ adaptation rule: §2 below and `docs/research/05-adaptive-engine.md`.
 - Exactly **1 per rolling 7 days, position random**. Never a fixed weekday.
 - Only bronze drops (1 round instead of 2); silver/gold unchanged and visible.
 - Anti-licensing copy: "Bronze done early — silver is only 2 more rounds."
+  **"only" must be true (2026-07-28).** Easy-day bronze is 1 round, so the gap
+  to silver is `SILVER_ROUNDS - 1` — 3 under the old tiers, **4** under 2/5/8.
+  Selling a 4× jump as "only" on the day the child was told to take it easy is
+  exactly the fake framing §1's tone rules forbid, and it would burn the word
+  for the days it *is* true. `copy.easyBronzeDone` now keeps "only" at
+  ≤2 rounds left and otherwise states the number plainly ("silver is 4 more
+  rounds if you fancy it"). The nudge survives; the overclaim doesn't.
 - Log per child: rounds-completed + next-day return on easy vs normal days.
   Per-child kill switch in admin. Kill if it lowers total effort.
 
@@ -84,19 +91,79 @@ adaptation rule: §2 below and `docs/research/05-adaptive-engine.md`.
   No countdown/doom notifications.
 
 ### Medals (effort tiers, per day, symbolic only)
-- **Bronze = 2 rounds · Silver = 4 · Gold = 6.** No higher tier.
+- **Bronze = 2 rounds · Silver = 5 · Gold = 8.** No higher tier.
+  **Raised from 2/4/6 on 2026-07-28 to hit the "~12 min gold" this document has
+  always specified.** It was never reached: measured across both children's
+  in-zone sessions (Tom 26–27 Jul, Eliza 27–28 Jul — the days after the level
+  bump and easy-mul retirement, when what they were served was finally at the
+  right difficulty), a 6-round gold day ran **5.2–10.3 min**, with one child
+  taking 5.2. Per round-slot including inter-round time: ~65 s and ~80 s. This
+  is not re-tuning a threshold from a child's data — the *target* was fixed a
+  priori and the round count was a miscalibrated means to it, because the
+  children answer faster than the original per-question estimate assumed.
+  8 rounds models to ~11–14 min (slower child) and ~9 min (faster). Bronze
+  stays at 2: it is the bad-evening floor, and `STREAK_MIN_ROUNDS` (1) is
+  untouched, so nothing about streak protection gets harder. Tier gaps become
+  2/3/3. A single shared number cannot put both children in 12–15 min — one
+  child's own day-to-day swing (5.2 vs 8.4 min for the same 6 rounds) exceeds
+  the gap between the two children — so silver and gold are **per-child**
+  (`settings.silverRounds` / `settings.goldRounds`, alongside
+  `ceilingMs`/`startFamily`), set from the dashboard. Config holds the
+  defaults; `medals.medalTiers()` re-clamps on every read so a hand-edited
+  value can never invert the ladder. **Bronze is never per-child** — it is the
+  bad-evening floor and the streak's neighbour, and must mean the same thing
+  for both children. Live values (owner-set 2026-07-28, first pass): Tom
+  **2/6/9**, Eliza **2/5/9**. Review after a fortnight of real sessions
+  against a 10–15 min target.
+- **The tiers are a hand-set dial, never an adaptive rule.** The obvious
+  temptation is to read session length and grant more rounds when a child is
+  coping. Rejected on 2026-07-28 (owner decision): a quota that rises whenever
+  a child has a good day converts effort into a receding bar, which is exactly
+  the licensing/undermining failure the medal design exists to avoid, and it is
+  very hard to get right for n=2. It also breaks the "effort-gated, never
+  performance-gated" rule from the line above by the back door — finishing fast
+  is performance.
+- **The child is never shown a large rounds-remaining count.** With gold at 9,
+  "7 more for 🥇" reads as a chore list and undoes the light, game-like tone.
+  Past `DAY.MAX_SHOWN_ROUNDS_LEFT` (3) the copy drops the digit and names the
+  medal only ("2 rounds today — 🥇 on its way"), so what the child reads stays
+  in twos and threes however long the parent has made the day. The parent sees
+  the real numbers on the dashboard; the child sees the next step.
+  **Recorded tension with the sourcing:** `research/03-engagement-mechanics.md`
+  gives the sweet spot as "~5–12 minutes/day (3–6 rounds)" and
+  `research/01-daily-format.md` says "Gold = 6 rounds (60 questions)". 8 rounds
+  is **outside the sourced round band but inside the sourced minute band** — the
+  two only coincide at a slower per-question pace than these children have. The
+  minute band is the one with the mechanism behind it (session length drives
+  fatigue and licensing, not round count), so it wins; the round figure was
+  always a derived convenience. Research files are historical records and are
+  **not** edited — this note is the reconciliation. Kill criterion, same as easy
+  days: if total weekly effort or accuracy falls over the next fortnight, revert
+  to 6.
 - Effort-gated, never accuracy-gated (performance-contingent rewards: d = −0.28 +
   most anxiety). Anti-farming is silent and reuses the §2 RT rules: a round voided
   by the session-void rule (≥3 excluded answers — mashes/anticipations) doesn't
   count toward medals; requeue-on-miss makes mashing pointless anyway. Never show
   an "accuracy failed" message.
-- Matter-of-fact copy ("Gold — 60 questions today"), no gushing: from ~age 11,
+- Matter-of-fact copy ("Gold — 80 questions today"), no gushing: from ~age 11,
   effort praise reads as a low-ability signal (Amemiya & Wang 2018).
 - **Never convertible to money/toys/screen time** (Deci d ≈ −0.4 for children).
   The big-goal campaign (§4) is the one bounded exception, by design.
 
 ### Volume caps & stop state (adopt — spacing, not reverse psychology)
 - Per fact: max **~3 correct retrievals/day**, then that fact stops being served.
+  **Actually enforced in the mixed round from 2026-07-28.**
+  `MAX_RETRIEVALS_PER_FACT_PER_DAY` had been read in `weakTargets()` alone, so
+  the cap bound focus-round weak-fact selection and nothing else — while every
+  round past the third *is* a mixed round, which is precisely where a longer
+  day adds its volume. Seed-averaged (24 seeds) over both children's real
+  derived state, 4th-plus exposures ran 0.8%/1.7% of items at 6 rounds and
+  3.1%/5.7% at 8 — i.e. raising gold without this fix would have roughly
+  tripled the breach. `mixedRound` now filters the main pool, the
+  stale-reinjection pass and the parametric two-digit sampler on the same
+  budget. `ctx.retrievalsToday` is rebuilt from the fold after every round
+  (`main.js`), so the pool shrinks as the day fills rather than being decided
+  once at plan time.
 - Per child: **3–6 genuinely unknown facts in circulation** (Eliza ~3, Tom ~5–6).
 - After 3–4 consecutive rounds: break prompt — "Nice run. Rounds count more with a
   gap — come back after school and they'll be waiting." (Within-day split needs

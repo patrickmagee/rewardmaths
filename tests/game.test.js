@@ -1,7 +1,8 @@
 import { deriveStreak, weekView, addDays, isoWeek } from '../js/game/streaks.js';
-import { isEasyDay, dayMedal, goalReveal } from '../js/game/medals.js';
+import { isEasyDay, dayMedal, goalReveal, medalTiers } from '../js/game/medals.js';
+import { COPY } from '../js/game/copy.js';
 import { RoundSession } from '../js/game/session.js';
-import { RT } from '../js/config.js';
+import { RT, DAY } from '../js/config.js';
 
 function daysFrom(spec, endDay) {
     // spec: array of rounds-per-day, oldest first, ending at endDay.
@@ -71,12 +72,69 @@ export async function run({ eq, ok }) {
     // --- Medals.
     const info = n => ({ rounds: n, voidRounds: 0, byType: {} });
     eq(dayMedal(info(0)).medal, null, 'no rounds no medal');
-    eq(dayMedal(info(2)).medal, 'bronze', '2 rounds = bronze');
-    eq(dayMedal(info(4)).medal, 'silver', '4 = silver');
-    eq(dayMedal(info(6)).medal, 'gold', '6 = gold');
+    // Tiers are read from config, not hard-coded: these assertions used to
+    // encode 4/6 and broke when DESIGN's "~12 min gold" was finally dialled in
+    // (2/5/8, 2026-07-28). The shape is what matters — each threshold earns its
+    // tier, and the tier below it does not.
+    eq(dayMedal(info(DAY.BRONZE_ROUNDS)).medal, 'bronze', `${DAY.BRONZE_ROUNDS} rounds = bronze`);
+    eq(dayMedal(info(DAY.SILVER_ROUNDS)).medal, 'silver', `${DAY.SILVER_ROUNDS} = silver`);
+    eq(dayMedal(info(DAY.SILVER_ROUNDS - 1)).medal, 'bronze', 'one short of silver stays bronze');
+    eq(dayMedal(info(DAY.GOLD_ROUNDS)).medal, 'gold', `${DAY.GOLD_ROUNDS} = gold`);
+    eq(dayMedal(info(DAY.GOLD_ROUNDS - 1)).medal, 'silver', 'one short of gold stays silver');
+    eq(dayMedal(info(DAY.GOLD_ROUNDS + 5)).medal, 'gold', 'no tier above gold');
     eq(dayMedal(info(1), { easy: true }).medal, 'bronze', 'easy day bronze = 1 round');
-    eq(dayMedal(info(2)).next.medal, 'silver', 'next tier surfaced');
-    eq(dayMedal(info(6)).next, null, 'gold has no next');
+    eq(dayMedal(info(DAY.BRONZE_ROUNDS)).next.medal, 'silver', 'next tier surfaced');
+    eq(dayMedal(info(DAY.BRONZE_ROUNDS)).next.roundsLeft, DAY.SILVER_ROUNDS - DAY.BRONZE_ROUNDS,
+        'roundsLeft counts to the NEXT tier, not to gold');
+    eq(dayMedal(info(DAY.GOLD_ROUNDS)).next, null, 'gold has no next');
+    // The tiers must stay ordered and reachable — a mis-edit that put silver at
+    // or above gold would otherwise pass everything above.
+    ok(DAY.BRONZE_ROUNDS < DAY.SILVER_ROUNDS && DAY.SILVER_ROUNDS < DAY.GOLD_ROUNDS,
+        `tiers strictly increase (${DAY.BRONZE_ROUNDS}/${DAY.SILVER_ROUNDS}/${DAY.GOLD_ROUNDS})`);
+    ok(DAY.EASY_DAY_BRONZE_ROUNDS <= DAY.BRONZE_ROUNDS, 'easy-day bronze is never harder than bronze');
+    ok(DAY.STREAK_MIN_ROUNDS <= DAY.BRONZE_ROUNDS, 'the streak floor stays at or below bronze');
+
+    // ---- per-child medal tiers (parent-set dial, 2026-07-28) ----
+    const perChild = { silverRounds: 6, goldRounds: 9 };
+    eq(medalTiers(perChild), { bronze: DAY.BRONZE_ROUNDS, silver: 6, gold: 9 }, 'per-child tiers honoured');
+    eq(medalTiers({}), { bronze: DAY.BRONZE_ROUNDS, silver: DAY.SILVER_ROUNDS, gold: DAY.GOLD_ROUNDS },
+        'no settings → config defaults');
+    eq(dayMedal(info(8), { settings: perChild }).medal, 'silver', '8 rounds is silver when gold is 9');
+    eq(dayMedal(info(9), { settings: perChild }).medal, 'gold', '9 rounds earns the raised gold');
+    eq(dayMedal(info(9), { settings: perChild }).goldDone, true, 'raised gold still locks the day');
+    // Bronze is deliberately NOT per-child — it is the bad-evening floor.
+    eq(dayMedal(info(DAY.BRONZE_ROUNDS), { settings: perChild }).medal, 'bronze',
+        'bronze is unchanged by a per-child gold');
+    eq(dayMedal(info(DAY.BRONZE_ROUNDS), { settings: perChild }).next.roundsLeft, 4,
+        'roundsLeft tracks the per-child silver');
+
+    // Garbage can't invert the ladder — the form's min/max are bypassable, so
+    // medalTiers re-clamps on every read.
+    for (const bad of [{ goldRounds: 1 }, { goldRounds: 0 }, { goldRounds: -5 },
+        { goldRounds: 'nonsense' }, { silverRounds: 99, goldRounds: 9 },
+        { silverRounds: 1, goldRounds: 9 }, { goldRounds: 9999 }]) {
+        const t = medalTiers(bad);
+        ok(t.bronze < t.silver && t.silver < t.gold,
+            `tiers stay ordered for ${JSON.stringify(bad)} → ${t.silver}/${t.gold}`);
+        ok(t.gold <= DAY.MAX_GOLD_ROUNDS, `gold stays within the cap for ${JSON.stringify(bad)}`);
+    }
+
+    // ---- the child never sees a big rounds-remaining count ----
+    // A long day is the parent's business; to the kid it stays twos and threes.
+    for (let left = 1; left <= 8; left++) {
+        const line = COPY.medalProgress(2, { medal: 'gold', roundsLeft: left });
+        if (left <= DAY.MAX_SHOWN_ROUNDS_LEFT) {
+            ok(line.includes(`${left} more`), `${left} left is shown as a number`);
+        } else {
+            ok(!/\d+ more/.test(line), `${left} left shows no count ("${line}")`);
+            ok(line.includes('🥇'), 'the medal is still named, just not counted');
+        }
+    }
+    ok(COPY.medalProgress(3, null).includes('every medal'), 'gold day still reads as complete');
+    ok(!/\d+ more/.test(COPY.easyBronzeDone({ medal: 'silver', roundsLeft: 4 })),
+        'easy-day nudge drops the number when the step is long');
+    ok(COPY.easyBronzeDone({ medal: 'silver', roundsLeft: 2 }).includes('only 2 more rounds'),
+        'easy-day nudge keeps "only" when it is true');
 
     // --- Goal reveal attainability gate.
     // Child hits bronze rarely → revealed target degrades to 1.

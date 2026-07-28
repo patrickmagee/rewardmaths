@@ -1,4 +1,4 @@
-import { buildDailyRounds, focusRound, reviewRound, weakTargets, workingTable } from '../js/engine/scheduler.js';
+import { buildDailyRounds, focusRound, reviewRound, mixedRound, weakTargets, workingTable } from '../js/engine/scheduler.js';
 import { newChildState } from '../js/engine/adapt.js';
 import { newFactRecord } from '../js/engine/states.js';
 import { tableFacts } from '../js/engine/facts.js';
@@ -191,4 +191,36 @@ export async function run({ eq, ok, seededRng }) {
     ok(three.every(f => servedThree.has(f)),
         `all three warm-up families served over a month (got ${[...servedThree].join(',')})`);
 
+    // ---- per-fact daily volume cap in the mixed round (2026-07-28) ----
+    // DESIGN §1: "max ~3 correct retrievals/day, then that fact stops being
+    // served". MAX_RETRIEVALS_PER_FACT_PER_DAY used to be read in weakTargets()
+    // alone, so the cap bound focus-round weak facts and nothing else — while
+    // every round past the third is a mixed round, which is where a longer day
+    // adds its volume. ctx.retrievalsToday is live within a session (main.js
+    // re-derives after each round), so the pool shrinks as the day fills.
+    const capSpecs = [];
+    for (const t of [2, 3, 4]) for (const f of tableFacts(t)) capSpecs.push([f, 'FLUENT', 1500]);
+    const capState = stateWith(capSpecs);
+    const spent = SCHEDULER.MAX_RETRIEVALS_PER_FACT_PER_DAY;
+    const maxed = tableFacts(2).slice(0, 6);
+    const capCtx = { day: '2026-07-02', sprintDue: false, placementActive: false,
+        retrievalsToday: Object.fromEntries(maxed.map(f => [f, spent])) };
+    // Seed-averaged: one draw proves nothing when selection is weighted-random.
+    let breaches = 0, short = 0;
+    for (let s = 0; s < 40; s++) {
+        const r = mixedRound(capState, capCtx, seededRng(s + 1));
+        if (r.items.some(i => maxed.includes(i.fact_id))) breaches++;
+        if (r.items.length !== SCHEDULER.QUESTIONS_PER_ROUND) short++;
+    }
+    eq(breaches, 0, 'a fact at its daily retrieval cap is never served in a mixed round');
+    eq(short, 0, 'capping the pool never leaves the round short of questions');
+    // One retrieval below the cap is still fair game — this filters spent facts,
+    // it does not retire them.
+    const nearly = { ...capCtx, retrievalsToday: Object.fromEntries(
+        tableFacts(2).map(f => [f, spent - 1])) };
+    let seen = 0;
+    for (let s = 0; s < 40; s++) {
+        if (mixedRound(capState, nearly, seededRng(s + 1)).items.some(i => tableFacts(2).includes(i.fact_id))) seen++;
+    }
+    ok(seen > 0, `a fact one below the cap is still served (${seen}/40 rounds)`);
 }
