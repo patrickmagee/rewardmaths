@@ -10,7 +10,7 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sweep, currentSession, renderEmail, notifyKey, recipientsFor } from './src/sweep.js';
+import { sweep, currentSession, renderEmail, notifyKey, recipientsFor, showsDashboard } from './src/sweep.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const logDir = join(here, '..', '..', 'tmp-logs');
@@ -143,6 +143,27 @@ const wrongOnly = renderEmail({ name: 'Kid' }, currentSession([
     { ts: 1000, correct: true, round_id: 'a' }, { ts: 2000, correct: false, round_id: 'a' },
 ], IDLE), {});
 ok(/Missed:\s+1 \(all answered, none timed out\)/.test(wrongOnly), 'no-timeout session says so explicitly');
+
+// 6. Dashboard link is per-recipient. Being told a child played is a different
+//    thing from being handed their fact map, flags and settings.
+const sess = currentSession([{ ts: 1000, correct: true, round_id: 'a' }], IDLE);
+const withLink = renderEmail({ name: 'Kid' }, sess, {});
+const noLink = renderEmail({ name: 'Kid' }, sess, { showDashboard: false });
+ok(withLink.includes('Full picture:'), 'link shown by default');
+ok(!noLink.includes('Full picture:') && !/admin\.html/.test(noLink),
+    'suppressed recipient gets no link and no URL anywhere in the body');
+ok(!/dashboard/i.test(noLink), 'and no dangling mention of a dashboard they cannot open');
+ok(noLink.includes('Kid finished a maths session'), 'they still get the summary itself');
+
+// 6b. The SHIPPED map (wrangler.toml): exactly the intended address loses the
+//     link, and it is case-insensitive since mail addresses are.
+const liveEnv = { noDashboardTo: readFileSync(new URL('./wrangler.toml', import.meta.url), 'utf8')
+    .match(/^NO_DASHBOARD_TO = "(.*)"$/m)[1] };
+ok(!showsDashboard('siobhan80@hotmail.co.uk', liveEnv), 'siobhan → no dashboard link');
+ok(!showsDashboard('Siobhan80@Hotmail.co.uk', liveEnv), 'match ignores case');
+ok(showsDashboard('patrick.magee@lumen-electronics.com', liveEnv), 'patrick keeps the link');
+ok(showsDashboard('motel71lundy89@gmail.com', liveEnv), "laura keeps the link");
+ok(showsDashboard('anyone@else.com', {}), 'unset NO_DASHBOARD_TO suppresses nobody');
 
 // Show the actual email that would go out.
 if (target) {

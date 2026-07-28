@@ -104,6 +104,14 @@ globals so this works.
 ## Who gets emailed
 
 - `NOTIFY_TO` — every child's session email goes here (Tom, Eliza, test).
+- `NO_DASHBOARD_TO` — comma-separated addresses that get the session summary
+  but **not** the dashboard link (currently `siobhan80@hotmail.co.uk`, owner
+  decision 2026-07-28). Being told a child played is a different decision from
+  being handed their fact map, struggle flags and per-child settings, and the
+  link is only as private as the dashboard password. The body is rendered
+  per-recipient, so the suppressed copy contains no URL and no dangling mention
+  of a dashboard — matching is case-insensitive. `test.mjs` asserts against the
+  shipped value that exactly this address loses the link and the others keep it.
 - `EXTRA_TO` — JSON map of *additional* per-child recipients. Currently
   Eliza → `motel71lundy89@gmail.com`, Tom → `siobhan80@hotmail.co.uk`. The
   lookup is by exact user key, so an extra only ever sees that one child's

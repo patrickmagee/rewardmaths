@@ -10,13 +10,15 @@
  *   MAIL_FROM        sender, e.g. "RewardMaths <onboarding@resend.dev>"
  *   IDLE_MINUTES     idle gap that closes a session (default 20)
  *   DASHBOARD_URL    link put in the email
+ *   NO_DASHBOARD_TO  comma-separated addresses that get the summary but NOT
+ *                    the dashboard link
  *   RESEND_API_KEY   secret: `wrangler secret put RESEND_API_KEY`
  *
  * The cron path sends for real. The HTTP path is DRY-RUN ONLY (reports what it
  * would send, never sends), so the public workers.dev URL can't be used to
  * send mail.
  */
-import { sweep, renderEmail, notifyKey, recipientsFor } from './sweep.js';
+import { sweep, renderEmail, notifyKey, recipientsFor, showsDashboard } from './sweep.js';
 
 export default {
     async scheduled(event, env, ctx) {
@@ -44,10 +46,15 @@ async function run(env, { dryRun }) {
         // the WHOLE call if any recipient is unauthorised, which would stop the
         // primary email too. Sending separately means a blocked extra (e.g. a
         // gmail before the domain is verified) can't take out the main one.
-        const email = renderEmail({ name: r.name }, r.session, { dashboardUrl: env.DASHBOARD_URL });
         const to = recipientsFor(r.user, { notifyTo: env.NOTIFY_TO, extraTo: env.EXTRA_TO });
         const delivered = [];
         for (const addr of to) {
+            // Rendered PER RECIPIENT: the dashboard link is a separate decision
+            // from the session summary (NO_DASHBOARD_TO), so the body differs.
+            const email = renderEmail({ name: r.name }, r.session, {
+                dashboardUrl: env.DASHBOARD_URL,
+                showDashboard: showsDashboard(addr, { noDashboardTo: env.NO_DASHBOARD_TO }),
+            });
             try { await send(env, addr, r.name, email); delivered.push({ addr, ok: true }); }
             catch (err) { delivered.push({ addr, ok: false, error: String(err && err.message || err) }); }
         }

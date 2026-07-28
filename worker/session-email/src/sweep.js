@@ -153,7 +153,29 @@ async function* listKeys(kv, prefix) {
     } while (cursor);
 }
 
-/** Plain-text email body — a nudge, not a report. Dashboard is the full picture. */
+/**
+ * Addresses that get the session summary but NOT the dashboard link. The
+ * dashboard is the whole picture for a child — fact map, flags, settings — so
+ * who may follow that link is a separate decision from who gets told a session
+ * happened. Comma-separated in NO_DASHBOARD_TO; matched case-insensitively.
+ * @param {string} [noDashboardTo]
+ * @returns {Set<string>} lower-cased addresses
+ */
+export function dashboardHiddenFrom(noDashboardTo) {
+    return new Set(String(noDashboardTo || '')
+        .split(',').map(s => s.trim().toLowerCase()).filter(Boolean));
+}
+
+/** Does this recipient get the dashboard link? */
+export const showsDashboard = (addr, env = {}) =>
+    !dashboardHiddenFrom(env.noDashboardTo).has(String(addr || '').toLowerCase());
+
+/**
+ * Plain-text email body — a nudge, not a report.
+ * @param {object} opts { dashboardUrl, timeZone, showDashboard }
+ *   showDashboard false drops the "Full picture" line entirely — no dead text,
+ *   no bare mention of a dashboard the reader isn't being pointed at.
+ */
 export function renderEmail(kid, session, opts = {}) {
     const tz = opts.timeZone || 'Europe/London';
     const fmt = ts => new Intl.DateTimeFormat('en-GB', {
@@ -190,8 +212,7 @@ export function renderEmail(kid, session, opts = {}) {
             `${retries} of those ${session.answered} were second goes: a missed fact comes`,
             `straight back once in the same round, so a round can log more than 10.`,
         ] : []),
-        ``,
-        `Full picture: ${dash}`,
+        ...(opts.showDashboard === false ? [] : [``, `Full picture: ${dash}`]),
         ``,
         `- RewardMaths`,
     ].join('\n');

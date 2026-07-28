@@ -40,4 +40,10 @@ EXTRA_TO = '{"eliza":["motel71lundy89@gmail.com"],"tom":["siobhan80@hotmail.co.u
 MAIL_FROM = "RewardMaths <notify@rewardmaths.com>"
 IDLE_MINUTES = "10"
 DASHBOARD_URL = "https://rewardmaths.com/admin.html"
+# Recipients who get the session summary but NOT the dashboard link (owner
+# decision 2026-07-28). Being told a child played is a different thing from
+# being handed their fact map, struggle flags and settings; the link is
+# unauthenticated up to the dashboard password, so this is the control.
+# Comma-separated, case-insensitive.
+NO_DASHBOARD_TO = "siobhan80@hotmail.co.uk"
 # RESEND_API_KEY is a secret, NOT a var — set with `wrangler secret put`.
