@@ -168,6 +168,20 @@ export const SCHEDULER = {
     QUESTIONS_PER_ROUND: 10,
     /** Max correct retrievals per weak fact per day; then stop serving it. */
     MAX_RETRIEVALS_PER_FACT_PER_DAY: 3,
+    /** Max times ONE fact may fill a slot in a SINGLE round. pick() recycles a
+     *  short pool, which is how Eliza's 2026-07-22 review round served `3x10`
+     *  ten times out of ten — a fact she was already fluent on. Two or three
+     *  goes at something she is working on is practice; ten goes at something
+     *  she already owns is the app wasting her evening. Call sites widen the
+     *  pool to at least QUESTIONS_PER_ROUND / this before drawing — but only
+     *  from material of the same quality (see MIN_ROUND_POOL). */
+    MAX_SAME_FACT_PER_ROUND: 3,
+    /** Absolute floor on distinct facts in a round, below which lower-quality
+     *  material (outgrown, or merely met rather than mastered) is preferable to
+     *  hammering one fact. Above this floor it is NOT: a child whose live
+     *  repertoire is genuinely three facts should practise those three, not have
+     *  retired trivia imported to pad the round out. */
+    MIN_ROUND_POOL: 3,
     /** Unknown facts in circulation per child (parent-tunable per child). */
     UNKNOWN_CIRCULATION_DEFAULT: 4,
     UNKNOWN_CIRCULATION_MIN: 3,

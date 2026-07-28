@@ -1,4 +1,4 @@
-import { buildDailyRounds, focusRound, reviewRound, mixedRound, weakTargets, workingTable } from '../js/engine/scheduler.js';
+import { buildDailyRounds, focusRound, reviewRound, mixedRound, blockedRound, weakTargets, workingTable } from '../js/engine/scheduler.js';
 import { newChildState } from '../js/engine/adapt.js';
 import { newFactRecord } from '../js/engine/states.js';
 import { tableFacts } from '../js/engine/facts.js';
@@ -223,4 +223,39 @@ export async function run({ eq, ok, seededRng }) {
         if (mixedRound(capState, nearly, seededRng(s + 1)).items.some(i => tableFacts(2).includes(i.fact_id))) seen++;
     }
     ok(seen > 0, `a fact one below the cap is still served (${seen}/40 rounds)`);
+
+    // ---- one fact must not fill a round (2026-07-28) ----
+    // pick() recycles a short pool, so a thin pool became "one question, ten
+    // times". Real case: Eliza's 2026-07-22 review round served `3x10` TEN
+    // times out of ten, a fact she was already fluent on. The table branch was
+    // guarded; the revisionPool fallback was not.
+    const thinLive = stateWith([
+        ['3x10', 'FLUENT', 1500],
+        // Plenty of MET material to widen from, so there is no excuse to repeat.
+        ...tableFacts(7).map(f => [f, 'FLUENT', 1900]),
+    ]);
+    let worst = 0;
+    for (let s = 1; s <= 40; s++) {
+        const r = reviewRound(thinLive, { day: '2026-07-22', retrievalsToday: {} }, seededRng(s));
+        const n = {};
+        for (const it of r.items) n[it.fact_id] = (n[it.fact_id] || 0) + 1;
+        worst = Math.max(worst, ...Object.values(n));
+        eq(r.items.length, SCHEDULER.QUESTIONS_PER_ROUND, 'review round is still a full round');
+    }
+    ok(worst <= SCHEDULER.MAX_SAME_FACT_PER_ROUND,
+        `no fact fills a review round (worst ${worst} of ${SCHEDULER.QUESTIONS_PER_ROUND})`);
+
+    // A thin BLOCKED warm-up family is different: massed practice is the point
+    // for a novice family, so repeats are expected — but bounded, not five-deep.
+    const warm = stateWith(tableFacts(7).map(f => [f, 'FLUENT', 1900]));
+    let warmWorst = 0;
+    for (let s = 1; s <= 20; s++) {
+        const b = blockedRound(warm, 'add-rest', seededRng(s));
+        const n = {};
+        for (const it of b.items) n[it.fact_id] = (n[it.fact_id] || 0) + 1;
+        warmWorst = Math.max(warmWorst, ...Object.values(n));
+        eq(b.items.length, SCHEDULER.QUESTIONS_PER_ROUND, 'blocked round is still a full round');
+    }
+    ok(warmWorst <= SCHEDULER.MAX_SAME_FACT_PER_ROUND,
+        `blocked warm-up repeats are bounded (worst ${warmWorst})`);
 }

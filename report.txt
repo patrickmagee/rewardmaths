@@ -1,0 +1,198 @@
+=== CORPUS ===
+files: answers_eliza_2026-07-09.json, answers_eliza_2026-07-19.json, answers_eliza_2026-07-20.json, answers_eliza_2026-07-21.json, answers_eliza_2026-07-22.json, answers_eliza_2026-07-27.json, answers_eliza_2026-07-28.json
+records: 371 | classified: 371
+days: 2026-07-09, 2026-07-19, 2026-07-20, 2026-07-21, 2026-07-22, 2026-07-27, 2026-07-28
+  2026-07-09: rounds=2 void=0 answers=28 types={"placement":2}
+  2026-07-19: rounds=3 void=0 answers=42 types={"placement":3}
+  2026-07-20: rounds=6 void=0 answers=63 types={"placement":6}
+  2026-07-21: rounds=6 void=0 answers=57 types={"review":1,"focus":1,"sprint":1,"mixed":3}
+  2026-07-22: rounds=6 void=0 answers=61 types={"review":1,"focus":1,"mixed":4}
+  2026-07-27: rounds=6 void=0 answers=63 types={"review":1,"focus":1,"mixed":4}
+  2026-07-28: rounds=6 void=0 answers=57 types={"review":1,"focus":1,"sprint":1,"mixed":3}
+typingBaselines: {"tap":666,"key":987}
+off_days: none
+exclusion reasons: {"valid":330,"legacy_timeout":32,"timeout":5,"lapse_suspect":2,"anticipation":1,"sprint_timeout":1}
+
+=== 1. WRONG ANSWERS (genuine: excludes anticipation / rapid_guess / all timeout kinds) ===
+genuine attempts: 332 | genuine wrong: 16 | overall accuracy 95.2%
+of those wrong, 0 were in VOID rounds (excluded from engine state, still shown below marked *void)
+
+rank fact    att wrong  acc%   score  wrong answers given (day)                       days-seen  state
+   1 5+8       3     2    33    2.00   11@07-28 12@07-28                                07-22,07-28   UNKNOWN
+   2 8x3       5     1    80    1.00   12@07-28                                         07-09,07-27,07-28   UNKNOWN
+   3 3x4       8     1    88    1.00   1@07-28                                          07-19,07-22,07-27,07-28   SLOW
+   4 5+7       6     1    83    1.00   35@07-28                                         07-22,07-27,07-28   SLOW
+   5 8x9       2     2     0    0.91   71@07-20 71@07-20                                07-20   UNKNOWN
+   6 6x8       2     1    50    0.91   14@07-27                                         07-20,07-27   UNKNOWN
+   7 6x12      9     1    89    0.91   18@07-27                                         07-20,07-21,07-22,07-27,07-28   SLOW
+   8 12x9      4     2    50    0.65   81@07-09 180@07-21                               07-09,07-19,07-21   UNKNOWN
+   9 8+1       3     1    67    0.50   8@07-21                                          07-20,07-21   UNKNOWN
+  10 8x12      3     1    67    0.50   9@07-21                                          07-20,07-21   UNKNOWN
+  11 8x7       1     1     0    0.50   32@07-21                                         07-21   UNKNOWN
+  12 12x11     2     1    50    0.45   121@07-20                                        07-20   UNKNOWN
+  13 7x9       3     1    67    0.45   28@07-20                                         07-20,07-21   UNKNOWN
+
+--- pooled by commuted key (7x8 == 8x7) ---
+  9x12    att=4 wrong=2 acc=50% | 12x9=81@07-09 12x9=180@07-21
+  8x9     att=2 wrong=2 acc=0% | 8x9=71@07-20 8x9=71@07-20
+  5+8     att=3 wrong=2 acc=33% | 5+8=11@07-28 5+8=12@07-28
+  3x8     att=6 wrong=1 acc=83% | 8x3=12@07-28
+  3x4     att=8 wrong=1 acc=88% | 3x4=1@07-28
+  6x8     att=2 wrong=1 acc=50% | 6x8=14@07-27
+  7x8     att=4 wrong=1 acc=75% | 8x7=32@07-21
+  11x12   att=2 wrong=1 acc=50% | 12x11=121@07-20
+  7x9     att=4 wrong=1 acc=75% | 7x9=28@07-20
+  6x12    att=9 wrong=1 acc=89% | 6x12=18@07-27
+  1+8     att=3 wrong=1 acc=67% | 8+1=8@07-21
+  8x12    att=3 wrong=1 acc=67% | 8x12=9@07-21
+  5+7     att=10 wrong=1 acc=90% | 5+7=35@07-28
+
+=== 2. ERROR PATTERNS (engine tagError) ===
+tag counts: {"table_confusion":6,"counting_slip":5,"weak_fact":4,"operation_confusion":1}
+
+fact    given  correct  diff   tag                        day     round     init_ms  void
+12x9       81      108    -27   table_confusion (9x9, offBy -3) 07-09 placement    5777 
+12x11     121      132    -11   table_confusion (11x11, offBy -1) 07-20 placement   41711 
+7x9        28       63    -35   table_confusion (7x4, offBy -5) 07-20 placement   47248 
+8x9        71       72     -1   counting_slip              07-20 placement   21519 
+8x9        71       72     -1   counting_slip              07-20 placement   33971 
+8x7        32       56    -24   table_confusion (8x4, offBy -3) 07-21 sprint      33084 
+12x9      180      108     72   weak_fact                  07-21 sprint      10748 
+8x12        9       96    -87   weak_fact                  07-21 mixed       10533 
+8+1         8        9     -1   counting_slip              07-21 mixed        1960 
+6x12       18       72    -54   table_confusion (6x3, offBy -9) 07-27 review      21684 
+6x8        14       48    -34   operation_confusion        07-27 mixed        5973 
+5+7        35       12     23   weak_fact                  07-28 review       3808 
+3x4         1       12    -11   weak_fact                  07-28 review      10380 
+5+8        11       13     -2   counting_slip              07-28 mixed        3558 
+5+8        12       13     -1   counting_slip              07-28 mixed        1628 
+8x3        12       24    -12   table_confusion (3x4, offBy -4) 07-28 mixed         826 
+
+=== 3. SLOW-BUT-CORRECT ===
+personal cutoffs (initiation ms): {"mul":2568.75,"add":2500,"sub":2500}
+  mul: n=236 median correct-initiation = 2526ms
+  add: n=78 median correct-initiation = 2760ms
+  sub: n=0 median correct-initiation = 0ms
+overall median initiation on correct answers: 2527.5ms (n=314)
+
+facts with >=3 timed correct answers, sorted by median initiation (ratio = vs her own 2527.5ms):
+fact    n  medInit  ratio  wrong  days  engine-state  cue
+9x4      3    23375   9.25      0     3   UNKNOWN      4×9: 4×10 − 4
+8x3      4     9943   3.93      1     3   UNKNOWN      3×8: double 3, double, double
+8+4      5     8135   3.22      0     2   SLOW         8+4: make 10 first
+4+8      6     7945   3.14      0     3   SLOW         4+8: make 10 first
+3x6      5     7319   2.90      0     4   SLOW         3×6: 3×5 + 3
+6x3      6     7005   2.77      0     4   SLOW         3×6: 3×5 + 3
+6x9      5     6372   2.52      0     5   SLOW         6×9: 6×10 − 6
+5+7      5     6021   2.38      1     3   SLOW         5+7: make 10 first
+9+6      5     5688   2.25      0     2   SLOW         9+6: make 10 first
+9+7      7     4741   1.88      0     3   SLOW         9+7: make 10 first
+4x2      3     4517   1.79      0     3   UNSETTLED    
+6x2      4     4499   1.78      0     2   UNSETTLED    2×6: 2×5 + 2
+9+4      4     4124   1.63      0     3   UNSETTLED    9+4: make 10 first
+3x7      6     3779   1.50      0     4   SLOW         3×7: 3×5 + 3×2
+6x12     8     3775   1.49      1     5   SLOW         6×12: 6×10 + 6×2
+4+9      4     3751   1.48      0     3   UNSETTLED    4+9: make 10 first
+12x5     3     3447   1.36      0     3   UNSETTLED    5×12: 5×10 + 5×2
+5+2      3     3412   1.35      0     3   UNSETTLED    
+9x6      9     3195   1.26      0     4   SLOW         6×9: 6×10 − 6
+10x7     3     3007   1.19      0     3   UNSETTLED    
+8x5      3     2893   1.14      0     3   UNSETTLED    5×8: double 5, double, double
+2x4      5     2875   1.14      0     4   SLOW         
+6x6      9     2828   1.12      0     4   FLUENT       6×6: 6×5 + 6
+6+3      3     2726   1.08      0     1   UNSETTLED    
+3x4      7     2680   1.06      1     4   SLOW         
+5x2      3     2676   1.06      0     3   UNSETTLED    
+10x10    4     2642   1.05      0     3   UNSETTLED    
+9x11     3     2229   0.88      0     3   UNSETTLED    9×11: 9×10 + 9
+7x11     3     2096   0.83      0     3   UNSETTLED    7×11: 7×10 + 7
+9x5      3     2079   0.82      0     2   UNSETTLED    5×9: 5×10 − 5
+5x10     4     2078   0.82      0     2   UNSETTLED    
+4x10     4     2070   0.82      0     3   UNSETTLED    
+11x9     4     2021   0.80      0     3   UNSETTLED    9×11: 9×10 + 9
+10x6     3     1998   0.79      0     3   UNSETTLED    
+2x10     3     1997   0.79      0     2   UNSETTLED    
+5x3      4     1892   0.75      0     2   UNSETTLED    
+10x9     4     1870   0.74      0     3   UNSETTLED    
+10x2     3     1843   0.73      0     2   UNSETTLED    
+2x7      5     1827   0.72      0     4   FLUENT       2×7: 2×5 + 2×2
+9+0      6     1786   0.71      0     3   FLUENT       
+6x11     4     1771   0.70      0     3   UNSETTLED    6×11: 6×10 + 6
+3x11     4     1747   0.69      0     3   UNSETTLED    3×11: 3×10 + 3
+7+5      4     1730   0.68      0     3   UNSETTLED    7+5: make 10 first
+7x8      3     1729   0.68      0     2   UNKNOWN      7×8: double 7, double, double
+11x2     4     1693   0.67      0     2   UNSETTLED    2×11: 2×10 + 2
+9+3      3     1647   0.65      0     2   UNSETTLED    9+3: make 10 first
+12x10    5     1598   0.63      0     3   FLUENT       10×12: 10×10 + 10×2
+0+1      8     1555   0.62      0     4   FLUENT       
+10x8     4     1545   0.61      0     3   UNSETTLED    
+3+1      5     1540   0.61      0     4   FLUENT       
+10x4     4     1496   0.59      0     3   UNSETTLED    
+3x10    16     1304   0.52      0     4   FLUENT       
+3+5      3     1226   0.49      0     1   UNSETTLED    
+
+=== 4. ADDITION / SUBTRACTION ===
+unlockedFamilies: add-0-1, add-2, doubles-small, near-doubles, make-10, doubles-big, bridge-10, sub-0-1, sub-2, sub-doubles-small, sub-near-doubles, sub-make-10, sub-doubles-big, add-rest, sub-bridge-10
+warmupFamilies : add-rest, sub-bridge-10
+frontier       : add-rest
+familyEMA      : {"table-11":1,"table-10":1,"table-9":0.775,"table-12":0.837,"table-7":0.833,"table-6":1,"bridge-10":0.95,"add-0-1":1,"table-8":0.667,"add-rest":1}
+familyHighWater: {"table-11":1,"table-10":1,"table-9":0.775,"table-12":0.857,"table-7":0.833,"table-6":1,"bridge-10":1,"add-0-1":1,"table-8":0.667,"add-rest":1}
+audit unlocks/demotes: 2026-07-27:warmup_graduated:bridge-10 2026-07-27:family_unlocked:add-rest 2026-07-27:family_unlocked:sub-bridge-10
+
+add/sub genuine attempts: 82 of 332 (25%) | mul: 250
+subtraction attempts: 0 (0.0% of all work)
+
+family              n  wrong  acc%  medInit  days  distinctFacts  EMA     unlocked
+bridge-10           47      3    94     4715     3             10   0.95   yes
+add-0-1             22      1    95     1579     5              4   1.00   yes
+add-rest            10      0   100     2002     1              4   1.00   yes
+add-2                3      0   100     3412     3              1   -      yes
+
+--- multiplication diet (context) ---
+mul attempts 250: easy-route (x0/1/2/5/10/11) 146 (58%), both-operands>=6 104 (42%)
+table       n  wrong  acc%  medInit
+table-3      4      0   100     3197
+table-4     16      1    94     2875
+table-5      9      0   100     2676
+table-6     30      0   100     4342
+table-7     16      0   100     2916
+table-8     20      3    85     3693
+table-9     34      3    91     4033
+table-10    55      0   100     1893
+table-11    34      0   100     1762
+table-12    32      5    84     2896
+
+=== FACT STATE CENSUS (current engine) ===
+{
+ "mul": {
+  "FLUENT": 4,
+  "UNSETTLED": 53,
+  "UNKNOWN": 14,
+  "SLOW": 8
+ },
+ "add": {
+  "FLUENT": 3,
+  "UNKNOWN": 2,
+  "UNSETTLED": 9,
+  "SLOW": 5
+ }
+}
+STUCK: none
+UNKNOWN: 8x3(a=6,med=8852) 12x9(a=4,med=5195) 6x7(a=0,med=0) 4x8(a=0,med=0) 7x6(a=2,med=1763) 7x7(a=0,med=0) 6x8(a=3,med=23387) 9x4(a=4,med=23375) 7x8(a=4,med=1729) 12x11(a=2,med=21877) 7x9(a=3,med=10397) 8+1(a=3,med=1960) 8x12(a=3,med=10533) 8x9(a=2,med=27745) 8x7(a=1,med=33084) 5+8(a=3,med=3558)
+SLOW: 3x4(a=8,med=3469) 2x4(a=5,med=2875) 6x9(a=6,med=6372) 3x7(a=6,med=3779) 6x3(a=6,med=7005) 9x6(a=9,med=3195) 6x12(a=9,med=3793) 3x6(a=5,med=7319) 9+7(a=7,med=4741) 5+7(a=6,med=4915) 4+8(a=6,med=7945) 8+4(a=5,med=8135) 9+6(a=5,med=5688)
+
+=== ENGINE STRUGGLE FLAGS ===
+{
+ "table-9": {
+  "state": "watching",
+  "since": "2026-07-28"
+ },
+ "table-8": {
+  "state": "watching",
+  "since": "2026-07-28"
+ },
+ "bridge-10": {
+  "state": "watching",
+  "since": "2026-07-28"
+ }
+}

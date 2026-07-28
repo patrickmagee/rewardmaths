@@ -83,12 +83,58 @@ export function buildDailyRounds(state, ctx, rng) {
     return rounds;
 }
 
+/**
+ * Distinct facts a pool needs before pick() can fill a round without serving
+ * any one fact more than SCHEDULER.MAX_SAME_FACT_PER_ROUND times. pick()
+ * recycles a short pool, so this is the difference between "ten questions" and
+ * "one question, ten times".
+ */
+const minDistinct = () =>
+    Math.ceil(SCHEDULER.QUESTIONS_PER_ROUND / SCHEDULER.MAX_SAME_FACT_PER_ROUND);
+
+/**
+ * Extend `pool` with facts from each source in `extras` (no duplicates) until
+ * it can fill a round. Order matters twice over: the intended material stays at
+ * the front, and the sources are tried best-first — a retirement-filtered pool
+ * before an unfiltered one, so widening never quietly reintroduces outgrown
+ * material that revisionPool() deliberately excluded. If every source is
+ * exhausted and the pool is still short, the child genuinely has that little
+ * live material and repeating it is the honest answer.
+ */
+function widenTo(pool, extras, need) {
+    if (pool.length >= need) return pool;
+    const have = new Set(pool);
+    const out = [...pool];
+    for (const extra of extras) {
+        for (const id of extra) {
+            if (have.has(id)) continue;
+            out.push(id);
+            have.add(id);
+            if (out.length >= need) return out;
+        }
+    }
+    return out;
+}
+
 /** Review: the mastered table/family with the oldest last_seen. */
 export function reviewRound(state, ctx, rng) {
     const table = stalestMasteredTable(state, ctx.day);
-    const pool = table !== null
-        ? tableFacts(table).filter(f => state.facts[f])
-        : revisionPool(state);
+    // A thin pool here is how a child gets the SAME EASY FACT ten times in a
+    // row. Real case, Eliza 2026-07-22: the review round served `3x10` ten
+    // times out of ten — a fact she was already fluent on. stalestMasteredTable
+    // guards the table branch (needs ≥10 met facts), but the revisionPool
+    // fallback had no floor at all, and pick() happily recycles a 1-fact pool.
+    //
+    // Two-step, and the order is the whole point. First reach the no-repeats
+    // target using only live (non-retired) material. Only if the child's live
+    // repertoire is below MIN_ROUND_POOL do we accept outgrown facts — three
+    // real facts practised three times each beats padding the round with trivia
+    // the child has already outgrown.
+    const live = revisionPool(state);
+    let pool = widenTo(
+        table !== null ? tableFacts(table).filter(f => state.facts[f]) : live,
+        [live], minDistinct());
+    pool = widenTo(pool, [fallbackPool(state)], SCHEDULER.MIN_ROUND_POOL);
     const items = pick(pool.length ? pool : fallbackPool(state), SCHEDULER.QUESTIONS_PER_ROUND, rng)
         .map(f => ({ fact_id: f, model: false }));
     return { round_type: 'review', items, untimed: false, table };
@@ -267,8 +313,15 @@ export function blockedRound(state, family, rng) {
     // Only td-* families are parametric (sampleFamily can synthesize members);
     // any other familyFacts()-null id (e.g. malformed "table-??" from an
     // operand>12) would crash sampleFamily, so fall back to a safe fixed pool.
-    const pool = (table ? tableFacts(+table[1]) : familyFacts(family)) ||
+    const base = (table ? tableFacts(+table[1]) : familyFacts(family)) ||
         (family.startsWith('td-') ? Array.from({ length: 20 }, () => sampleFamily(family, rng)) : tableFacts(2));
+    // Repetition IS the point here — blocked practice is massed by design for a
+    // novice family (interleaving hurts novices, DESIGN §2). But a family with
+    // one or two members would otherwise become that fact five times over, so
+    // the same per-round ceiling applies; knowns top it up rather than the
+    // frontier fact being hammered.
+    const pool = widenTo(widenTo(base, [rankedKnowns(state)], minDistinct()),
+        [fallbackPool(state)], SCHEDULER.MIN_ROUND_POOL);
     const items = pick(pool, SCHEDULER.QUESTIONS_PER_ROUND, rng)
         .map((f, i) => ({ fact_id: f, model: i < 2 && !state.facts[f] }));
     return { round_type: 'focus', items, untimed: true, blockedFamily: family };

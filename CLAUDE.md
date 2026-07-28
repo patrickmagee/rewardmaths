@@ -133,7 +133,11 @@ Two routes in:
   the larger operand, so table-11 owns 21 facts and table-2 owns one — `12×7`
   stays real work, `12×10` doesn't.
 
-The **per-fact daily cap** (`MAX_RETRIEVALS_PER_FACT_PER_DAY`, 3) is enforced in
+Two repetition guards (2026-07-28): no fact may fill more than
+`MAX_SAME_FACT_PER_ROUND` (3) slots in one round — `pick()` recycles a short
+pool, which had a review round serving Eliza `3x10` **ten times out of ten**;
+thin pools now widen from live material first, outgrown only below
+`MIN_ROUND_POOL`. And the **per-fact daily cap** (`MAX_RETRIEVALS_PER_FACT_PER_DAY`, 3) is enforced in
 `mixedRound` as of 2026-07-28 — it used to bind `weakTargets()` alone, while
 every round past the third is a mixed round, so a longer day was where the cap
 leaked. `ctx.retrievalsToday` is rebuilt from the fold after each round, so the

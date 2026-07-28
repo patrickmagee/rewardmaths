@@ -151,6 +151,18 @@ adaptation rule: §2 below and `docs/research/05-adaptive-engine.md`.
   The big-goal campaign (§4) is the one bounded exception, by design.
 
 ### Volume caps & stop state (adopt — spacing, not reverse psychology)
+- Per **round**: no fact fills more than `MAX_SAME_FACT_PER_ROUND` (3) of the ten
+  slots. `pick()` recycles a short pool, so a thin pool silently became "one
+  question, ten times" — real case, Eliza 2026-07-22: the **review round served
+  `3x10` ten times out of ten**, a fact she was already fluent on. The table
+  branch was guarded (a table needs ≥10 met facts); the `revisionPool` fallback
+  had no floor at all. Round builders now widen a thin pool to
+  `QUESTIONS_PER_ROUND / MAX_SAME_FACT_PER_ROUND` distinct facts **from live
+  material first** — only below `MIN_ROUND_POOL` (3) is outgrown material
+  acceptable, because three real facts practised three times each beats padding
+  a round with trivia the child has outgrown. Blocked warm-up rounds keep their
+  repeats (massed practice is the point for a novice family) but take the same
+  ceiling, so a two-member family can't become one fact five times.
 - Per fact: max **~3 correct retrievals/day**, then that fact stops being served.
   **Actually enforced in the mixed round from 2026-07-28.**
   `MAX_RETRIEVALS_PER_FACT_PER_DAY` had been read in `weakTargets()` alone, so
