@@ -115,6 +115,15 @@ function dayStr(ts, timeZone) {
 /**
  * The current (latest) session: the maximal trailing run of answers whose
  * consecutive gaps are all ≤ idleMs. Returns null if there are no answers.
+ *
+ * `answered` counts every RECORD, which is why it rarely equals rounds×10:
+ *  - a timeout is a record (correct:false, given:null) — it is a miss, not an
+ *    unanswered question, so it sits in both numerator-denominator of accuracy;
+ *  - every missed fact comes back once in the same round (`requeued`), adding a
+ *    record above the 10 planned items;
+ *  - a sprint round is 60s of whatever fits, not 10 items.
+ * The email prints `timeouts`/`retries` so the parent can reconstruct that
+ * arithmetic instead of guessing at it.
  */
 export function currentSession(answers, idleMs) {
     const ts = answers.map(a => a.ts).filter(Number.isFinite).sort((a, b) => a - b);
@@ -129,7 +138,9 @@ export function currentSession(answers, idleMs) {
     const rounds = new Set(inSession.map(a => a.round_id)).size;
     const answered = inSession.length;
     const correct = inSession.filter(a => a.correct === true).length;
-    return { startTs, lastTs: ts[ts.length - 1], rounds, answered, correct };
+    const timeouts = inSession.filter(a => a.timeout === true).length;
+    const retries = inSession.filter(a => a.requeued === true).length;
+    return { startTs, lastTs: ts[ts.length - 1], rounds, answered, correct, timeouts, retries };
 }
 
 /** Async generator over all key names for a prefix, following the list cursor. */
@@ -156,12 +167,29 @@ export function renderEmail(kid, session, opts = {}) {
         : `${fmt(session.startTs)} to ${new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: 'numeric', minute: '2-digit' }).format(new Date(session.lastTs))}`;
     const acc = session.answered ? Math.round(100 * session.correct / session.answered) : 0;
     const dash = opts.dashboardUrl || 'https://rewardmaths.com/admin.html';
+    // Missed = everything not right. Split it, because "ran out of time" and
+    // "gave the wrong number" read very differently to a parent — and both are
+    // inside the % above, which was the thing that looked wrong from outside.
+    const timeouts = session.timeouts || 0;
+    const retries = session.retries || 0;
+    const missed = session.answered - session.correct;
+    const missedLine = missed === 0
+        ? `  Missed:  0`
+        : timeouts === 0
+            ? `  Missed:  ${missed} (all answered, none timed out)`
+            : `  Missed:  ${missed} (${missed - timeouts} answered wrong, ${timeouts} ran out of time)`;
     return [
         `${kid.name} finished a maths session.`,
         ``,
         `  When:    ${time}`,
         `  Rounds:  ${session.rounds}`,
         `  Answers: ${session.answered} (${session.correct} right, ${acc}%)`,
+        missedLine,
+        ...(retries ? [
+            ``,
+            `${retries} of those ${session.answered} were second goes: a missed fact comes`,
+            `straight back once in the same round, so a round can log more than 10.`,
+        ] : []),
         ``,
         `Full picture: ${dash}`,
         ``,

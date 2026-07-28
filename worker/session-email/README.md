@@ -26,12 +26,31 @@ Subject: Eliza finished a maths session
 
 Eliza finished a maths session.
 
-  When:    Mon, 20 Jul, 16:15 – 16:25
+  When:    Tue, 28 Jul, 16:21 to 16:29
   Rounds:  6
-  Answers: 63 (59 right, 94%)
+  Answers: 57 (50 right, 88%)
+  Missed:  7 (5 answered wrong, 2 ran out of time)
+
+4 of those 57 were second goes: a missed fact comes
+straight back once in the same round, so a round can log more than 10.
 
 Full picture: https://rewardmaths.com/admin.html
 ```
+
+### Why `Answers` is not rounds × 10
+
+`Answers` counts **records**, and the round plan is not the record count:
+
+- a **timeout** is a record (`correct:false`, `given:null`) — a miss, not an
+  unanswered question, so it is inside both halves of the accuracy figure. The
+  `Missed:` line splits it out, added 2026-07-28 after the number looked wrong
+  from outside;
+- every missed fact **comes back once** in the same round (`requeued`), pushing a
+  round above 10 — hence the second-goes note, printed only when there were any;
+- a **sprint** round is 60 s of whatever fits, not 10 items (one 40 s timeout can
+  leave it at 3).
+
+So 6 rounds → 53 planned items (5×10 + a 3-item sprint) + 4 retries = 57.
 
 ## One-time setup
 

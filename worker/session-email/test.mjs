@@ -39,7 +39,9 @@ function loadKv() {
     const entries = [];
     const users = new Set();
     for (const f of readdirSync(logDir).filter(f => f.endsWith('.json'))) {
-        const m = /^([\w.-]+)_(\d{4}-\d{2}-\d{2})\.json$/.exec(f);
+        // Accept both `eliza_2026-07-28.json` and the `answers_eliza_...` names
+        // the documented pull command (tests/health.mjs header) actually writes.
+        const m = /^(?:answers_)?([\w.-]+?)_(\d{4}-\d{2}-\d{2})\.json$/.exec(f);
         if (!m) continue;
         const [, user, day] = m;
         users.add(user);
@@ -120,6 +122,27 @@ const synth = [{ ts: 1000, correct: true, round_id: 'a' }, { ts: 2000, correct: 
     { ts: 2000 + IDLE + 1, correct: true, round_id: 'b' }, { ts: 2000 + IDLE + 2000, correct: true, round_id: 'b' }];
 const s = currentSession(synth, IDLE);
 ok(s.startTs === 2000 + IDLE + 1 && s.answered === 2, `session boundary respects the ${IDLE / 60000}-min gap (answered=${s.answered})`);
+
+// 5. Timeouts are misses, NOT unanswered questions: they sit inside `answered`
+//    (so the % is over everything served) and are reported separately.
+const to = currentSession([
+    { ts: 1000, correct: true, round_id: 'a' },
+    { ts: 2000, correct: false, timeout: true, round_id: 'a' },
+    { ts: 3000, correct: true, requeued: true, round_id: 'a' },
+], IDLE);
+ok(to.answered === 3 && to.correct === 2 && to.timeouts === 1 && to.retries === 1,
+    `timeouts/retries counted (answered=${to.answered} correct=${to.correct} timeouts=${to.timeouts} retries=${to.retries})`);
+const body = renderEmail({ name: 'Kid' }, to, {});
+ok(body.includes('Answers: 3 (2 right, 67%)'), 'accuracy is over every record served');
+ok(/Missed:\s+1 \(0 answered wrong, 1 ran out of time\)/.test(body), 'missed line splits timeouts out');
+ok(body.includes('1 of those 3 were second goes'), 'retries explained when a fact came back');
+const clean = renderEmail({ name: 'Kid' }, currentSession(
+    [{ ts: 1000, correct: true, round_id: 'a' }], IDLE), {});
+ok(/Missed:\s+0/.test(clean) && !clean.includes('second goes'), 'clean session stays short (no retry note)');
+const wrongOnly = renderEmail({ name: 'Kid' }, currentSession([
+    { ts: 1000, correct: true, round_id: 'a' }, { ts: 2000, correct: false, round_id: 'a' },
+], IDLE), {});
+ok(/Missed:\s+1 \(all answered, none timed out\)/.test(wrongOnly), 'no-timeout session says so explicitly');
 
 // Show the actual email that would go out.
 if (target) {

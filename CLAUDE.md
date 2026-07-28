@@ -163,7 +163,11 @@ functions/). Manual fallback: `./build-dist.ps1` + wrangler (token in
   1000/day** — the worker's original */5 cron with a list per child exceeded it
   (2026-07-22 alert). Now: */10 cron, one profile list per sweep, answer
   day-keys computed (Europe/London) and fetched with gets. Any new KV consumer
-  must budget list ops; prefer computed keys + get.
+  must budget list ops; prefer computed keys + get. The email also breaks the
+  misses down (`Missed: 7 (5 answered wrong, 2 ran out of time)`) and notes
+  retries — `Answers` counts records, so it is never rounds×10: timeouts are
+  misses inside the %, every miss requeues once, and a sprint is 60s not 10
+  items (worker README, "Why `Answers` is not rounds × 10").
 - Daily parent DIGEST email (still deferred): the richer digest + playbook
   format in DESIGN §3/§5, distinct from the session ping above.
 - Big-goal campaign wizard (DESIGN §4) — rare parent-set tangible goal.
